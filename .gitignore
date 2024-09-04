@@ -15,8 +15,3 @@ Cargo.lock
 
 # IDE Specific configurations
 .idea/
-
-
-# Added by cargo
-
-/target
