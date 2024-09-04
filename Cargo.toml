@@ -1,0 +1,12 @@
+[package]
+name = "s2"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+prost = "0.13.1"
+prost-types = "0.13.1"
+tonic = "0.12.2"
+
+[build-dependencies]
+tonic-build = { version = "0.12.2", features = ["prost"] }
