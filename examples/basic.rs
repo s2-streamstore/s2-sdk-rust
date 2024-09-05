@@ -5,7 +5,7 @@ use tonic::transport::Endpoint;
 async fn main() {
     let client = Client::connect(
         Endpoint::from_static("http://localhost:4243"),
-        std::env::var("AUTH_TOKEN").unwrap(),
+        std::env::var("S2_AUTH_TOKEN").unwrap(),
     )
     .await
     .unwrap();
