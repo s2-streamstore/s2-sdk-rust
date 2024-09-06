@@ -55,7 +55,7 @@ pub async fn send_request<T: ServiceRequest>(
 
     // TODO: Configure retry.
     let resp = Retryable::retry(retry_fn, ConstantBuilder::default())
-        .when(|e| service.retry_if(e))
+        .when(|e| service.should_retry(e))
         .await?;
 
     service.parse_response(resp).map_err(ServiceError::Convert)
@@ -97,7 +97,7 @@ pub trait ServiceRequest: Clone {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status>;
 
     /// Return true if the request should be retried based on the error returned.
-    fn retry_if(&self, err: &ServiceError<Self::Error>) -> bool;
+    fn should_retry(&self, err: &ServiceError<Self::Error>) -> bool;
 }
 
 #[derive(Debug, Clone)]
@@ -152,7 +152,7 @@ impl ServiceRequest for CreateBasinServiceRequest {
         self.client.create_basin(req).await
     }
 
-    fn retry_if(&self, _status: &ServiceError<Self::Error>) -> bool {
+    fn should_retry(&self, _status: &ServiceError<Self::Error>) -> bool {
         false
     }
 }
