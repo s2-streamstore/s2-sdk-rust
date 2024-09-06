@@ -15,7 +15,11 @@ async fn main() {
         .build()
         .unwrap();
 
-    let created_basin = client.create_basin(create_basin_req).await.unwrap();
-
-    println!("{created_basin:?}");
+    match client.create_basin(create_basin_req).await {
+        Ok(created) => println!("Basin created: {:?}", created.basin),
+        Err(e) => {
+            println!("Error: {e}");
+            std::process::exit(1);
+        }
+    };
 }

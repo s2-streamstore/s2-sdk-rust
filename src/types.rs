@@ -5,7 +5,7 @@ use derive_builder::Builder;
 use crate::api;
 
 #[derive(Debug, Clone, thiserror::Error)]
-#[error("Convert error: {0}")]
+#[error("{0}")]
 pub struct ConvertError(String);
 
 impl<T: Into<String>> From<T> for ConvertError {
@@ -21,7 +21,7 @@ pub struct CreateBasinRequest {
     pub basin: String,
     #[builder(default)]
     pub config: Option<BasinConfig>,
-    // TODO: Add assignment.
+    // TODO: Add assignment (when it's supported).
 }
 
 impl TryFrom<CreateBasinRequest> for api::CreateBasinRequest {
@@ -190,6 +190,51 @@ impl From<api::stream_config::RetentionPolicy> for RetentionPolicy {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BasinStatus {
+    Unspecified,
+    Active,
+    Creating,
+    Deleting,
+}
+
+impl From<BasinStatus> for api::BasinStatus {
+    fn from(value: BasinStatus) -> Self {
+        match value {
+            BasinStatus::Unspecified => Self::Unspecified,
+            BasinStatus::Active => Self::Active,
+            BasinStatus::Creating => Self::Creating,
+            BasinStatus::Deleting => Self::Deleting,
+        }
+    }
+}
+
+impl From<api::BasinStatus> for BasinStatus {
+    fn from(value: api::BasinStatus) -> Self {
+        match value {
+            api::BasinStatus::Unspecified => Self::Unspecified,
+            api::BasinStatus::Active => Self::Active,
+            api::BasinStatus::Creating => Self::Creating,
+            api::BasinStatus::Deleting => Self::Deleting,
+        }
+    }
+}
+
+impl From<BasinStatus> for i32 {
+    fn from(value: BasinStatus) -> Self {
+        api::BasinStatus::from(value).into()
+    }
+}
+
+impl TryFrom<i32> for BasinStatus {
+    type Error = ConvertError;
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        api::BasinStatus::try_from(value)
+            .map(Into::into)
+            .map_err(|_| "invalid basin status value".into())
+    }
+}
+
 #[derive(Debug, Clone, Builder)]
 #[builder(pattern = "owned")]
 pub struct BasinMetadata {
@@ -199,19 +244,42 @@ pub struct BasinMetadata {
     pub scope: String,
     #[builder(setter(into))]
     pub cell: String,
+    #[builder(setter(into))]
+    pub status: BasinStatus,
 }
 
 impl From<BasinMetadata> for api::BasinMetadata {
     fn from(value: BasinMetadata) -> Self {
-        let BasinMetadata { name, scope, cell } = value;
-        Self { name, scope, cell }
+        let BasinMetadata {
+            name,
+            scope,
+            cell,
+            status,
+        } = value;
+        Self {
+            name,
+            scope,
+            cell,
+            status: status.into(),
+        }
     }
 }
 
-impl From<api::BasinMetadata> for BasinMetadata {
-    fn from(value: api::BasinMetadata) -> Self {
-        let api::BasinMetadata { name, scope, cell } = value;
-        Self { name, scope, cell }
+impl TryFrom<api::BasinMetadata> for BasinMetadata {
+    type Error = ConvertError;
+    fn try_from(value: api::BasinMetadata) -> Result<Self, Self::Error> {
+        let api::BasinMetadata {
+            name,
+            scope,
+            cell,
+            status,
+        } = value;
+        Ok(Self {
+            name,
+            scope,
+            cell,
+            status: status.try_into()?,
+        })
     }
 }
 
@@ -235,9 +303,9 @@ impl TryFrom<api::CreateBasinResponse> for CreateBasinResponse {
     type Error = ConvertError;
     fn try_from(value: api::CreateBasinResponse) -> Result<Self, Self::Error> {
         let api::CreateBasinResponse { basin } = value;
-        let basin = basin.ok_or_else(|| "missing basin metadata")?;
+        let basin = basin.ok_or("missing basin metadata")?;
         Ok(Self {
-            basin: basin.into(),
+            basin: basin.try_into()?,
         })
     }
 }

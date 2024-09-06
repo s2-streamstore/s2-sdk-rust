@@ -1,7 +1,9 @@
 use tonic::transport::{Channel, Endpoint};
 
 use crate::{
-    request::{send_request, CreateBasinServiceRequest, ServiceError},
+    request::{
+        send_request, CreateBasinError, CreateBasinServiceRequest, ServiceError, ServiceRequest,
+    },
     types,
 };
 
@@ -16,6 +18,7 @@ impl Client {
         endpoint: impl Into<Endpoint>,
         token: impl Into<String>,
     ) -> Result<Self, ClientError> {
+        // TODO: Configurable `connect_lazy`?
         let channel = endpoint.into().connect().await?;
         Ok(Self {
             channel,
@@ -26,17 +29,24 @@ impl Client {
     pub async fn create_basin(
         &self,
         req: types::CreateBasinRequest,
-    ) -> Result<types::CreateBasinResponse, ServiceError<tonic::Status>> {
-        send_request(
-            CreateBasinServiceRequest::new(self.channel.clone(), &self.token),
-            req,
-        )
-        .await
-        .map_err(Into::into)
+    ) -> Result<types::CreateBasinResponse, ServiceError<CreateBasinError>> {
+        self.send(CreateBasinServiceRequest::new(self.channel()), req)
+            .await
+            .map_err(Into::into)
+    }
+
+    pub(crate) async fn send<T: ServiceRequest>(
+        &self,
+        service: T,
+        req: T::Request,
+    ) -> Result<T::Response, ServiceError<T::Error>> {
+        send_request(service, req, &self.token).await
+    }
+
+    pub(crate) fn channel(&self) -> Channel {
+        self.channel.clone()
     }
 }
-
-// TODO: Think about errors.
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
