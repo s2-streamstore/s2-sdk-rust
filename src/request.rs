@@ -10,6 +10,14 @@ use crate::{
 pub enum ServiceError<T: std::error::Error> {
     #[error("Message conversion: {0}")]
     Convert(ConvertError),
+    #[error("Internal server error")]
+    Internal,
+    #[error("{0} currently not supported")]
+    NotSupported(String),
+    #[error("User not authenticated: {0}")]
+    Unauthenticated(String),
+    #[error("{0}")]
+    Unknown(String),
     #[error(transparent)]
     Remote(T),
 }
@@ -21,21 +29,35 @@ pub async fn send_request<T: ServiceRequest>(
 ) -> Result<T::Response, ServiceError<T::Error>> {
     let retry_fn = || async {
         let mut service = service.clone();
+
         let mut req = service
             .prepare_request(req.clone())
             .map_err(ServiceError::Convert)?;
+
         req.metadata_mut().insert(
             "authorization",
             format!("Bearer {token}").try_into().unwrap(),
         );
-        service.send(req).await.map_err(ServiceError::Remote)
+
+        service.send(req).await.map_err(|status| {
+            let message = status.message().to_string();
+            match status.code() {
+                tonic::Code::Internal => ServiceError::Internal,
+                tonic::Code::Unimplemented => ServiceError::NotSupported(message),
+                tonic::Code::Unauthenticated => ServiceError::Unauthenticated(message),
+                _ => service
+                    .parse_status(status)
+                    .map(ServiceError::Remote)
+                    .unwrap_or(ServiceError::Unknown(message)),
+            }
+        })
     };
+
     // TODO: Configure retry.
-    let retry = Retryable::retry(retry_fn, ConstantBuilder::default()).when(|e| match e {
-        ServiceError::Convert(_) => false,
-        ServiceError::Remote(e) => service.retry_if(e),
-    });
-    let resp = retry.await?;
+    let resp = Retryable::retry(retry_fn, ConstantBuilder::default())
+        .when(|e| service.retry_if(e))
+        .await?;
+
     service.parse_response(resp).map_err(ServiceError::Convert)
 }
 
@@ -65,14 +87,17 @@ pub trait ServiceRequest: Clone {
         resp: tonic::Response<Self::ApiResponse>,
     ) -> Result<Self::Response, ConvertError>;
 
+    /// Take the tonic status and generate the error.
+    fn parse_status(&self, status: tonic::Status) -> Option<Self::Error>;
+
     /// Actually send the tonic request to receive a raw response and the parsed error.
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
-    ) -> Result<tonic::Response<Self::ApiResponse>, Self::Error>;
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status>;
 
     /// Return true if the request should be retried based on the error returned.
-    fn retry_if(&self, err: &Self::Error) -> bool;
+    fn retry_if(&self, err: &ServiceError<Self::Error>) -> bool;
 }
 
 #[derive(Debug, Clone)]
@@ -110,27 +135,24 @@ impl ServiceRequest for CreateBasinServiceRequest {
         resp.into_inner().try_into()
     }
 
+    fn parse_status(&self, status: tonic::Status) -> Option<Self::Error> {
+        match status.code() {
+            tonic::Code::InvalidArgument => Some(CreateBasinError::InvalidBasinName(
+                status.message().to_string(),
+            )),
+            tonic::Code::AlreadyExists => Some(CreateBasinError::BasinAlreadyExists),
+            _ => None,
+        }
+    }
+
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
-    ) -> Result<tonic::Response<Self::ApiResponse>, Self::Error> {
-        self.client
-            .create_basin(req)
-            .await
-            .map_err(|e| match e.code() {
-                tonic::Code::InvalidArgument => {
-                    CreateBasinError::InvalidBasinName(e.message().to_string())
-                }
-                tonic::Code::AlreadyExists => CreateBasinError::BasinAlreadyExists,
-                tonic::Code::Unimplemented => {
-                    CreateBasinError::NotSupported(e.message().to_string())
-                }
-                tonic::Code::Internal => CreateBasinError::Internal,
-                _ => CreateBasinError::Unknown(e.message().to_string()),
-            })
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.create_basin(req).await
     }
 
-    fn retry_if(&self, _status: &Self::Error) -> bool {
+    fn retry_if(&self, _status: &ServiceError<Self::Error>) -> bool {
         false
     }
 }
@@ -141,10 +163,4 @@ pub enum CreateBasinError {
     InvalidBasinName(String),
     #[error("Basin with the name already exists")]
     BasinAlreadyExists,
-    #[error("{0} currently not supported")]
-    NotSupported(String),
-    #[error("Internal server error")]
-    Internal,
-    #[error("{0}")]
-    Unknown(String),
 }
