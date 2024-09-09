@@ -1,13 +1,15 @@
 use backon::{ConstantBuilder, Retryable};
 use tonic::{
     metadata::{AsciiMetadataValue, MetadataMap},
-    transport::{Channel, Endpoint},
+    transport::Channel,
     IntoRequest,
 };
+use url::Url;
 
 use crate::{
     api::{self, account_service_client::AccountServiceClient},
     types::{self, ConvertError},
+    util::secret_string::SecretString,
 };
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -29,8 +31,8 @@ pub enum ServiceError<T: std::error::Error> {
 pub async fn send_request<T: ServiceRequest>(
     service: T,
     req: T::Request,
-    endpoint: &Endpoint,
-    token: &str,
+    endpoint: &Url,
+    token: &SecretString,
 ) -> Result<T::Response, ServiceError<T::Error>> {
     let retry_fn = || async {
         let mut service = service.clone();
@@ -68,14 +70,14 @@ pub async fn send_request<T: ServiceRequest>(
     service.parse_response(resp).map_err(ServiceError::Convert)
 }
 
-fn add_authorization_header(meta: &mut MetadataMap, token: &str) {
-    let mut val: AsciiMetadataValue = format!("Bearer {token}").try_into().unwrap();
+fn add_authorization_header(meta: &mut MetadataMap, token: &SecretString) {
+    let mut val: AsciiMetadataValue = format!("Bearer {}", token.get()).try_into().unwrap();
     val.set_sensitive(true);
     meta.insert("authorization", val);
 }
 
-fn add_host_header(meta: &mut MetadataMap, endpoint: &Endpoint) {
-    if let Some(host) = endpoint.uri().host() {
+fn add_host_header(meta: &mut MetadataMap, endpoint: &Url) {
+    if let Some(host) = endpoint.host_str() {
         meta.insert("host", host.parse().unwrap());
     }
 }

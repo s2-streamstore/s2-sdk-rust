@@ -10,6 +10,7 @@ prost = "0.13.1"
 prost-types = "0.13.1"
 thiserror = "1.0.63"
 tonic = "0.12.2"
+url = "2.5.2"
 
 [build-dependencies]
 tonic-build = { version = "0.12.2", features = ["prost"] }
