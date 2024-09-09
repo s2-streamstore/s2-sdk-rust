@@ -1,5 +1,9 @@
 use backon::{ConstantBuilder, Retryable};
-use tonic::{transport::Channel, IntoRequest};
+use tonic::{
+    metadata::{AsciiMetadataValue, MetadataMap},
+    transport::{Channel, Endpoint},
+    IntoRequest,
+};
 
 use crate::{
     api::{self, account_service_client::AccountServiceClient},
@@ -25,6 +29,7 @@ pub enum ServiceError<T: std::error::Error> {
 pub async fn send_request<T: ServiceRequest>(
     service: T,
     req: T::Request,
+    endpoint: &Endpoint,
     token: &str,
 ) -> Result<T::Response, ServiceError<T::Error>> {
     let retry_fn = || async {
@@ -34,23 +39,25 @@ pub async fn send_request<T: ServiceRequest>(
             .prepare_request(req.clone())
             .map_err(ServiceError::Convert)?;
 
-        req.metadata_mut().insert(
-            "authorization",
-            format!("Bearer {token}").try_into().unwrap(),
-        );
+        add_authorization_header(req.metadata_mut(), token);
+        add_host_header(req.metadata_mut(), endpoint);
 
-        service.send(req).await.map_err(|status| {
-            let message = status.message().to_string();
-            match status.code() {
+        service
+            .send(req)
+            .await
+            .map_err(|status| match status.code() {
                 tonic::Code::Internal => ServiceError::Internal,
-                tonic::Code::Unimplemented => ServiceError::NotSupported(message),
-                tonic::Code::Unauthenticated => ServiceError::Unauthenticated(message),
+                tonic::Code::Unimplemented => {
+                    ServiceError::NotSupported(status.message().to_string())
+                }
+                tonic::Code::Unauthenticated => {
+                    ServiceError::Unauthenticated(status.message().to_string())
+                }
                 _ => service
-                    .parse_status(status)
+                    .parse_status(&status)
                     .map(ServiceError::Remote)
-                    .unwrap_or(ServiceError::Unknown(message)),
-            }
-        })
+                    .unwrap_or_else(|| ServiceError::Unknown(status.message().to_string())),
+            })
     };
 
     // TODO: Configure retry.
@@ -59,6 +66,18 @@ pub async fn send_request<T: ServiceRequest>(
         .await?;
 
     service.parse_response(resp).map_err(ServiceError::Convert)
+}
+
+fn add_authorization_header(meta: &mut MetadataMap, token: &str) {
+    let mut val: AsciiMetadataValue = format!("Bearer {token}").try_into().unwrap();
+    val.set_sensitive(true);
+    meta.insert("authorization", val);
+}
+
+fn add_host_header(meta: &mut MetadataMap, endpoint: &Endpoint) {
+    if let Some(host) = endpoint.uri().host() {
+        meta.insert("host", host.parse().unwrap());
+    }
 }
 
 pub trait ServiceRequest: Clone {
@@ -88,7 +107,7 @@ pub trait ServiceRequest: Clone {
     ) -> Result<Self::Response, ConvertError>;
 
     /// Take the tonic status and generate the error.
-    fn parse_status(&self, status: tonic::Status) -> Option<Self::Error>;
+    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error>;
 
     /// Actually send the tonic request to receive a raw response and the parsed error.
     async fn send(
@@ -106,10 +125,8 @@ pub struct CreateBasinServiceRequest {
 }
 
 impl CreateBasinServiceRequest {
-    pub fn new(channel: Channel) -> Self {
-        Self {
-            client: AccountServiceClient::new(channel),
-        }
+    pub fn new(client: AccountServiceClient<Channel>) -> Self {
+        Self { client }
     }
 }
 
@@ -135,7 +152,7 @@ impl ServiceRequest for CreateBasinServiceRequest {
         resp.into_inner().try_into()
     }
 
-    fn parse_status(&self, status: tonic::Status) -> Option<Self::Error> {
+    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
         match status.code() {
             tonic::Code::InvalidArgument => Some(CreateBasinError::InvalidBasinName(
                 status.message().to_string(),
