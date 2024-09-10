@@ -5,7 +5,9 @@ use url::Url;
 use crate::{
     api::{account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient},
     request::{
-        send_request, CreateBasinError, CreateBasinServiceRequest, ServiceError, ServiceRequest,
+        account::{CreateBasinError, CreateBasinServiceRequest},
+        basin::{ListStreamsError, ListStreamsServiceRequest},
+        send_request, ServiceError, ServiceRequest,
     },
     types,
     util::secret_string::SecretString,
@@ -16,7 +18,7 @@ pub struct ClientUrl {
     #[builder]
     pub global: Url,
     #[builder(default)]
-    pub basin: Option<Url>,
+    pub cell: Option<Url>,
 }
 
 impl Default for ClientUrl {
@@ -24,7 +26,7 @@ impl Default for ClientUrl {
         // TODO: Update defaults to prod URLs.
         ClientUrl {
             global: "http://localhost:4243".try_into().unwrap(),
-            basin: None,
+            cell: None,
         }
     }
 }
@@ -52,7 +54,7 @@ impl Client {
 
     pub async fn basin_client(&self, basin: impl Into<String>) -> Result<BasinClient, ClientError> {
         Ok(BasinClient {
-            inner: self.inner.connect_basin(basin).await?,
+            inner: self.inner.connect_cell(basin).await?,
         })
     }
 
@@ -66,13 +68,26 @@ impl Client {
                 req,
             )
             .await
-            .map_err(Into::into)
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct BasinClient {
     inner: ClientInner,
+}
+
+impl BasinClient {
+    pub async fn list_streams(
+        &self,
+        req: types::ListStreamsRequest,
+    ) -> Result<types::ListStreamsResponse, ServiceError<ListStreamsError>> {
+        self.inner
+            .send(
+                ListStreamsServiceRequest::new(self.inner.basin_service_client()),
+                req,
+            )
+            .await
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -87,10 +102,10 @@ impl ClientInner {
         Self::connect(config, uri).await
     }
 
-    pub async fn connect_basin(&self, basin: impl Into<String>) -> Result<Self, ClientError> {
+    pub async fn connect_cell(&self, basin: impl Into<String>) -> Result<Self, ClientError> {
         let basin = basin.into();
         let mut inner = self.clone();
-        if let Some(mut url) = inner.config.uri.basin.clone() {
+        if let Some(mut url) = inner.config.uri.cell.clone() {
             let new_host = url.host_str().map(|host| format!("{basin}.{host}"));
             url.set_host(new_host.as_deref())?;
             ClientInner::connect(inner.config, url).await
