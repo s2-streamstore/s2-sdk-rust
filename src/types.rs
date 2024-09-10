@@ -279,9 +279,8 @@ impl TryFrom<api::BasinMetadata> for BasinMetadata {
     }
 }
 
-#[derive(Debug, Clone, TypedBuilder)]
+#[derive(Debug, Clone)]
 pub struct CreateBasinResponse {
-    #[builder(setter(into))]
     pub basin: BasinMetadata,
 }
 
@@ -351,11 +350,9 @@ impl TryFrom<api::ListStreamsRequest> for ListStreamsRequest {
     }
 }
 
-#[derive(Debug, Clone, TypedBuilder)]
+#[derive(Debug, Clone)]
 pub struct ListStreamsResponse {
-    #[builder]
     pub streams: Vec<String>,
-    #[builder(default)]
     pub has_more: bool,
 }
 
