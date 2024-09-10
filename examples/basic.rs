@@ -1,6 +1,6 @@
 use s2::{
-    client::{Client, ClientConfigBuilder},
-    types,
+    client::{Client, ClientConfig},
+    types::{CreateBasinRequest, ListStreamsRequest},
 };
 
 fn handle_response<T: std::fmt::Debug, E: std::fmt::Display>(response: Result<T, E>) {
@@ -16,22 +16,14 @@ fn handle_response<T: std::fmt::Debug, E: std::fmt::Display>(response: Result<T,
 #[tokio::main]
 async fn main() {
     let token = std::env::var("S2_AUTH_TOKEN").unwrap();
-    let config = ClientConfigBuilder::default().token(token).build().unwrap();
-
+    let config = ClientConfig::builder().token(token).build();
     let client = Client::connect(config).await.unwrap();
 
     let basin = "my-test-basin";
-
-    let create_basin_req = types::CreateBasinRequestBuilder::default()
-        .basin(basin)
-        .build()
-        .unwrap();
-
+    let create_basin_req = CreateBasinRequest::builder().basin(basin).build();
     handle_response(client.create_basin(create_basin_req).await);
 
     let basin_client = client.basin_client(basin).await.unwrap();
-
-    let list_streams_req = types::ListStreamsRequestBuilder::default().build().unwrap();
-
+    let list_streams_req = ListStreamsRequest::builder().build();
     handle_response(basin_client.list_streams(list_streams_req).await);
 }

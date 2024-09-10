@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use derive_builder::Builder;
+use typed_builder::TypedBuilder;
 
 use crate::api;
 
@@ -14,8 +14,7 @@ impl<T: Into<String>> From<T> for ConvertError {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct CreateBasinRequest {
     #[builder(setter(into))]
     pub basin: String,
@@ -51,8 +50,7 @@ impl TryFrom<api::CreateBasinRequest> for CreateBasinRequest {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct BasinConfig {
     #[builder]
     pub default_stream_config: Option<StreamConfig>,
@@ -82,8 +80,7 @@ impl TryFrom<api::BasinConfig> for BasinConfig {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct StreamConfig {
     #[builder(setter(into))]
     pub storage_class: StorageClass,
@@ -235,8 +232,7 @@ impl TryFrom<i32> for BasinStatus {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct BasinMetadata {
     #[builder(setter(into))]
     pub name: String,
@@ -283,8 +279,7 @@ impl TryFrom<api::BasinMetadata> for BasinMetadata {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct CreateBasinResponse {
     #[builder(setter(into))]
     pub basin: BasinMetadata,
@@ -310,8 +305,7 @@ impl TryFrom<api::CreateBasinResponse> for CreateBasinResponse {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct ListStreamsRequest {
     #[builder(default, setter(into))]
     pub prefix: String,
@@ -357,8 +351,7 @@ impl TryFrom<api::ListStreamsRequest> for ListStreamsRequest {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct ListStreamsResponse {
     #[builder]
     pub streams: Vec<String>,
