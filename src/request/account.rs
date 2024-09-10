@@ -1,11 +1,10 @@
 use tonic::{transport::Channel, IntoRequest};
 
+use super::{ServiceError, ServiceRequest};
 use crate::{
     api::{self, account_service_client::AccountServiceClient},
     types::{self, ConvertError},
 };
-
-use super::{ServiceError, ServiceRequest};
 
 #[derive(Debug, Clone)]
 pub struct CreateBasinServiceRequest {

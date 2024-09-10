@@ -1,11 +1,10 @@
 use tonic::{transport::Channel, IntoRequest};
 
+use super::ServiceRequest;
 use crate::{
     api::{self, basin_service_client::BasinServiceClient},
     types,
 };
-
-use super::ServiceRequest;
 
 #[derive(Debug, Clone)]
 pub struct ListStreamsServiceRequest {
