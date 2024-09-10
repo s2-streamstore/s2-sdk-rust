@@ -5,11 +5,11 @@ edition = "2021"
 
 [dependencies]
 backon = "1.2.0"
-derive_builder = "0.20.1"
 prost = "0.13.1"
 prost-types = "0.13.1"
 thiserror = "1.0.63"
 tonic = "0.12.2"
+typed-builder = "0.20.0"
 url = "2.5.2"
 
 [build-dependencies]

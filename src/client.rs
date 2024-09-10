@@ -1,5 +1,5 @@
-use derive_builder::Builder;
 use tonic::transport::{Channel, Endpoint};
+use typed_builder::TypedBuilder;
 use url::Url;
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
     util::secret_string::SecretString,
 };
 
-#[derive(Debug, Clone, Builder)]
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct ClientUrl {
     #[builder]
     pub global: Url,
@@ -31,8 +31,7 @@ impl Default for ClientUrl {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct ClientConfig {
     #[builder(default)]
     pub uri: ClientUrl,
