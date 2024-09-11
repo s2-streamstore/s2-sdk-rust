@@ -18,6 +18,8 @@ pub enum ServiceError<T: std::error::Error> {
     NotSupported(String),
     #[error("User not authenticated: {0}")]
     Unauthenticated(String),
+    #[error("Unavailable: {0}")]
+    Unavailable(String),
     #[error("{0}")]
     Unknown(String),
     #[error(transparent)]
@@ -51,6 +53,7 @@ pub async fn send_request<T: ServiceRequest>(
                 tonic::Code::Unauthenticated => {
                     ServiceError::Unauthenticated(status.message().to_string())
                 }
+                tonic::Code::Unavailable => ServiceError::Unavailable(status.message().to_string()),
                 _ => service
                     .parse_status(&status)
                     .map(ServiceError::Remote)
@@ -60,7 +63,11 @@ pub async fn send_request<T: ServiceRequest>(
 
     // TODO: Configure retry.
     let resp = Retryable::retry(retry_fn, ConstantBuilder::default())
-        .when(|e| service.should_retry(e))
+        .when(|e| match e {
+            // Always retry on unavailable.
+            ServiceError::Unavailable(_) => true,
+            e => service.should_retry(e),
+        })
         .await?;
 
     service.parse_response(resp).map_err(ServiceError::Convert)
