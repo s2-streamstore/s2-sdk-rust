@@ -26,6 +26,14 @@ async fn main() {
     };
 
     let basin_client = client.basin_client(basin).await.unwrap();
+
+    match basin_client.get_basin_config().await {
+        Ok(config) => {
+            println!("Basin config: {config:#?}");
+        }
+        Err(err) => exit_with_err(err),
+    };
+
     let list_streams_req = ListStreamsRequest::builder().build();
 
     match basin_client.list_streams(list_streams_req).await {

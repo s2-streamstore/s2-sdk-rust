@@ -7,9 +7,12 @@ use url::Url;
 
 use crate::{
     api::{account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient},
-    service_request::{
+    service::{
         account::{CreateBasinError, CreateBasinServiceRequest},
-        basin::{ListStreamsError, ListStreamsServiceRequest},
+        basin::{
+            GetBasinConfigError, GetBasinConfigServiceRequest, ListStreamsError,
+            ListStreamsServiceRequest,
+        },
         send_request, ServiceError, ServiceRequest,
     },
     types,
@@ -82,6 +85,17 @@ pub struct BasinClient {
 }
 
 impl BasinClient {
+    pub async fn get_basin_config(
+        &self,
+    ) -> Result<types::GetBasinConfigResponse, ServiceError<GetBasinConfigError>> {
+        self.inner
+            .send(
+                GetBasinConfigServiceRequest::new(self.inner.basin_service_client()),
+                /* request = */ (),
+            )
+            .await
+    }
+
     pub async fn list_streams(
         &self,
         req: types::ListStreamsRequest,

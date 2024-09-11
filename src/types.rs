@@ -369,3 +369,29 @@ impl From<api::ListStreamsResponse> for ListStreamsResponse {
         Self { streams, has_more }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct GetBasinConfigResponse {
+    pub config: BasinConfig,
+}
+
+impl TryFrom<GetBasinConfigResponse> for api::GetBasinConfigResponse {
+    type Error = ConvertError;
+    fn try_from(value: GetBasinConfigResponse) -> Result<Self, Self::Error> {
+        let GetBasinConfigResponse { config } = value;
+        Ok(Self {
+            config: Some(config.try_into()?),
+        })
+    }
+}
+
+impl TryFrom<api::GetBasinConfigResponse> for GetBasinConfigResponse {
+    type Error = ConvertError;
+    fn try_from(value: api::GetBasinConfigResponse) -> Result<Self, Self::Error> {
+        let api::GetBasinConfigResponse { config } = value;
+        let config = config.ok_or("missing basin config")?;
+        Ok(Self {
+            config: config.try_into()?,
+        })
+    }
+}

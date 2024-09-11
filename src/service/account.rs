@@ -24,6 +24,8 @@ impl ServiceRequest for CreateBasinServiceRequest {
     type ApiResponse = api::CreateBasinResponse;
     type Error = CreateBasinError;
 
+    const HAS_SIDE_EFFECTS: bool = true;
+
     fn prepare_request(
         &self,
         req: Self::Request,
