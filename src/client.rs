@@ -1,16 +1,18 @@
+use std::time::Duration;
+
+use secrecy::SecretString;
 use tonic::transport::{Channel, Endpoint};
 use typed_builder::TypedBuilder;
 use url::Url;
 
 use crate::{
     api::{account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient},
-    request::{
+    service_request::{
         account::{CreateBasinError, CreateBasinServiceRequest},
         basin::{ListStreamsError, ListStreamsServiceRequest},
         send_request, ServiceError, ServiceRequest,
     },
     types,
-    util::secret_string::SecretString,
 };
 
 #[derive(Debug, Clone, TypedBuilder)]
@@ -37,6 +39,10 @@ pub struct ClientConfig {
     pub uri: ClientUrl,
     #[builder(setter(into))]
     pub token: SecretString,
+    #[builder(default)]
+    pub test_connection: bool,
+    #[builder(default = Duration::from_secs(3), setter(into))]
+    pub connection_timeout: Duration,
 }
 
 #[derive(Debug, Clone)]
@@ -122,7 +128,12 @@ impl ClientInner {
         // TODO: Configurable `connect_lazy`?
         // TODO: Connection pool?
         let endpoint: Endpoint = url.as_str().parse()?;
-        let channel = endpoint.connect().await?;
+        let endpoint = endpoint.connect_timeout(config.connection_timeout);
+        let channel = if config.test_connection {
+            endpoint.connect().await?
+        } else {
+            endpoint.connect_lazy()
+        };
         Ok(Self {
             channel: ConnectedChannel {
                 inner: channel,

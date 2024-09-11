@@ -2,10 +2,11 @@ pub mod account;
 pub mod basin;
 
 use backon::{ConstantBuilder, Retryable};
+use secrecy::{ExposeSecret, SecretString};
 use tonic::metadata::{AsciiMetadataValue, MetadataMap};
 use url::Url;
 
-use crate::{types::ConvertError, util::secret_string::SecretString};
+use crate::types::ConvertError;
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum ServiceError<T: std::error::Error> {
@@ -66,7 +67,9 @@ pub async fn send_request<T: ServiceRequest>(
 }
 
 fn add_authorization_header(meta: &mut MetadataMap, token: &SecretString) {
-    let mut val: AsciiMetadataValue = format!("Bearer {}", token.get()).try_into().unwrap();
+    let mut val: AsciiMetadataValue = format!("Bearer {}", token.expose_secret())
+        .try_into()
+        .unwrap();
     val.set_sensitive(true);
     meta.insert("authorization", val);
 }
