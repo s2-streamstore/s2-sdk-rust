@@ -125,7 +125,6 @@ impl ClientInner {
     }
 
     async fn connect(config: ClientConfig, url: Url) -> Result<Self, ClientError> {
-        // TODO: Configurable `connect_lazy`?
         // TODO: Connection pool?
         let endpoint: Endpoint = url.as_str().parse()?;
         let endpoint = endpoint.connect_timeout(config.connection_timeout);
