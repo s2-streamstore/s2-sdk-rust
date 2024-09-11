@@ -102,7 +102,7 @@ pub trait ServiceRequest: Clone {
     /// Shouldn't be just `tonic::Status`. Need to have meaningful errors.
     type Error: std::error::Error;
 
-    /// Does the request has any side effects.
+    /// Does it have any side effects.
     const HAS_SIDE_EFFECTS: bool;
 
     /// Take the request parameters and generate the corresponding tonic request.
