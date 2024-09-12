@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use derive_builder::Builder;
+use typed_builder::TypedBuilder;
 
 use crate::api;
 
@@ -14,8 +14,7 @@ impl<T: Into<String>> From<T> for ConvertError {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct CreateBasinRequest {
     #[builder(setter(into))]
     pub basin: String,
@@ -51,8 +50,7 @@ impl TryFrom<api::CreateBasinRequest> for CreateBasinRequest {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct BasinConfig {
     #[builder]
     pub default_stream_config: Option<StreamConfig>,
@@ -82,8 +80,7 @@ impl TryFrom<api::BasinConfig> for BasinConfig {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct StreamConfig {
     #[builder(setter(into))]
     pub storage_class: StorageClass,
@@ -235,8 +232,7 @@ impl TryFrom<i32> for BasinStatus {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct BasinMetadata {
     #[builder(setter(into))]
     pub name: String,
@@ -283,10 +279,8 @@ impl TryFrom<api::BasinMetadata> for BasinMetadata {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone)]
 pub struct CreateBasinResponse {
-    #[builder(setter(into))]
     pub basin: BasinMetadata,
 }
 
@@ -306,6 +300,98 @@ impl TryFrom<api::CreateBasinResponse> for CreateBasinResponse {
         let basin = basin.ok_or("missing basin metadata")?;
         Ok(Self {
             basin: basin.try_into()?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct ListStreamsRequest {
+    #[builder(default, setter(into))]
+    pub prefix: String,
+    #[builder(default, setter(into))]
+    pub start_after: String,
+    #[builder(default, setter(into))]
+    pub limit: usize,
+}
+
+impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
+    type Error = ConvertError;
+    fn try_from(value: ListStreamsRequest) -> Result<Self, Self::Error> {
+        let ListStreamsRequest {
+            prefix,
+            start_after,
+            limit,
+        } = value;
+        Ok(Self {
+            prefix,
+            start_after,
+            limit: limit
+                .try_into()
+                .map_err(|_| "request limit does not fit into u32 bounds")?,
+        })
+    }
+}
+
+impl TryFrom<api::ListStreamsRequest> for ListStreamsRequest {
+    type Error = ConvertError;
+    fn try_from(value: api::ListStreamsRequest) -> Result<Self, Self::Error> {
+        let api::ListStreamsRequest {
+            prefix,
+            start_after,
+            limit,
+        } = value;
+        Ok(Self {
+            prefix,
+            start_after,
+            limit: limit
+                .try_into()
+                .map_err(|_| "request limit does not fit into u32 bounds")?,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ListStreamsResponse {
+    pub streams: Vec<String>,
+    pub has_more: bool,
+}
+
+impl From<ListStreamsResponse> for api::ListStreamsResponse {
+    fn from(value: ListStreamsResponse) -> Self {
+        let ListStreamsResponse { streams, has_more } = value;
+        Self { streams, has_more }
+    }
+}
+
+impl From<api::ListStreamsResponse> for ListStreamsResponse {
+    fn from(value: api::ListStreamsResponse) -> Self {
+        let api::ListStreamsResponse { streams, has_more } = value;
+        Self { streams, has_more }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GetBasinConfigResponse {
+    pub config: BasinConfig,
+}
+
+impl TryFrom<GetBasinConfigResponse> for api::GetBasinConfigResponse {
+    type Error = ConvertError;
+    fn try_from(value: GetBasinConfigResponse) -> Result<Self, Self::Error> {
+        let GetBasinConfigResponse { config } = value;
+        Ok(Self {
+            config: Some(config.try_into()?),
+        })
+    }
+}
+
+impl TryFrom<api::GetBasinConfigResponse> for GetBasinConfigResponse {
+    type Error = ConvertError;
+    fn try_from(value: api::GetBasinConfigResponse) -> Result<Self, Self::Error> {
+        let api::GetBasinConfigResponse { config } = value;
+        let config = config.ok_or("missing basin config")?;
+        Ok(Self {
+            config: config.try_into()?,
         })
     }
 }

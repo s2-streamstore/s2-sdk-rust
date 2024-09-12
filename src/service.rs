@@ -1,14 +1,12 @@
-use backon::{ConstantBuilder, Retryable};
-use tonic::{
-    metadata::{AsciiMetadataValue, MetadataMap},
-    transport::{Channel, Endpoint},
-    IntoRequest,
-};
+pub mod account;
+pub mod basin;
 
-use crate::{
-    api::{self, account_service_client::AccountServiceClient},
-    types::{self, ConvertError},
-};
+use backon::{ConstantBuilder, Retryable};
+use secrecy::{ExposeSecret, SecretString};
+use tonic::metadata::{AsciiMetadataValue, MetadataMap};
+use url::Url;
+
+use crate::types::ConvertError;
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum ServiceError<T: std::error::Error> {
@@ -20,6 +18,8 @@ pub enum ServiceError<T: std::error::Error> {
     NotSupported(String),
     #[error("User not authenticated: {0}")]
     Unauthenticated(String),
+    #[error("Unavailable: {0}")]
+    Unavailable(String),
     #[error("{0}")]
     Unknown(String),
     #[error(transparent)]
@@ -29,8 +29,9 @@ pub enum ServiceError<T: std::error::Error> {
 pub async fn send_request<T: ServiceRequest>(
     service: T,
     req: T::Request,
-    endpoint: &Endpoint,
-    token: &str,
+    endpoint: &Url,
+    token: &SecretString,
+    basin: Option<&str>,
 ) -> Result<T::Response, ServiceError<T::Error>> {
     let retry_fn = || async {
         let mut service = service.clone();
@@ -41,6 +42,7 @@ pub async fn send_request<T: ServiceRequest>(
 
         add_authorization_header(req.metadata_mut(), token);
         add_host_header(req.metadata_mut(), endpoint);
+        add_basin_header(req.metadata_mut(), basin);
 
         service
             .send(req)
@@ -53,6 +55,7 @@ pub async fn send_request<T: ServiceRequest>(
                 tonic::Code::Unauthenticated => {
                     ServiceError::Unauthenticated(status.message().to_string())
                 }
+                tonic::Code::Unavailable => ServiceError::Unavailable(status.message().to_string()),
                 _ => service
                     .parse_status(&status)
                     .map(ServiceError::Remote)
@@ -62,21 +65,34 @@ pub async fn send_request<T: ServiceRequest>(
 
     // TODO: Configure retry.
     let resp = Retryable::retry(retry_fn, ConstantBuilder::default())
-        .when(|e| service.should_retry(e))
+        .when(|e| match e {
+            // Always retry on unavailable (if the request doesn't have any
+            // side-effects).
+            ServiceError::Unavailable(_) if T::HAS_NO_SIDE_EFFECTS => true,
+            e => service.should_retry(e),
+        })
         .await?;
 
     service.parse_response(resp).map_err(ServiceError::Convert)
 }
 
-fn add_authorization_header(meta: &mut MetadataMap, token: &str) {
-    let mut val: AsciiMetadataValue = format!("Bearer {token}").try_into().unwrap();
+fn add_authorization_header(meta: &mut MetadataMap, token: &SecretString) {
+    let mut val: AsciiMetadataValue = format!("Bearer {}", token.expose_secret())
+        .try_into()
+        .unwrap();
     val.set_sensitive(true);
     meta.insert("authorization", val);
 }
 
-fn add_host_header(meta: &mut MetadataMap, endpoint: &Endpoint) {
-    if let Some(host) = endpoint.uri().host() {
+fn add_host_header(meta: &mut MetadataMap, endpoint: &Url) {
+    if let Some(host) = endpoint.host_str() {
         meta.insert("host", host.parse().unwrap());
+    }
+}
+
+fn add_basin_header(meta: &mut MetadataMap, basin: Option<&str>) {
+    if let Some(basin) = basin {
+        meta.insert("s2-basin", basin.parse().unwrap());
     }
 }
 
@@ -93,6 +109,9 @@ pub trait ServiceRequest: Clone {
     ///
     /// Shouldn't be just `tonic::Status`. Need to have meaningful errors.
     type Error: std::error::Error;
+
+    /// The request does not have any side effects (for sure).
+    const HAS_NO_SIDE_EFFECTS: bool;
 
     /// Take the request parameters and generate the corresponding tonic request.
     fn prepare_request(
@@ -117,67 +136,4 @@ pub trait ServiceRequest: Clone {
 
     /// Return true if the request should be retried based on the error returned.
     fn should_retry(&self, err: &ServiceError<Self::Error>) -> bool;
-}
-
-#[derive(Debug, Clone)]
-pub struct CreateBasinServiceRequest {
-    client: AccountServiceClient<Channel>,
-}
-
-impl CreateBasinServiceRequest {
-    pub fn new(client: AccountServiceClient<Channel>) -> Self {
-        Self { client }
-    }
-}
-
-impl ServiceRequest for CreateBasinServiceRequest {
-    type Request = types::CreateBasinRequest;
-    type ApiRequest = api::CreateBasinRequest;
-    type Response = types::CreateBasinResponse;
-    type ApiResponse = api::CreateBasinResponse;
-    type Error = CreateBasinError;
-
-    fn prepare_request(
-        &self,
-        req: Self::Request,
-    ) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
-        let req: api::CreateBasinRequest = req.try_into()?;
-        Ok(req.into_request())
-    }
-
-    fn parse_response(
-        &self,
-        resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ConvertError> {
-        resp.into_inner().try_into()
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
-        match status.code() {
-            tonic::Code::InvalidArgument => Some(CreateBasinError::InvalidBasinName(
-                status.message().to_string(),
-            )),
-            tonic::Code::AlreadyExists => Some(CreateBasinError::BasinAlreadyExists),
-            _ => None,
-        }
-    }
-
-    async fn send(
-        &mut self,
-        req: tonic::Request<Self::ApiRequest>,
-    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
-        self.client.create_basin(req).await
-    }
-
-    fn should_retry(&self, _status: &ServiceError<Self::Error>) -> bool {
-        false
-    }
-}
-
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum CreateBasinError {
-    #[error("Invalid basin name: {0}")]
-    InvalidBasinName(String),
-    #[error("Basin with the name already exists")]
-    BasinAlreadyExists,
 }

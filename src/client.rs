@@ -1,14 +1,74 @@
-use std::fmt;
+use std::time::Duration;
 
+use secrecy::SecretString;
 use tonic::transport::{Channel, Endpoint};
+use typed_builder::TypedBuilder;
+use url::Url;
 
 use crate::{
-    api::account_service_client::AccountServiceClient,
-    request::{
-        send_request, CreateBasinError, CreateBasinServiceRequest, ServiceError, ServiceRequest,
+    api::{account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient},
+    service::{
+        account::{CreateBasinError, CreateBasinServiceRequest},
+        basin::{
+            GetBasinConfigError, GetBasinConfigServiceRequest, ListStreamsError,
+            ListStreamsServiceRequest,
+        },
+        send_request, ServiceError, ServiceRequest,
     },
     types,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Cloud {
+    /// Localhost (to be used for testing).
+    #[cfg(debug_assertions)]
+    Local,
+    /// S2 hosted on cloud.
+    #[default]
+    Aws,
+}
+
+impl From<Cloud> for ClientUrl {
+    fn from(value: Cloud) -> Self {
+        match value {
+            #[cfg(debug_assertions)]
+            Cloud::Local => ClientUrl {
+                global: "http://localhost:4243".try_into().unwrap(),
+                cell: None,
+                prefix_host_with_basin: false,
+            },
+            Cloud::Aws => todo!("prod aws urls"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct ClientUrl {
+    #[builder]
+    pub global: Url,
+    #[builder(default)]
+    pub cell: Option<Url>,
+    #[builder(default)]
+    pub prefix_host_with_basin: bool,
+}
+
+impl Default for ClientUrl {
+    fn default() -> Self {
+        Cloud::default().into()
+    }
+}
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct ClientConfig {
+    #[builder(default, setter(into))]
+    pub url: ClientUrl,
+    #[builder(setter(into))]
+    pub token: SecretString,
+    #[builder(default)]
+    pub test_connection: bool,
+    #[builder(default = Duration::from_secs(3), setter(into))]
+    pub connection_timeout: Duration,
+}
 
 #[derive(Debug, Clone)]
 pub struct Client {
@@ -16,12 +76,15 @@ pub struct Client {
 }
 
 impl Client {
-    pub async fn connect(
-        endpoint: impl Into<Endpoint>,
-        token: impl Into<String>,
-    ) -> Result<Self, ClientError> {
+    pub async fn connect(config: ClientConfig) -> Result<Self, ClientError> {
         Ok(Self {
-            inner: ClientInner::connect(endpoint, token).await?,
+            inner: ClientInner::connect_global(config).await?,
+        })
+    }
+
+    pub async fn basin_client(&self, basin: impl Into<String>) -> Result<BasinClient, ClientError> {
+        Ok(BasinClient {
+            inner: self.inner.connect_cell(basin).await?,
         })
     }
 
@@ -35,40 +98,84 @@ impl Client {
                 req,
             )
             .await
-            .map_err(Into::into)
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct ClientInner {
-    endpoint: Endpoint,
-    channel: Channel,
-    token: String,
+#[derive(Debug, Clone)]
+pub struct BasinClient {
+    inner: ClientInner,
 }
 
-impl fmt::Debug for ClientInner {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ClientInner")
-            .field("endpoint", &self.endpoint)
-            .field("channel", &self.channel)
-            .field("token", &"***")
-            .finish()
+impl BasinClient {
+    pub async fn get_basin_config(
+        &self,
+    ) -> Result<types::GetBasinConfigResponse, ServiceError<GetBasinConfigError>> {
+        self.inner
+            .send(
+                GetBasinConfigServiceRequest::new(self.inner.basin_service_client()),
+                /* request = */ (),
+            )
+            .await
     }
+
+    pub async fn list_streams(
+        &self,
+        req: types::ListStreamsRequest,
+    ) -> Result<types::ListStreamsResponse, ServiceError<ListStreamsError>> {
+        self.inner
+            .send(
+                ListStreamsServiceRequest::new(self.inner.basin_service_client()),
+                req,
+            )
+            .await
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ClientInner {
+    channel: ConnectedChannel,
+    basin: Option<String>,
+    config: ClientConfig,
 }
 
 impl ClientInner {
-    pub async fn connect(
-        endpoint: impl Into<Endpoint>,
-        token: impl Into<String>,
-    ) -> Result<Self, ClientError> {
-        // TODO: Configurable `connect_lazy`?
+    pub async fn connect_global(config: ClientConfig) -> Result<Self, ClientError> {
+        let uri = config.url.global.clone();
+        Self::connect(config, uri).await
+    }
+
+    pub async fn connect_cell(&self, basin: impl Into<String>) -> Result<Self, ClientError> {
+        let basin = basin.into();
+        if let Some(mut url) = self.config.url.cell.clone() {
+            if self.config.url.prefix_host_with_basin {
+                let new_host = url.host_str().map(|host| format!("{basin}.{host}"));
+                url.set_host(new_host.as_deref())?;
+            }
+            ClientInner::connect(self.config.clone(), url).await
+        } else {
+            Ok(ClientInner {
+                basin: Some(basin),
+                ..self.clone()
+            })
+        }
+    }
+
+    async fn connect(config: ClientConfig, url: Url) -> Result<Self, ClientError> {
         // TODO: Connection pool?
-        let endpoint: Endpoint = endpoint.into();
-        let channel = endpoint.connect().await?;
+        let endpoint: Endpoint = url.as_str().parse()?;
+        let endpoint = endpoint.connect_timeout(config.connection_timeout);
+        let channel = if config.test_connection {
+            endpoint.connect().await?
+        } else {
+            endpoint.connect_lazy()
+        };
         Ok(Self {
-            endpoint,
-            channel,
-            token: token.into(),
+            channel: ConnectedChannel {
+                inner: channel,
+                endpoint: url,
+            },
+            basin: None,
+            config,
         })
     }
 
@@ -77,16 +184,35 @@ impl ClientInner {
         service: T,
         req: T::Request,
     ) -> Result<T::Response, ServiceError<T::Error>> {
-        send_request(service, req, &self.endpoint, &self.token).await
+        send_request(
+            service,
+            req,
+            &self.channel.endpoint,
+            &self.config.token,
+            self.basin.as_deref(),
+        )
+        .await
     }
 
     pub fn account_service_client(&self) -> AccountServiceClient<Channel> {
-        AccountServiceClient::new(self.channel.clone())
+        AccountServiceClient::new(self.channel.inner.clone())
     }
+
+    pub fn basin_service_client(&self) -> BasinServiceClient<Channel> {
+        BasinServiceClient::new(self.channel.inner.clone())
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ConnectedChannel {
+    inner: Channel,
+    endpoint: Url,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
     #[error(transparent)]
     TonicTransportError(#[from] tonic::transport::Error),
+    #[error(transparent)]
+    UrlParseError(#[from] url::ParseError),
 }
