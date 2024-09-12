@@ -131,6 +131,7 @@ impl BasinClient {
 #[derive(Debug, Clone)]
 struct ClientInner {
     channel: ConnectedChannel,
+    basin: Option<String>,
     config: ClientConfig,
 }
 
@@ -142,18 +143,15 @@ impl ClientInner {
 
     pub async fn connect_cell(&self, basin: impl Into<String>) -> Result<Self, ClientError> {
         let basin = basin.into();
-        let mut inner = self.clone();
-        if let Some(mut url) = inner.config.url.cell.clone() {
+        if let Some(mut url) = self.config.url.cell.clone() {
             let new_host = url.host_str().map(|host| format!("{basin}.{host}"));
             url.set_host(new_host.as_deref())?;
-            ClientInner::connect(inner.config, url).await
+            ClientInner::connect(self.config.clone(), url).await
         } else {
-            // We need to fake the connected endpoint to pass the "Host" header.
-            let mut url = inner.config.url.global.clone();
-            let new_host = url.host_str().map(|host| format!("{basin}.{host}"));
-            url.set_host(new_host.as_deref())?;
-            inner.channel.endpoint = url;
-            Ok(inner)
+            Ok(ClientInner {
+                basin: Some(basin),
+                ..self.clone()
+            })
         }
     }
 
@@ -171,6 +169,7 @@ impl ClientInner {
                 inner: channel,
                 endpoint: url,
             },
+            basin: None,
             config,
         })
     }
@@ -180,7 +179,14 @@ impl ClientInner {
         service: T,
         req: T::Request,
     ) -> Result<T::Response, ServiceError<T::Error>> {
-        send_request(service, req, &self.channel.endpoint, &self.config.token).await
+        send_request(
+            service,
+            req,
+            &self.channel.endpoint,
+            &self.config.token,
+            self.basin.as_deref(),
+        )
+        .await
     }
 
     pub fn account_service_client(&self) -> AccountServiceClient<Channel> {

@@ -31,6 +31,7 @@ pub async fn send_request<T: ServiceRequest>(
     req: T::Request,
     endpoint: &Url,
     token: &SecretString,
+    basin: Option<&str>,
 ) -> Result<T::Response, ServiceError<T::Error>> {
     let retry_fn = || async {
         let mut service = service.clone();
@@ -41,6 +42,7 @@ pub async fn send_request<T: ServiceRequest>(
 
         add_authorization_header(req.metadata_mut(), token);
         add_host_header(req.metadata_mut(), endpoint);
+        add_basin_header(req.metadata_mut(), basin);
 
         service
             .send(req)
@@ -85,6 +87,12 @@ fn add_authorization_header(meta: &mut MetadataMap, token: &SecretString) {
 fn add_host_header(meta: &mut MetadataMap, endpoint: &Url) {
     if let Some(host) = endpoint.host_str() {
         meta.insert("host", host.parse().unwrap());
+    }
+}
+
+fn add_basin_header(meta: &mut MetadataMap, basin: Option<&str>) {
+    if let Some(basin) = basin {
+        meta.insert("s2-basin", basin.parse().unwrap());
     }
 }
 

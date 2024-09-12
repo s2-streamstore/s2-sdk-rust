@@ -17,7 +17,7 @@ async fn main() {
 
     let client = Client::connect(config).await.unwrap();
 
-    let basin = "my-test-basin";
+    let basin = "vaibhav-test-basin";
     let create_basin_req = CreateBasinRequest::builder().basin(basin).build();
 
     match client.create_basin(create_basin_req).await {
