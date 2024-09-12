@@ -35,6 +35,7 @@ impl From<Cloud> for ClientUrl {
             Cloud::Local => ClientUrl {
                 global: "http://localhost:4243".try_into().unwrap(),
                 cell: None,
+                prefix_host_with_basin: false,
             },
             Cloud::Aws => todo!("prod aws urls"),
         }
@@ -47,6 +48,8 @@ pub struct ClientUrl {
     pub global: Url,
     #[builder(default)]
     pub cell: Option<Url>,
+    #[builder(default)]
+    pub prefix_host_with_basin: bool,
 }
 
 impl Default for ClientUrl {
@@ -144,8 +147,10 @@ impl ClientInner {
     pub async fn connect_cell(&self, basin: impl Into<String>) -> Result<Self, ClientError> {
         let basin = basin.into();
         if let Some(mut url) = self.config.url.cell.clone() {
-            let new_host = url.host_str().map(|host| format!("{basin}.{host}"));
-            url.set_host(new_host.as_deref())?;
+            if self.config.url.prefix_host_with_basin {
+                let new_host = url.host_str().map(|host| format!("{basin}.{host}"));
+                url.set_host(new_host.as_deref())?;
+            }
             ClientInner::connect(self.config.clone(), url).await
         } else {
             Ok(ClientInner {
