@@ -1,5 +1,5 @@
 use s2::{
-    client::{Client, ClientConfig},
+    client::{Client, ClientConfig, Cloud},
     service_error::{CreateBasinError, ServiceError},
     types::{CreateBasinRequest, ListStreamsRequest},
 };
@@ -7,7 +7,12 @@ use s2::{
 #[tokio::main]
 async fn main() {
     let token = std::env::var("S2_AUTH_TOKEN").unwrap();
-    let config = ClientConfig::builder().token(token).build();
+
+    let config = ClientConfig::builder()
+        .url(Cloud::Local)
+        .token(token)
+        .build();
+
     println!("Connecting with {config:#?}");
 
     let client = Client::connect(config).await.unwrap();
@@ -19,8 +24,8 @@ async fn main() {
         Ok(created_basin) => {
             println!("Basin created: {created_basin:#?}");
         }
-        Err(ServiceError::Remote(CreateBasinError::BasinAlreadyExists)) => {
-            println!("WARN: Basin already exists!")
+        Err(ServiceError::Remote(CreateBasinError::AlreadyExists(e))) => {
+            println!("WARN: {}", e);
         }
         Err(other) => exit_with_err(other),
     };

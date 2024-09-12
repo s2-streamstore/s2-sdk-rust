@@ -24,7 +24,7 @@ impl ServiceRequest for CreateBasinServiceRequest {
     type ApiResponse = api::CreateBasinResponse;
     type Error = CreateBasinError;
 
-    const HAS_SIDE_EFFECTS: bool = true;
+    const HAS_NO_SIDE_EFFECTS: bool = false;
 
     fn prepare_request(
         &self,
@@ -43,10 +43,12 @@ impl ServiceRequest for CreateBasinServiceRequest {
 
     fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
         match status.code() {
-            tonic::Code::InvalidArgument => Some(CreateBasinError::InvalidBasinName(
+            tonic::Code::InvalidArgument => Some(CreateBasinError::InvalidArgument(
                 status.message().to_string(),
             )),
-            tonic::Code::AlreadyExists => Some(CreateBasinError::BasinAlreadyExists),
+            tonic::Code::AlreadyExists => Some(CreateBasinError::AlreadyExists(
+                status.message().to_string(),
+            )),
             _ => None,
         }
     }
@@ -65,8 +67,8 @@ impl ServiceRequest for CreateBasinServiceRequest {
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum CreateBasinError {
-    #[error("Invalid basin name: {0}")]
-    InvalidBasinName(String),
-    #[error("Basin with the name already exists")]
-    BasinAlreadyExists,
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+    #[error("Already exists: {0}")]
+    AlreadyExists(String),
 }

@@ -24,7 +24,7 @@ impl ServiceRequest for ListStreamsServiceRequest {
     type ApiResponse = api::ListStreamsResponse;
     type Error = ListStreamsError;
 
-    const HAS_SIDE_EFFECTS: bool = false;
+    const HAS_NO_SIDE_EFFECTS: bool = true;
 
     fn prepare_request(
         &self,
@@ -43,8 +43,10 @@ impl ServiceRequest for ListStreamsServiceRequest {
 
     fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
         match status.code() {
-            tonic::Code::NotFound => Some(ListStreamsError::BasinDoesNotExist),
-            tonic::Code::InvalidArgument => Some(ListStreamsError::StartAfterLessThanPrefix),
+            tonic::Code::NotFound => Some(ListStreamsError::NotFound(status.message().to_string())),
+            tonic::Code::InvalidArgument => Some(ListStreamsError::InvalidArgument(
+                status.message().to_string(),
+            )),
             _ => None,
         }
     }
@@ -63,10 +65,10 @@ impl ServiceRequest for ListStreamsServiceRequest {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ListStreamsError {
-    #[error("Basin does not exist")]
-    BasinDoesNotExist,
-    #[error("`start_after` should be greater than or equal to the `prefix` specified")]
-    StartAfterLessThanPrefix,
+    #[error("Not found: {0}")]
+    NotFound(String),
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
 }
 
 #[derive(Debug, Clone)]
@@ -87,7 +89,7 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
     type ApiResponse = api::GetBasinConfigResponse;
     type Error = GetBasinConfigError;
 
-    const HAS_SIDE_EFFECTS: bool = false;
+    const HAS_NO_SIDE_EFFECTS: bool = true;
 
     fn prepare_request(
         &self,
@@ -105,7 +107,9 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
 
     fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
         match status.code() {
-            tonic::Code::NotFound => Some(GetBasinConfigError::BasinDoesNotExist),
+            tonic::Code::NotFound => {
+                Some(GetBasinConfigError::NotFound(status.message().to_string()))
+            }
             _ => None,
         }
     }
@@ -124,6 +128,6 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
 
 #[derive(Debug, thiserror::Error)]
 pub enum GetBasinConfigError {
-    #[error("Basin does not exist")]
-    BasinDoesNotExist,
+    #[error("Not found: {0}")]
+    NotFound(String),
 }

@@ -66,7 +66,7 @@ pub async fn send_request<T: ServiceRequest>(
         .when(|e| match e {
             // Always retry on unavailable (if the request doesn't have any
             // side-effects).
-            ServiceError::Unavailable(_) if !T::HAS_SIDE_EFFECTS => true,
+            ServiceError::Unavailable(_) if T::HAS_NO_SIDE_EFFECTS => true,
             e => service.should_retry(e),
         })
         .await?;
@@ -102,8 +102,8 @@ pub trait ServiceRequest: Clone {
     /// Shouldn't be just `tonic::Status`. Need to have meaningful errors.
     type Error: std::error::Error;
 
-    /// Does it have any side effects.
-    const HAS_SIDE_EFFECTS: bool;
+    /// The request does not have any side effects (for sure).
+    const HAS_NO_SIDE_EFFECTS: bool;
 
     /// Take the request parameters and generate the corresponding tonic request.
     fn prepare_request(

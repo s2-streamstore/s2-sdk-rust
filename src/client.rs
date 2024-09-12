@@ -18,6 +18,29 @@ use crate::{
     types,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Cloud {
+    /// Localhost (to be used for testing).
+    #[cfg(debug_assertions)]
+    Local,
+    /// S2 hosted on cloud.
+    #[default]
+    Aws,
+}
+
+impl From<Cloud> for ClientUrl {
+    fn from(value: Cloud) -> Self {
+        match value {
+            #[cfg(debug_assertions)]
+            Cloud::Local => ClientUrl {
+                global: "http://localhost:4243".try_into().unwrap(),
+                cell: None,
+            },
+            Cloud::Aws => todo!("prod aws urls"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct ClientUrl {
     #[builder]
@@ -28,18 +51,14 @@ pub struct ClientUrl {
 
 impl Default for ClientUrl {
     fn default() -> Self {
-        // TODO: Update defaults to prod URLs.
-        ClientUrl {
-            global: "http://localhost:4243".try_into().unwrap(),
-            cell: None,
-        }
+        Cloud::default().into()
     }
 }
 
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct ClientConfig {
-    #[builder(default)]
-    pub uri: ClientUrl,
+    #[builder(default, setter(into))]
+    pub url: ClientUrl,
     #[builder(setter(into))]
     pub token: SecretString,
     #[builder(default)]
@@ -117,20 +136,20 @@ struct ClientInner {
 
 impl ClientInner {
     pub async fn connect_global(config: ClientConfig) -> Result<Self, ClientError> {
-        let uri = config.uri.global.clone();
+        let uri = config.url.global.clone();
         Self::connect(config, uri).await
     }
 
     pub async fn connect_cell(&self, basin: impl Into<String>) -> Result<Self, ClientError> {
         let basin = basin.into();
         let mut inner = self.clone();
-        if let Some(mut url) = inner.config.uri.cell.clone() {
+        if let Some(mut url) = inner.config.url.cell.clone() {
             let new_host = url.host_str().map(|host| format!("{basin}.{host}"));
             url.set_host(new_host.as_deref())?;
             ClientInner::connect(inner.config, url).await
         } else {
             // We need to fake the connected endpoint to pass the "Host" header.
-            let mut url = inner.config.uri.global.clone();
+            let mut url = inner.config.url.global.clone();
             let new_host = url.host_str().map(|host| format!("{basin}.{host}"));
             url.set_host(new_host.as_deref())?;
             inner.channel.endpoint = url;
