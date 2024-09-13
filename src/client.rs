@@ -10,8 +10,9 @@ use crate::{
     service::{
         account::{CreateBasinError, CreateBasinServiceRequest},
         basin::{
-            GetBasinConfigError, GetBasinConfigServiceRequest, GetStreamConfigError,
-            GetStreamConfigServiceRequest, ListStreamsError, ListStreamsServiceRequest,
+            CreateStreamError, CreateStreamServiceRequest, GetBasinConfigError,
+            GetBasinConfigServiceRequest, GetStreamConfigError, GetStreamConfigServiceRequest,
+            ListStreamsError, ListStreamsServiceRequest,
         },
         send_request, ServiceError, ServiceRequest,
     },
@@ -114,6 +115,18 @@ impl BasinClient {
             .send(
                 GetBasinConfigServiceRequest::new(self.inner.basin_service_client()),
                 /* request = */ (),
+            )
+            .await
+    }
+
+    pub async fn create_stream(
+        &self,
+        req: types::CreateStreamRequest,
+    ) -> Result<(), ServiceError<CreateStreamError>> {
+        self.inner
+            .send(
+                CreateStreamServiceRequest::new(self.inner.basin_service_client()),
+                req,
             )
             .await
     }

@@ -1,7 +1,7 @@
 use s2::{
     client::{Client, ClientConfig, Cloud},
-    service_error::{CreateBasinError, ServiceError},
-    types::{CreateBasinRequest, GetStreamConfigRequest, ListStreamsRequest},
+    service_error::{CreateBasinError, CreateStreamError, ServiceError},
+    types::{CreateBasinRequest, CreateStreamRequest, GetStreamConfigRequest, ListStreamsRequest},
 };
 
 #[tokio::main]
@@ -39,6 +39,20 @@ async fn main() {
         Err(err) => exit_with_err(err),
     };
 
+    let stream = "vaibhav-test-stream";
+
+    let create_stream_req = CreateStreamRequest::builder().stream(stream).build();
+
+    match basin_client.create_stream(create_stream_req).await {
+        Ok(()) => {
+            println!("Stream created");
+        }
+        Err(ServiceError::Remote(CreateStreamError::AlreadyExists(e))) => {
+            println!("WARN: {}", e);
+        }
+        Err(other) => exit_with_err(other),
+    };
+
     let list_streams_req = ListStreamsRequest::builder().build();
 
     match basin_client.list_streams(list_streams_req).await {
@@ -55,8 +69,6 @@ async fn main() {
         }
         Err(err) => exit_with_err(err),
     }
-
-    let stream = "vaibhav-test-stream";
 
     let get_stream_config_req = GetStreamConfigRequest::builder().stream(stream).build();
 
