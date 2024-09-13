@@ -2,9 +2,9 @@ pub mod account;
 pub mod basin;
 
 use backon::{ConstantBuilder, Retryable};
+use http::Uri;
 use secrecy::{ExposeSecret, SecretString};
 use tonic::metadata::{AsciiMetadataValue, MetadataMap};
-use url::Url;
 
 use crate::types::ConvertError;
 
@@ -29,7 +29,7 @@ pub enum ServiceError<T: std::error::Error> {
 pub async fn send_request<T: ServiceRequest>(
     service: T,
     req: T::Request,
-    endpoint: &Url,
+    endpoint: &Uri,
     token: &SecretString,
     basin: Option<&str>,
 ) -> Result<T::Response, ServiceError<T::Error>> {
@@ -84,8 +84,8 @@ fn add_authorization_header(meta: &mut MetadataMap, token: &SecretString) {
     meta.insert("authorization", val);
 }
 
-fn add_host_header(meta: &mut MetadataMap, endpoint: &Url) {
-    if let Some(host) = endpoint.host_str() {
+fn add_host_header(meta: &mut MetadataMap, endpoint: &Uri) {
+    if let Some(host) = endpoint.host() {
         meta.insert("host", host.parse().unwrap());
     }
 }
