@@ -441,3 +441,33 @@ impl TryFrom<api::GetStreamConfigResponse> for GetStreamConfigResponse {
         })
     }
 }
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct CreateStreamRequest {
+    #[builder(setter(into))]
+    pub stream: String,
+    #[builder(default)]
+    pub config: Option<StreamConfig>,
+}
+
+impl TryFrom<CreateStreamRequest> for api::CreateStreamRequest {
+    type Error = ConvertError;
+    fn try_from(value: CreateStreamRequest) -> Result<Self, Self::Error> {
+        let CreateStreamRequest { stream, config } = value;
+        Ok(Self {
+            stream,
+            config: config.map(TryInto::try_into).transpose()?,
+        })
+    }
+}
+
+impl TryFrom<api::CreateStreamRequest> for CreateStreamRequest {
+    type Error = ConvertError;
+    fn try_from(value: api::CreateStreamRequest) -> Result<Self, Self::Error> {
+        let api::CreateStreamRequest { stream, config } = value;
+        Ok(Self {
+            stream,
+            config: config.map(TryInto::try_into).transpose()?,
+        })
+    }
+}

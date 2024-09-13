@@ -10,7 +10,7 @@ pub use url;
 pub mod service_error {
     pub use crate::service::{
         account::CreateBasinError,
-        basin::{GetBasinConfigError, GetStreamConfigError, ListStreamsError},
+        basin::{CreateStreamError, GetBasinConfigError, GetStreamConfigError, ListStreamsError},
         ServiceError,
     };
 }
