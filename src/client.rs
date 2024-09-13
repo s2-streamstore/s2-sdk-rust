@@ -150,7 +150,8 @@ impl ClientInner {
         match self.config.url.cell.clone() {
             Some(uri) if self.config.url.prefix_host_with_basin => {
                 let host = uri.host().ok_or(ClientError::MissingHost)?;
-                let authority: Authority = format!("{basin}.{host}").parse()?;
+                let port = uri.port_u16().map_or(String::new(), |p| p.to_string());
+                let authority: Authority = format!("{basin}.{host}:{port}").parse()?;
                 let mut uri_parts = uri.into_parts();
                 uri_parts.authority = Some(authority);
 
@@ -170,7 +171,7 @@ impl ClientInner {
 
     async fn connect(config: ClientConfig, uri: Uri) -> Result<Self, ClientError> {
         // TODO: Connection pool?
-        let endpoint: Endpoint = uri.to_string().parse()?;
+        let endpoint: Endpoint = uri.clone().into();
         let endpoint = endpoint.connect_timeout(config.connection_timeout);
         let channel = if config.test_connection {
             endpoint.connect().await?
