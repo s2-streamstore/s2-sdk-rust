@@ -72,3 +72,65 @@ pub enum CreateBasinError {
     #[error("Already exists: {0}")]
     AlreadyExists(String),
 }
+
+#[derive(Debug, Clone)]
+pub struct ListBasinsServiceRequest {
+    client: AccountServiceClient<Channel>,
+}
+
+impl ListBasinsServiceRequest {
+    pub fn new(client: AccountServiceClient<Channel>) -> Self {
+        Self { client }
+    }
+}
+
+impl ServiceRequest for ListBasinsServiceRequest {
+    type Request = types::ListBasinsRequest;
+    type ApiRequest = api::ListBasinsRequest;
+    type Response = types::ListBasinsResponse;
+    type ApiResponse = api::ListBasinsResponse;
+    type Error = ListBasinsError;
+
+    const HAS_NO_SIDE_EFFECTS: bool = true;
+
+    fn prepare_request(
+        &self,
+        req: Self::Request,
+    ) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
+        let req: api::ListBasinsRequest = req.into();
+        Ok(req.into_request())
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, ConvertError> {
+        Ok(resp.into_inner().into())
+    }
+
+    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
+        match status.code() {
+            tonic::Code::InvalidArgument => Some(ListBasinsError::InvalidArgument(
+                status.message().to_string(),
+            )),
+            _ => None,
+        }
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.list_basins(req).await
+    }
+
+    fn should_retry(&self, _status: &ServiceError<Self::Error>) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum ListBasinsError {
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+}

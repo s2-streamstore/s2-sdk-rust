@@ -8,7 +8,9 @@ use typed_builder::TypedBuilder;
 use crate::{
     api::{account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient},
     service::{
-        account::{CreateBasinError, CreateBasinServiceRequest},
+        account::{
+            CreateBasinError, CreateBasinServiceRequest, ListBasinsError, ListBasinsServiceRequest,
+        },
         basin::{
             GetBasinConfigError, GetBasinConfigServiceRequest, ListStreamsError,
             ListStreamsServiceRequest,
@@ -95,6 +97,18 @@ impl Client {
         self.inner
             .send(
                 CreateBasinServiceRequest::new(self.inner.account_service_client()),
+                req,
+            )
+            .await
+    }
+
+    pub async fn list_basins(
+        &self,
+        req: types::ListBasinsRequest,
+    ) -> Result<types::ListBasinsResponse, ServiceError<ListBasinsError>> {
+        self.inner
+            .send(
+                ListBasinsServiceRequest::new(self.inner.account_service_client()),
                 req,
             )
             .await
