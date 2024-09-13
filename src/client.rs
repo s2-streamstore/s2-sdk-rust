@@ -150,8 +150,8 @@ impl ClientInner {
         match self.config.url.cell.clone() {
             Some(uri) if self.config.url.prefix_host_with_basin => {
                 let host = uri.host().ok_or(ClientError::MissingHost)?;
-                let port = uri.port_u16().map_or(String::new(), |p| p.to_string());
-                let authority: Authority = format!("{basin}.{host}:{port}").parse()?;
+                let port = uri.port_u16().map_or(String::new(), |p| format!(":{}", p));
+                let authority: Authority = format!("{basin}.{host}{port}").parse()?;
                 let mut uri_parts = uri.into_parts();
                 uri_parts.authority = Some(authority);
 
