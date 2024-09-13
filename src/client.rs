@@ -9,7 +9,8 @@ use crate::{
     api::{account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient},
     service::{
         account::{
-            CreateBasinError, CreateBasinServiceRequest, ListBasinsError, ListBasinsServiceRequest,
+            CreateBasinError, CreateBasinServiceRequest, DeleteBasinError,
+            DeleteBasinServiceRequest, ListBasinsError, ListBasinsServiceRequest,
         },
         basin::{
             GetBasinConfigError, GetBasinConfigServiceRequest, ListStreamsError,
@@ -90,6 +91,20 @@ impl Client {
         })
     }
 
+    /// List basins.
+    pub async fn list_basins(
+        &self,
+        req: types::ListBasinsRequest,
+    ) -> Result<types::ListBasinsResponse, ServiceError<ListBasinsError>> {
+        self.inner
+            .send(
+                ListBasinsServiceRequest::new(self.inner.account_service_client()),
+                req,
+            )
+            .await
+    }
+
+    /// Create a new basin.
     pub async fn create_basin(
         &self,
         req: types::CreateBasinRequest,
@@ -102,13 +117,14 @@ impl Client {
             .await
     }
 
-    pub async fn list_basins(
+    /// Delete a basin.
+    pub async fn delete_basin(
         &self,
-        req: types::ListBasinsRequest,
-    ) -> Result<types::ListBasinsResponse, ServiceError<ListBasinsError>> {
+        req: types::DeleteBasinRequest,
+    ) -> Result<types::DeleteBasinResponse, ServiceError<DeleteBasinError>> {
         self.inner
             .send(
-                ListBasinsServiceRequest::new(self.inner.account_service_client()),
+                DeleteBasinServiceRequest::new(self.inner.account_service_client()),
                 req,
             )
             .await
