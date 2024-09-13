@@ -192,4 +192,6 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
 pub enum GetStreamConfigError {
     #[error("Not found: {0}")]
     NotFound(String),
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
 }
