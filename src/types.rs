@@ -446,22 +446,23 @@ impl From<ListBasinsRequest> for api::ListBasinsRequest {
     }
 }
 
-impl From<api::ListBasinsResponse> for ListBasinsResponse {
-    fn from(value: api::ListBasinsResponse) -> Self {
+impl TryFrom<api::ListBasinsResponse> for ListBasinsResponse {
+    type Error = ConvertError;
+    fn try_from(value: api::ListBasinsResponse) -> Result<Self, ConvertError> {
         let api::ListBasinsResponse { basins, has_more } = value;
-        Self {
+        Ok(Self {
             basins: basins
                 .into_iter()
                 .map(TryInto::try_into)
-                .collect::<Result<_, _>>()
-                .unwrap(),
+                .collect::<Result<Vec<BasinMetadata>, ConvertError>>()?,
             has_more,
-        }
+        })
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct DeleteBasinRequest {
+    /// Name of the basin to delete.
     pub basin: String,
 }
 

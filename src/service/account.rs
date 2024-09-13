@@ -105,7 +105,7 @@ impl ServiceRequest for ListBasinsServiceRequest {
         &self,
         resp: tonic::Response<Self::ApiResponse>,
     ) -> Result<Self::Response, ConvertError> {
-        Ok(resp.into_inner().into())
+        resp.into_inner().try_into()
     }
 
     fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
