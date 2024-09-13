@@ -7,6 +7,7 @@ use s2::{
 #[tokio::main]
 async fn main() {
     let token = std::env::var("S2_AUTH_TOKEN").unwrap();
+    let user = std::env::var("USER").unwrap();
 
     let config = ClientConfig::builder()
         .url(Cloud::Local)
@@ -17,8 +18,8 @@ async fn main() {
 
     let client = Client::connect(config).await.unwrap();
 
-    let basin = "vaibhav-test-basin";
-    let create_basin_req = CreateBasinRequest::builder().basin(basin).build();
+    let basin = format!("{user}-test-basin");
+    let create_basin_req = CreateBasinRequest::builder().basin(&basin).build();
 
     match client.create_basin(create_basin_req).await {
         Ok(created_basin) => {
@@ -30,7 +31,7 @@ async fn main() {
         Err(other) => exit_with_err(other),
     };
 
-    let basin_client = client.basin_client(basin).await.unwrap();
+    let basin_client = client.basin_client(&basin).await.unwrap();
 
     match basin_client.get_basin_config().await {
         Ok(config) => {
@@ -39,9 +40,9 @@ async fn main() {
         Err(err) => exit_with_err(err),
     };
 
-    let stream = "vaibhav-test-stream";
+    let stream = format!("{user}-test-stream");
 
-    let create_stream_req = CreateStreamRequest::builder().stream(stream).build();
+    let create_stream_req = CreateStreamRequest::builder().stream(&stream).build();
 
     match basin_client.create_stream(create_stream_req).await {
         Ok(()) => {
@@ -70,7 +71,7 @@ async fn main() {
         Err(err) => exit_with_err(err),
     }
 
-    let get_stream_config_req = GetStreamConfigRequest::builder().stream(stream).build();
+    let get_stream_config_req = GetStreamConfigRequest::builder().stream(&stream).build();
 
     match basin_client.get_stream_config(get_stream_config_req).await {
         Ok(config) => {
