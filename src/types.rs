@@ -395,3 +395,79 @@ impl TryFrom<api::GetBasinConfigResponse> for GetBasinConfigResponse {
         })
     }
 }
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct GetStreamConfigRequest {
+    #[builder(setter(into))]
+    pub stream: String,
+}
+
+impl From<GetStreamConfigRequest> for api::GetStreamConfigRequest {
+    fn from(value: GetStreamConfigRequest) -> Self {
+        let GetStreamConfigRequest { stream } = value;
+        Self { stream }
+    }
+}
+
+impl From<api::GetStreamConfigRequest> for GetStreamConfigRequest {
+    fn from(value: api::GetStreamConfigRequest) -> Self {
+        let api::GetStreamConfigRequest { stream } = value;
+        Self { stream }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GetStreamConfigResponse {
+    pub config: StreamConfig,
+}
+
+impl TryFrom<GetStreamConfigResponse> for api::GetStreamConfigResponse {
+    type Error = ConvertError;
+    fn try_from(value: GetStreamConfigResponse) -> Result<Self, Self::Error> {
+        let GetStreamConfigResponse { config } = value;
+        Ok(Self {
+            config: Some(config.try_into()?),
+        })
+    }
+}
+
+impl TryFrom<api::GetStreamConfigResponse> for GetStreamConfigResponse {
+    type Error = ConvertError;
+    fn try_from(value: api::GetStreamConfigResponse) -> Result<Self, Self::Error> {
+        let api::GetStreamConfigResponse { config } = value;
+        let config = config.ok_or("missing stream config")?;
+        Ok(Self {
+            config: config.try_into()?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct CreateStreamRequest {
+    #[builder(setter(into))]
+    pub stream: String,
+    #[builder(default)]
+    pub config: Option<StreamConfig>,
+}
+
+impl TryFrom<CreateStreamRequest> for api::CreateStreamRequest {
+    type Error = ConvertError;
+    fn try_from(value: CreateStreamRequest) -> Result<Self, Self::Error> {
+        let CreateStreamRequest { stream, config } = value;
+        Ok(Self {
+            stream,
+            config: config.map(TryInto::try_into).transpose()?,
+        })
+    }
+}
+
+impl TryFrom<api::CreateStreamRequest> for CreateStreamRequest {
+    type Error = ConvertError;
+    fn try_from(value: api::CreateStreamRequest) -> Result<Self, Self::Error> {
+        let api::CreateStreamRequest { stream, config } = value;
+        Ok(Self {
+            stream,
+            config: config.map(TryInto::try_into).transpose()?,
+        })
+    }
+}
