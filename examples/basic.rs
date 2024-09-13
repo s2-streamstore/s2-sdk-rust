@@ -1,7 +1,7 @@
 use s2::{
     client::{Client, ClientConfig, Cloud},
     service_error::{CreateBasinError, ServiceError},
-    types::{CreateBasinRequest, ListStreamsRequest},
+    types::{CreateBasinRequest, GetStreamConfigRequest, ListStreamsRequest},
 };
 
 #[tokio::main]
@@ -55,6 +55,17 @@ async fn main() {
         }
         Err(err) => exit_with_err(err),
     }
+
+    let stream = "vaibhav-test-stream";
+
+    let get_stream_config_req = GetStreamConfigRequest::builder().stream(stream).build();
+
+    match basin_client.get_stream_config(get_stream_config_req).await {
+        Ok(config) => {
+            println!("Stream config: {config:#?}");
+        }
+        Err(err) => exit_with_err(err),
+    };
 }
 
 fn exit_with_err<E: std::fmt::Display>(err: E) {
