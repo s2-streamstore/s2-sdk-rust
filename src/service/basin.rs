@@ -131,3 +131,142 @@ pub enum GetBasinConfigError {
     #[error("Not found: {0}")]
     NotFound(String),
 }
+
+#[derive(Debug, Clone)]
+pub struct GetStreamConfigServiceRequest {
+    client: BasinServiceClient<Channel>,
+}
+
+impl GetStreamConfigServiceRequest {
+    pub fn new(client: BasinServiceClient<Channel>) -> Self {
+        Self { client }
+    }
+}
+
+impl ServiceRequest for GetStreamConfigServiceRequest {
+    type Request = types::GetStreamConfigRequest;
+    type ApiRequest = api::GetStreamConfigRequest;
+    type Response = types::GetStreamConfigResponse;
+    type ApiResponse = api::GetStreamConfigResponse;
+    type Error = GetStreamConfigError;
+
+    const HAS_NO_SIDE_EFFECTS: bool = true;
+
+    fn prepare_request(
+        &self,
+        req: Self::Request,
+    ) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+        let req: api::GetStreamConfigRequest = req.into();
+        Ok(req.into_request())
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
+    }
+
+    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
+        match status.code() {
+            tonic::Code::NotFound => {
+                Some(GetStreamConfigError::NotFound(status.message().to_string()))
+            }
+            tonic::Code::InvalidArgument => Some(GetStreamConfigError::InvalidArgument(
+                status.message().to_string(),
+            )),
+            _ => None,
+        }
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.get_stream_config(req).await
+    }
+
+    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GetStreamConfigError {
+    #[error("Not found: {0}")]
+    NotFound(String),
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct CreateStreamServiceRequest {
+    client: BasinServiceClient<Channel>,
+}
+
+impl CreateStreamServiceRequest {
+    pub fn new(client: BasinServiceClient<Channel>) -> Self {
+        Self { client }
+    }
+}
+
+impl ServiceRequest for CreateStreamServiceRequest {
+    type Request = types::CreateStreamRequest;
+    type ApiRequest = api::CreateStreamRequest;
+    type Response = ();
+    type ApiResponse = api::CreateStreamResponse;
+    type Error = CreateStreamError;
+
+    const HAS_NO_SIDE_EFFECTS: bool = false;
+
+    fn prepare_request(
+        &self,
+        req: Self::Request,
+    ) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+        let req: api::CreateStreamRequest = req.try_into()?;
+        Ok(req.into_request())
+    }
+
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(())
+    }
+
+    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
+        match status.code() {
+            tonic::Code::AlreadyExists => Some(CreateStreamError::AlreadyExists(
+                status.message().to_string(),
+            )),
+            tonic::Code::NotFound => {
+                Some(CreateStreamError::NotFound(status.message().to_string()))
+            }
+            tonic::Code::InvalidArgument => Some(CreateStreamError::InvalidArgument(
+                status.message().to_string(),
+            )),
+            _ => None,
+        }
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.create_stream(req).await
+    }
+
+    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum CreateStreamError {
+    #[error("Already exists: {0}")]
+    AlreadyExists(String),
+    #[error("Not found: {0}")]
+    NotFound(String),
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+}

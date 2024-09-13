@@ -13,8 +13,9 @@ use crate::{
             DeleteBasinServiceRequest, ListBasinsError, ListBasinsServiceRequest,
         },
         basin::{
-            GetBasinConfigError, GetBasinConfigServiceRequest, ListStreamsError,
-            ListStreamsServiceRequest,
+            CreateStreamError, CreateStreamServiceRequest, GetBasinConfigError,
+            GetBasinConfigServiceRequest, GetStreamConfigError, GetStreamConfigServiceRequest,
+            ListStreamsError, ListStreamsServiceRequest,
         },
         send_request, ServiceError, ServiceRequest,
     },
@@ -148,6 +149,18 @@ impl BasinClient {
             .await
     }
 
+    pub async fn create_stream(
+        &self,
+        req: types::CreateStreamRequest,
+    ) -> Result<(), ServiceError<CreateStreamError>> {
+        self.inner
+            .send(
+                CreateStreamServiceRequest::new(self.inner.basin_service_client()),
+                req,
+            )
+            .await
+    }
+
     pub async fn list_streams(
         &self,
         req: types::ListStreamsRequest,
@@ -155,6 +168,18 @@ impl BasinClient {
         self.inner
             .send(
                 ListStreamsServiceRequest::new(self.inner.basin_service_client()),
+                req,
+            )
+            .await
+    }
+
+    pub async fn get_stream_config(
+        &self,
+        req: types::GetStreamConfigRequest,
+    ) -> Result<types::GetStreamConfigResponse, ServiceError<GetStreamConfigError>> {
+        self.inner
+            .send(
+                GetStreamConfigServiceRequest::new(self.inner.basin_service_client()),
                 req,
             )
             .await
