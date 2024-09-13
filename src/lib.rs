@@ -8,5 +8,9 @@ pub use http::uri;
 pub use secrecy::SecretString;
 
 pub mod service_error {
-    pub use crate::service::{account::CreateBasinError, basin::ListStreamsError, ServiceError};
+    pub use crate::service::{
+        account::{CreateBasinError, DeleteBasinError},
+        basin::ListStreamsError,
+        ServiceError,
+    };
 }

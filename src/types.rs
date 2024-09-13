@@ -396,15 +396,18 @@ impl TryFrom<api::GetBasinConfigResponse> for GetBasinConfigResponse {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct ListBasinsRequest {
     /// List basin names that begin with this prefix.  
+    #[builder(setter(into))]
     pub prefix: String,
     /// Only return basins names that lexicographically start after this name.
     /// This can be the last basin name seen in a previous listing, to continue from there.
     /// It must be greater than or equal to the prefix if specified.
+    #[builder(setter(into))]
     pub start_after: String,
     /// Number of results, upto a maximum of 1000.    
+    #[builder(setter(into))]
     pub limit: u32,
 }
 
@@ -460,9 +463,10 @@ impl TryFrom<api::ListBasinsResponse> for ListBasinsResponse {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct DeleteBasinRequest {
     /// Name of the basin to delete.
+    #[builder(setter(into))]
     pub basin: String,
 }
 
