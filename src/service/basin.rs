@@ -131,3 +131,65 @@ pub enum GetBasinConfigError {
     #[error("Not found: {0}")]
     NotFound(String),
 }
+
+#[derive(Debug, Clone)]
+pub struct GetStreamConfigServiceRequest {
+    client: BasinServiceClient<Channel>,
+}
+
+impl GetStreamConfigServiceRequest {
+    pub fn new(client: BasinServiceClient<Channel>) -> Self {
+        Self { client }
+    }
+}
+
+impl ServiceRequest for GetStreamConfigServiceRequest {
+    type Request = types::GetStreamConfigRequest;
+    type ApiRequest = api::GetStreamConfigRequest;
+    type Response = types::GetStreamConfigResponse;
+    type ApiResponse = api::GetStreamConfigResponse;
+    type Error = GetStreamConfigError;
+
+    const HAS_NO_SIDE_EFFECTS: bool = true;
+
+    fn prepare_request(
+        &self,
+        req: Self::Request,
+    ) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+        let req: api::GetStreamConfigRequest = req.into();
+        Ok(req.into_request())
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
+    }
+
+    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
+        match status.code() {
+            tonic::Code::NotFound => {
+                Some(GetStreamConfigError::NotFound(status.message().to_string()))
+            }
+            _ => None,
+        }
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.get_stream_config(req).await
+    }
+
+    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GetStreamConfigError {
+    #[error("Not found: {0}")]
+    NotFound(String),
+}
