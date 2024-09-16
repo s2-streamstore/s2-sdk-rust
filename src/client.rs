@@ -1,9 +1,9 @@
 use std::time::Duration;
 
+use http::{uri::Authority, Uri};
 use secrecy::SecretString;
 use tonic::transport::{Channel, Endpoint};
 use typed_builder::TypedBuilder;
-use url::Url;
 
 use crate::{
     api::{account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient},
@@ -46,9 +46,9 @@ impl From<Cloud> for ClientUrl {
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct ClientUrl {
     #[builder]
-    pub global: Url,
+    pub global: Uri,
     #[builder(default)]
-    pub cell: Option<Url>,
+    pub cell: Option<Uri>,
     #[builder(default)]
     pub prefix_host_with_basin: bool,
 }
@@ -171,23 +171,32 @@ impl ClientInner {
 
     pub async fn connect_cell(&self, basin: impl Into<String>) -> Result<Self, ClientError> {
         let basin = basin.into();
-        if let Some(mut url) = self.config.url.cell.clone() {
-            if self.config.url.prefix_host_with_basin {
-                let new_host = url.host_str().map(|host| format!("{basin}.{host}"));
-                url.set_host(new_host.as_deref())?;
+
+        match self.config.url.cell.clone() {
+            Some(uri) if self.config.url.prefix_host_with_basin => {
+                let host = uri.host().ok_or(ClientError::MissingHost)?;
+                let port = uri.port_u16().map_or(String::new(), |p| format!(":{}", p));
+                let authority: Authority = format!("{basin}.{host}{port}").parse()?;
+                let mut uri_parts = uri.into_parts();
+                uri_parts.authority = Some(authority);
+
+                ClientInner::connect(
+                    self.config.clone(),
+                    Uri::from_parts(uri_parts).expect("invalid uri"),
+                )
+                .await
             }
-            ClientInner::connect(self.config.clone(), url).await
-        } else {
-            Ok(ClientInner {
+            Some(uri) => ClientInner::connect(self.config.clone(), uri).await,
+            None => Ok(Self {
                 basin: Some(basin),
                 ..self.clone()
-            })
+            }),
         }
     }
 
-    async fn connect(config: ClientConfig, url: Url) -> Result<Self, ClientError> {
+    async fn connect(config: ClientConfig, uri: Uri) -> Result<Self, ClientError> {
         // TODO: Connection pool?
-        let endpoint: Endpoint = url.as_str().parse()?;
+        let endpoint: Endpoint = uri.clone().into();
         let endpoint = endpoint.connect_timeout(config.connection_timeout);
         let channel = if config.test_connection {
             endpoint.connect().await?
@@ -197,7 +206,7 @@ impl ClientInner {
         Ok(Self {
             channel: ConnectedChannel {
                 inner: channel,
-                endpoint: url,
+                endpoint: uri,
             },
             basin: None,
             config,
@@ -231,7 +240,7 @@ impl ClientInner {
 #[derive(Debug, Clone)]
 struct ConnectedChannel {
     inner: Channel,
-    endpoint: Url,
+    endpoint: Uri,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -239,5 +248,7 @@ pub enum ClientError {
     #[error(transparent)]
     TonicTransportError(#[from] tonic::transport::Error),
     #[error(transparent)]
-    UrlParseError(#[from] url::ParseError),
+    UriParseError(#[from] http::uri::InvalidUri),
+    #[error("Missing host in URI")]
+    MissingHost,
 }
