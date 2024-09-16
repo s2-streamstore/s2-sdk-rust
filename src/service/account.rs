@@ -1,3 +1,4 @@
+use prost_types::method_options::IdempotencyLevel;
 use tonic::{transport::Channel, IntoRequest};
 
 use super::{ServiceError, ServiceRequest};
@@ -24,7 +25,7 @@ impl ServiceRequest for CreateBasinServiceRequest {
     type ApiResponse = api::CreateBasinResponse;
     type Error = CreateBasinError;
 
-    const HAS_NO_SIDE_EFFECTS: bool = false;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 
     fn prepare_request(
         &self,

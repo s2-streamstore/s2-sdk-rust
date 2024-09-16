@@ -2,6 +2,7 @@ pub mod account;
 pub mod basin;
 
 use backon::{ConstantBuilder, Retryable};
+use prost_types::method_options::IdempotencyLevel;
 use secrecy::{ExposeSecret, SecretString};
 use tonic::metadata::{AsciiMetadataValue, MetadataMap};
 use url::Url;
@@ -68,7 +69,14 @@ pub async fn send_request<T: ServiceRequest>(
         .when(|e| match e {
             // Always retry on unavailable (if the request doesn't have any
             // side-effects).
-            ServiceError::Unavailable(_) if T::HAS_NO_SIDE_EFFECTS => true,
+            ServiceError::Unavailable(_)
+                if matches!(
+                    T::IDEMPOTENCY_LEVEL,
+                    IdempotencyLevel::NoSideEffects | IdempotencyLevel::Idempotent
+                ) =>
+            {
+                true
+            }
             e => service.should_retry(e),
         })
         .await?;
@@ -111,7 +119,7 @@ pub trait ServiceRequest: Clone {
     type Error: std::error::Error;
 
     /// The request does not have any side effects (for sure).
-    const HAS_NO_SIDE_EFFECTS: bool;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel;
 
     /// Take the request parameters and generate the corresponding tonic request.
     fn prepare_request(
