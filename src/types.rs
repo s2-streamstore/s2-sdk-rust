@@ -471,3 +471,91 @@ impl TryFrom<api::CreateStreamRequest> for CreateStreamRequest {
         })
     }
 }
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct ListBasinsRequest {
+    /// List basin names that begin with this prefix.  
+    #[builder(setter(into))]
+    pub prefix: String,
+    /// Only return basins names that lexicographically start after this name.
+    /// This can be the last basin name seen in a previous listing, to continue from there.
+    /// It must be greater than or equal to the prefix if specified.
+    #[builder(setter(into))]
+    pub start_after: String,
+    /// Number of results, upto a maximum of 1000.    
+    #[builder(setter(into))]
+    pub limit: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct ListBasinsResponse {
+    /// Matching basins.
+    pub basins: Vec<BasinMetadata>,
+    /// If set, indicates there are more results that can be listed with `start_after`.
+    pub has_more: bool,
+}
+
+impl From<api::ListBasinsRequest> for ListBasinsRequest {
+    fn from(value: api::ListBasinsRequest) -> Self {
+        let api::ListBasinsRequest {
+            prefix,
+            start_after,
+            limit,
+        } = value;
+        Self {
+            prefix,
+            start_after,
+            limit,
+        }
+    }
+}
+
+impl From<ListBasinsRequest> for api::ListBasinsRequest {
+    fn from(value: ListBasinsRequest) -> Self {
+        let ListBasinsRequest {
+            prefix,
+            start_after,
+            limit,
+        } = value;
+        Self {
+            prefix,
+            start_after,
+            limit,
+        }
+    }
+}
+
+impl TryFrom<api::ListBasinsResponse> for ListBasinsResponse {
+    type Error = ConvertError;
+    fn try_from(value: api::ListBasinsResponse) -> Result<Self, ConvertError> {
+        let api::ListBasinsResponse { basins, has_more } = value;
+        Ok(Self {
+            basins: basins
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<Vec<BasinMetadata>, ConvertError>>()?,
+            has_more,
+        })
+    }
+}
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct DeleteBasinRequest {
+    /// Name of the basin to delete.
+    #[builder(setter(into))]
+    pub basin: String,
+}
+
+impl From<DeleteBasinRequest> for api::DeleteBasinRequest {
+    fn from(value: DeleteBasinRequest) -> Self {
+        let DeleteBasinRequest { basin } = value;
+        Self { basin }
+    }
+}
+
+impl From<api::DeleteBasinRequest> for DeleteBasinRequest {
+    fn from(value: api::DeleteBasinRequest) -> Self {
+        let api::DeleteBasinRequest { basin } = value;
+        Self { basin }
+    }
+}

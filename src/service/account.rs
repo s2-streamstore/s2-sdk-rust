@@ -73,3 +73,130 @@ pub enum CreateBasinError {
     #[error("Already exists: {0}")]
     AlreadyExists(String),
 }
+
+#[derive(Debug, Clone)]
+pub struct ListBasinsServiceRequest {
+    client: AccountServiceClient<Channel>,
+}
+
+impl ListBasinsServiceRequest {
+    pub fn new(client: AccountServiceClient<Channel>) -> Self {
+        Self { client }
+    }
+}
+
+impl ServiceRequest for ListBasinsServiceRequest {
+    type Request = types::ListBasinsRequest;
+    type ApiRequest = api::ListBasinsRequest;
+    type Response = types::ListBasinsResponse;
+    type ApiResponse = api::ListBasinsResponse;
+    type Error = ListBasinsError;
+
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
+
+    fn prepare_request(
+        &self,
+        req: Self::Request,
+    ) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
+        let req: api::ListBasinsRequest = req.into();
+        Ok(req.into_request())
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, ConvertError> {
+        resp.into_inner().try_into()
+    }
+
+    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
+        match status.code() {
+            tonic::Code::InvalidArgument => Some(ListBasinsError::InvalidArgument(
+                status.message().to_string(),
+            )),
+            _ => None,
+        }
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.list_basins(req).await
+    }
+
+    fn should_retry(&self, _status: &ServiceError<Self::Error>) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum ListBasinsError {
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct DeleteBasinServiceRequest {
+    client: AccountServiceClient<Channel>,
+}
+
+impl DeleteBasinServiceRequest {
+    pub fn new(client: AccountServiceClient<Channel>) -> Self {
+        Self { client }
+    }
+}
+
+impl ServiceRequest for DeleteBasinServiceRequest {
+    type Request = types::DeleteBasinRequest;
+    type ApiRequest = api::DeleteBasinRequest;
+    type Response = ();
+    type ApiResponse = api::DeleteBasinResponse;
+    type Error = DeleteBasinError;
+
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
+
+    fn prepare_request(
+        &self,
+        req: Self::Request,
+    ) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
+        let req: api::DeleteBasinRequest = req.into();
+        Ok(req.into_request())
+    }
+
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, ConvertError> {
+        Ok(())
+    }
+
+    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
+        match status.code() {
+            tonic::Code::InvalidArgument => Some(DeleteBasinError::InvalidArgument(
+                status.message().to_string(),
+            )),
+            tonic::Code::NotFound => Some(DeleteBasinError::NotFound(status.message().to_string())),
+            _ => None,
+        }
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.delete_basin(req).await
+    }
+
+    fn should_retry(&self, _status: &ServiceError<Self::Error>) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum DeleteBasinError {
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+    #[error("Not found: {0}")]
+    NotFound(String),
+}
