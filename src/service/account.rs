@@ -92,7 +92,7 @@ impl ServiceRequest for ListBasinsServiceRequest {
     type ApiResponse = api::ListBasinsResponse;
     type Error = ListBasinsError;
 
-    const HAS_NO_SIDE_EFFECTS: bool = true;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
     fn prepare_request(
         &self,
@@ -154,7 +154,7 @@ impl ServiceRequest for DeleteBasinServiceRequest {
     type ApiResponse = api::DeleteBasinResponse;
     type Error = DeleteBasinError;
 
-    const HAS_NO_SIDE_EFFECTS: bool = false;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 
     fn prepare_request(
         &self,
