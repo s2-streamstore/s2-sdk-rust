@@ -122,7 +122,7 @@ impl Client {
     pub async fn delete_basin(
         &self,
         req: types::DeleteBasinRequest,
-    ) -> Result<types::DeleteBasinResponse, ServiceError<DeleteBasinError>> {
+    ) -> Result<(), ServiceError<DeleteBasinError>> {
         self.inner
             .send(
                 DeleteBasinServiceRequest::new(self.inner.account_service_client()),

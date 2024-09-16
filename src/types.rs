@@ -546,9 +546,6 @@ pub struct DeleteBasinRequest {
     pub basin: String,
 }
 
-#[derive(Debug, Clone)]
-pub struct DeleteBasinResponse;
-
 impl From<DeleteBasinRequest> for api::DeleteBasinRequest {
     fn from(value: DeleteBasinRequest) -> Self {
         let DeleteBasinRequest { basin } = value;
@@ -560,11 +557,5 @@ impl From<api::DeleteBasinRequest> for DeleteBasinRequest {
     fn from(value: api::DeleteBasinRequest) -> Self {
         let api::DeleteBasinRequest { basin } = value;
         Self { basin }
-    }
-}
-
-impl From<api::DeleteBasinResponse> for DeleteBasinResponse {
-    fn from(_: api::DeleteBasinResponse) -> Self {
-        Self
     }
 }

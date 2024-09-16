@@ -149,7 +149,7 @@ impl DeleteBasinServiceRequest {
 impl ServiceRequest for DeleteBasinServiceRequest {
     type Request = types::DeleteBasinRequest;
     type ApiRequest = api::DeleteBasinRequest;
-    type Response = types::DeleteBasinResponse;
+    type Response = ();
     type ApiResponse = api::DeleteBasinResponse;
     type Error = DeleteBasinError;
 
@@ -165,9 +165,9 @@ impl ServiceRequest for DeleteBasinServiceRequest {
 
     fn parse_response(
         &self,
-        resp: tonic::Response<Self::ApiResponse>,
+        _resp: tonic::Response<Self::ApiResponse>,
     ) -> Result<Self::Response, ConvertError> {
-        Ok(resp.into_inner().into())
+        Ok(())
     }
 
     fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
