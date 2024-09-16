@@ -1,3 +1,4 @@
+use prost_types::method_options::IdempotencyLevel;
 use tonic::{transport::Channel, IntoRequest};
 
 use super::ServiceRequest;
@@ -24,7 +25,7 @@ impl ServiceRequest for ListStreamsServiceRequest {
     type ApiResponse = api::ListStreamsResponse;
     type Error = ListStreamsError;
 
-    const HAS_NO_SIDE_EFFECTS: bool = true;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
     fn prepare_request(
         &self,
@@ -89,7 +90,7 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
     type ApiResponse = api::GetBasinConfigResponse;
     type Error = GetBasinConfigError;
 
-    const HAS_NO_SIDE_EFFECTS: bool = true;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
     fn prepare_request(
         &self,
@@ -150,7 +151,7 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
     type ApiResponse = api::GetStreamConfigResponse;
     type Error = GetStreamConfigError;
 
-    const HAS_NO_SIDE_EFFECTS: bool = true;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
     fn prepare_request(
         &self,
@@ -217,7 +218,7 @@ impl ServiceRequest for CreateStreamServiceRequest {
     type ApiResponse = api::CreateStreamResponse;
     type Error = CreateStreamError;
 
-    const HAS_NO_SIDE_EFFECTS: bool = false;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 
     fn prepare_request(
         &self,
