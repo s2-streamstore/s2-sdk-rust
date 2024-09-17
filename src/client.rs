@@ -13,9 +13,10 @@ use crate::{
             DeleteBasinServiceRequest, ListBasinsError, ListBasinsServiceRequest,
         },
         basin::{
-            CreateStreamError, CreateStreamServiceRequest, GetBasinConfigError,
-            GetBasinConfigServiceRequest, GetStreamConfigError, GetStreamConfigServiceRequest,
-            ListStreamsError, ListStreamsServiceRequest,
+            CreateStreamError, CreateStreamServiceRequest, DeleteStreamError,
+            DeleteStreamServiceRequest, GetBasinConfigError, GetBasinConfigServiceRequest,
+            GetStreamConfigError, GetStreamConfigServiceRequest, ListStreamsError,
+            ListStreamsServiceRequest,
         },
         send_request, ServiceError, ServiceRequest,
     },
@@ -123,12 +124,19 @@ impl Client {
         &self,
         req: types::DeleteBasinRequest,
     ) -> Result<(), ServiceError<DeleteBasinError>> {
-        self.inner
+        let if_exists = req.if_exists;
+
+        match self
+            .inner
             .send(
                 DeleteBasinServiceRequest::new(self.inner.account_service_client()),
                 req,
             )
             .await
+        {
+            Err(ServiceError::Remote(DeleteBasinError::NotFound(_))) if if_exists => Ok(()),
+            res => res,
+        }
     }
 }
 
@@ -184,11 +192,30 @@ impl BasinClient {
             )
             .await
     }
+
+    pub async fn delete_stream(
+        &self,
+        req: types::DeleteStreamRequest,
+    ) -> Result<(), ServiceError<DeleteStreamError>> {
+        let if_exists = req.if_exists;
+
+        match self
+            .inner
+            .send(
+                DeleteStreamServiceRequest::new(self.inner.basin_service_client()),
+                req,
+            )
+            .await
+        {
+            Err(ServiceError::Remote(DeleteStreamError::NotFound(_))) if if_exists => Ok(()),
+            res => res,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 struct ClientInner {
-    channel: ConnectedChannel,
+    channel: Channel,
     basin: Option<String>,
     config: ClientConfig,
 }
@@ -234,10 +261,7 @@ impl ClientInner {
             endpoint.connect_lazy()
         };
         Ok(Self {
-            channel: ConnectedChannel {
-                inner: channel,
-                endpoint: uri,
-            },
+            channel,
             basin: None,
             config,
         })
@@ -248,29 +272,16 @@ impl ClientInner {
         service: T,
         req: T::Request,
     ) -> Result<T::Response, ServiceError<T::Error>> {
-        send_request(
-            service,
-            req,
-            &self.channel.endpoint,
-            &self.config.token,
-            self.basin.as_deref(),
-        )
-        .await
+        send_request(service, req, &self.config.token, self.basin.as_deref()).await
     }
 
     pub fn account_service_client(&self) -> AccountServiceClient<Channel> {
-        AccountServiceClient::new(self.channel.inner.clone())
+        AccountServiceClient::new(self.channel.clone())
     }
 
     pub fn basin_service_client(&self) -> BasinServiceClient<Channel> {
-        BasinServiceClient::new(self.channel.inner.clone())
+        BasinServiceClient::new(self.channel.clone())
     }
-}
-
-#[derive(Debug, Clone)]
-struct ConnectedChannel {
-    inner: Channel,
-    endpoint: Uri,
 }
 
 #[derive(Debug, thiserror::Error)]

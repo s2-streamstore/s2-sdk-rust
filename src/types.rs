@@ -35,21 +35,6 @@ impl TryFrom<CreateBasinRequest> for api::CreateBasinRequest {
     }
 }
 
-impl TryFrom<api::CreateBasinRequest> for CreateBasinRequest {
-    type Error = ConvertError;
-    fn try_from(value: api::CreateBasinRequest) -> Result<Self, Self::Error> {
-        let api::CreateBasinRequest {
-            basin,
-            config,
-            assignment: _,
-        } = value;
-        Ok(Self {
-            basin,
-            config: config.map(TryInto::try_into).transpose()?,
-        })
-    }
-}
-
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct BasinConfig {
     #[builder]
@@ -284,15 +269,6 @@ pub struct CreateBasinResponse {
     pub basin: BasinMetadata,
 }
 
-impl From<CreateBasinResponse> for api::CreateBasinResponse {
-    fn from(value: CreateBasinResponse) -> Self {
-        let CreateBasinResponse { basin } = value;
-        Self {
-            basin: Some(basin.into()),
-        }
-    }
-}
-
 impl TryFrom<api::CreateBasinResponse> for CreateBasinResponse {
     type Error = ConvertError;
     fn try_from(value: api::CreateBasinResponse) -> Result<Self, Self::Error> {
@@ -332,35 +308,10 @@ impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
     }
 }
 
-impl TryFrom<api::ListStreamsRequest> for ListStreamsRequest {
-    type Error = ConvertError;
-    fn try_from(value: api::ListStreamsRequest) -> Result<Self, Self::Error> {
-        let api::ListStreamsRequest {
-            prefix,
-            start_after,
-            limit,
-        } = value;
-        Ok(Self {
-            prefix,
-            start_after,
-            limit: limit
-                .try_into()
-                .map_err(|_| "request limit does not fit into u32 bounds")?,
-        })
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct ListStreamsResponse {
     pub streams: Vec<String>,
     pub has_more: bool,
-}
-
-impl From<ListStreamsResponse> for api::ListStreamsResponse {
-    fn from(value: ListStreamsResponse) -> Self {
-        let ListStreamsResponse { streams, has_more } = value;
-        Self { streams, has_more }
-    }
 }
 
 impl From<api::ListStreamsResponse> for ListStreamsResponse {
@@ -373,16 +324,6 @@ impl From<api::ListStreamsResponse> for ListStreamsResponse {
 #[derive(Debug, Clone)]
 pub struct GetBasinConfigResponse {
     pub config: BasinConfig,
-}
-
-impl TryFrom<GetBasinConfigResponse> for api::GetBasinConfigResponse {
-    type Error = ConvertError;
-    fn try_from(value: GetBasinConfigResponse) -> Result<Self, Self::Error> {
-        let GetBasinConfigResponse { config } = value;
-        Ok(Self {
-            config: Some(config.try_into()?),
-        })
-    }
 }
 
 impl TryFrom<api::GetBasinConfigResponse> for GetBasinConfigResponse {
@@ -409,26 +350,9 @@ impl From<GetStreamConfigRequest> for api::GetStreamConfigRequest {
     }
 }
 
-impl From<api::GetStreamConfigRequest> for GetStreamConfigRequest {
-    fn from(value: api::GetStreamConfigRequest) -> Self {
-        let api::GetStreamConfigRequest { stream } = value;
-        Self { stream }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct GetStreamConfigResponse {
     pub config: StreamConfig,
-}
-
-impl TryFrom<GetStreamConfigResponse> for api::GetStreamConfigResponse {
-    type Error = ConvertError;
-    fn try_from(value: GetStreamConfigResponse) -> Result<Self, Self::Error> {
-        let GetStreamConfigResponse { config } = value;
-        Ok(Self {
-            config: Some(config.try_into()?),
-        })
-    }
 }
 
 impl TryFrom<api::GetStreamConfigResponse> for GetStreamConfigResponse {
@@ -461,17 +385,6 @@ impl TryFrom<CreateStreamRequest> for api::CreateStreamRequest {
     }
 }
 
-impl TryFrom<api::CreateStreamRequest> for CreateStreamRequest {
-    type Error = ConvertError;
-    fn try_from(value: api::CreateStreamRequest) -> Result<Self, Self::Error> {
-        let api::CreateStreamRequest { stream, config } = value;
-        Ok(Self {
-            stream,
-            config: config.map(TryInto::try_into).transpose()?,
-        })
-    }
-}
-
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct ListBasinsRequest {
     /// List basin names that begin with this prefix.  
@@ -487,29 +400,6 @@ pub struct ListBasinsRequest {
     pub limit: u32,
 }
 
-#[derive(Debug, Clone)]
-pub struct ListBasinsResponse {
-    /// Matching basins.
-    pub basins: Vec<BasinMetadata>,
-    /// If set, indicates there are more results that can be listed with `start_after`.
-    pub has_more: bool,
-}
-
-impl From<api::ListBasinsRequest> for ListBasinsRequest {
-    fn from(value: api::ListBasinsRequest) -> Self {
-        let api::ListBasinsRequest {
-            prefix,
-            start_after,
-            limit,
-        } = value;
-        Self {
-            prefix,
-            start_after,
-            limit,
-        }
-    }
-}
-
 impl From<ListBasinsRequest> for api::ListBasinsRequest {
     fn from(value: ListBasinsRequest) -> Self {
         let ListBasinsRequest {
@@ -523,6 +413,14 @@ impl From<ListBasinsRequest> for api::ListBasinsRequest {
             limit,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct ListBasinsResponse {
+    /// Matching basins.
+    pub basins: Vec<BasinMetadata>,
+    /// If set, indicates there are more results that can be listed with `start_after`.
+    pub has_more: bool,
 }
 
 impl TryFrom<api::ListBasinsResponse> for ListBasinsResponse {
@@ -544,18 +442,31 @@ pub struct DeleteBasinRequest {
     /// Name of the basin to delete.
     #[builder(setter(into))]
     pub basin: String,
+    /// Only delete if basin exists.
+    #[builder(setter(into))]
+    pub if_exists: bool,
 }
 
 impl From<DeleteBasinRequest> for api::DeleteBasinRequest {
     fn from(value: DeleteBasinRequest) -> Self {
-        let DeleteBasinRequest { basin } = value;
+        let DeleteBasinRequest { basin, .. } = value;
         Self { basin }
     }
 }
 
-impl From<api::DeleteBasinRequest> for DeleteBasinRequest {
-    fn from(value: api::DeleteBasinRequest) -> Self {
-        let api::DeleteBasinRequest { basin } = value;
-        Self { basin }
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct DeleteStreamRequest {
+    /// Name of the stream to delete.
+    #[builder(setter(into))]
+    pub stream: String,
+    /// Only delete if stream exists.
+    #[builder(setter(into))]
+    pub if_exists: bool,
+}
+
+impl From<DeleteStreamRequest> for api::DeleteStreamRequest {
+    fn from(value: DeleteStreamRequest) -> Self {
+        let DeleteStreamRequest { stream, .. } = value;
+        Self { stream }
     }
 }

@@ -271,3 +271,70 @@ pub enum CreateStreamError {
     #[error("Invalid argument: {0}")]
     InvalidArgument(String),
 }
+
+#[derive(Debug, Clone)]
+pub struct DeleteStreamServiceRequest {
+    client: BasinServiceClient<Channel>,
+}
+
+impl DeleteStreamServiceRequest {
+    pub fn new(client: BasinServiceClient<Channel>) -> Self {
+        Self { client }
+    }
+}
+
+impl ServiceRequest for DeleteStreamServiceRequest {
+    type Request = types::DeleteStreamRequest;
+    type ApiRequest = api::DeleteStreamRequest;
+    type Response = ();
+    type ApiResponse = api::DeleteStreamResponse;
+    type Error = DeleteStreamError;
+
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
+
+    fn prepare_request(
+        &self,
+        req: Self::Request,
+    ) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+        let req: api::DeleteStreamRequest = req.into();
+        Ok(req.into_request())
+    }
+
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(())
+    }
+
+    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
+        match status.code() {
+            tonic::Code::NotFound => {
+                Some(DeleteStreamError::NotFound(status.message().to_string()))
+            }
+            tonic::Code::InvalidArgument => Some(DeleteStreamError::InvalidArgument(
+                status.message().to_string(),
+            )),
+            _ => None,
+        }
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.delete_stream(req).await
+    }
+
+    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum DeleteStreamError {
+    #[error("Not found: {0}")]
+    NotFound(String),
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+}
