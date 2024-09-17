@@ -16,7 +16,8 @@ use crate::{
             CreateStreamError, CreateStreamServiceRequest, DeleteStreamError,
             DeleteStreamServiceRequest, GetBasinConfigError, GetBasinConfigServiceRequest,
             GetStreamConfigError, GetStreamConfigServiceRequest, ListStreamsError,
-            ListStreamsServiceRequest,
+            ListStreamsServiceRequest, ReconfigureBasinError, ReconfigureBasinServiceRequest,
+            ReconfigureStreamError, ReconfigureStreamServiceRequest,
         },
         send_request, ServiceError, ServiceRequest,
     },
@@ -24,31 +25,31 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Cloud {
+pub enum HostCloud {
     /// Localhost (to be used for testing).
     #[cfg(debug_assertions)]
     Local,
-    /// S2 hosted on cloud.
+    /// S2 hosted on AWS.
     #[default]
     Aws,
 }
 
-impl From<Cloud> for ClientUrl {
-    fn from(value: Cloud) -> Self {
+impl From<HostCloud> for HostUri {
+    fn from(value: HostCloud) -> Self {
         match value {
             #[cfg(debug_assertions)]
-            Cloud::Local => ClientUrl {
+            HostCloud::Local => HostUri {
                 global: "http://localhost:4243".try_into().unwrap(),
                 cell: None,
                 prefix_host_with_basin: false,
             },
-            Cloud::Aws => todo!("prod aws urls"),
+            HostCloud::Aws => todo!("prod aws uris"),
         }
     }
 }
 
 #[derive(Debug, Clone, TypedBuilder)]
-pub struct ClientUrl {
+pub struct HostUri {
     #[builder]
     pub global: Uri,
     #[builder(default)]
@@ -57,16 +58,16 @@ pub struct ClientUrl {
     pub prefix_host_with_basin: bool,
 }
 
-impl Default for ClientUrl {
+impl Default for HostUri {
     fn default() -> Self {
-        Cloud::default().into()
+        HostCloud::default().into()
     }
 }
 
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct ClientConfig {
     #[builder(default, setter(into))]
-    pub url: ClientUrl,
+    pub host_uri: HostUri,
     #[builder(setter(into))]
     pub token: SecretString,
     #[builder(default)]
@@ -157,6 +158,18 @@ impl BasinClient {
             .await
     }
 
+    pub async fn reconfigure_basin(
+        &self,
+        req: types::ReconfigureBasinRequest,
+    ) -> Result<(), ServiceError<ReconfigureBasinError>> {
+        self.inner
+            .send(
+                ReconfigureBasinServiceRequest::new(self.inner.basin_service_client()),
+                req,
+            )
+            .await
+    }
+
     pub async fn create_stream(
         &self,
         req: types::CreateStreamRequest,
@@ -193,6 +206,18 @@ impl BasinClient {
             .await
     }
 
+    pub async fn reconfigure_stream(
+        &self,
+        req: types::ReconfigureStreamRequest,
+    ) -> Result<(), ServiceError<ReconfigureStreamError>> {
+        self.inner
+            .send(
+                ReconfigureStreamServiceRequest::new(self.inner.basin_service_client()),
+                req,
+            )
+            .await
+    }
+
     pub async fn delete_stream(
         &self,
         req: types::DeleteStreamRequest,
@@ -222,15 +247,15 @@ struct ClientInner {
 
 impl ClientInner {
     pub async fn connect_global(config: ClientConfig) -> Result<Self, ClientError> {
-        let uri = config.url.global.clone();
+        let uri = config.host_uri.global.clone();
         Self::connect(config, uri).await
     }
 
     pub async fn connect_cell(&self, basin: impl Into<String>) -> Result<Self, ClientError> {
         let basin = basin.into();
 
-        match self.config.url.cell.clone() {
-            Some(uri) if self.config.url.prefix_host_with_basin => {
+        match self.config.host_uri.cell.clone() {
+            Some(uri) if self.config.host_uri.prefix_host_with_basin => {
                 let host = uri.host().ok_or(ClientError::MissingHost)?;
                 let port = uri.port_u16().map_or(String::new(), |p| format!(":{}", p));
                 let authority: Authority = format!("{basin}.{host}{port}").parse()?;

@@ -338,3 +338,137 @@ pub enum DeleteStreamError {
     #[error("Invalid argument: {0}")]
     InvalidArgument(String),
 }
+
+#[derive(Debug, Clone)]
+pub struct ReconfigureBasinServiceRequest {
+    client: BasinServiceClient<Channel>,
+}
+
+impl ReconfigureBasinServiceRequest {
+    pub fn new(client: BasinServiceClient<Channel>) -> Self {
+        Self { client }
+    }
+}
+
+impl ServiceRequest for ReconfigureBasinServiceRequest {
+    type Request = types::ReconfigureBasinRequest;
+    type ApiRequest = api::ReconfigureBasinRequest;
+    type Response = ();
+    type ApiResponse = api::ReconfigureBasinResponse;
+    type Error = ReconfigureBasinError;
+
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
+
+    fn prepare_request(
+        &self,
+        req: Self::Request,
+    ) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+        let req: api::ReconfigureBasinRequest = req.try_into()?;
+        Ok(req.into_request())
+    }
+
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(())
+    }
+
+    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
+        match status.code() {
+            tonic::Code::NotFound => Some(ReconfigureBasinError::NotFound(
+                status.message().to_string(),
+            )),
+            tonic::Code::InvalidArgument => Some(ReconfigureBasinError::InvalidArgument(
+                status.message().to_string(),
+            )),
+            _ => None,
+        }
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.reconfigure_basin(req).await
+    }
+
+    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ReconfigureBasinError {
+    #[error("Not found: {0}")]
+    NotFound(String),
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct ReconfigureStreamServiceRequest {
+    client: BasinServiceClient<Channel>,
+}
+
+impl ReconfigureStreamServiceRequest {
+    pub fn new(client: BasinServiceClient<Channel>) -> Self {
+        Self { client }
+    }
+}
+
+impl ServiceRequest for ReconfigureStreamServiceRequest {
+    type Request = types::ReconfigureStreamRequest;
+    type ApiRequest = api::ReconfigureStreamRequest;
+    type Response = ();
+    type ApiResponse = api::ReconfigureStreamResponse;
+    type Error = ReconfigureStreamError;
+
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
+
+    fn prepare_request(
+        &self,
+        req: Self::Request,
+    ) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+        let req: api::ReconfigureStreamRequest = req.try_into()?;
+        Ok(req.into_request())
+    }
+
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(())
+    }
+
+    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
+        match status.code() {
+            tonic::Code::NotFound => Some(ReconfigureStreamError::NotFound(
+                status.message().to_string(),
+            )),
+            tonic::Code::InvalidArgument => Some(ReconfigureStreamError::InvalidArgument(
+                status.message().to_string(),
+            )),
+            _ => None,
+        }
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.reconfigure_stream(req).await
+    }
+
+    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ReconfigureStreamError {
+    #[error("Not found: {0}")]
+    NotFound(String),
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+}

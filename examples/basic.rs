@@ -1,7 +1,10 @@
 use s2::{
-    client::{Client, ClientConfig, Cloud},
+    client::{Client, ClientConfig, HostCloud},
     service_error::{CreateBasinError, CreateStreamError, ServiceError},
-    types::{CreateBasinRequest, CreateStreamRequest, GetStreamConfigRequest, ListStreamsRequest},
+    types::{
+        CreateBasinRequest, CreateStreamRequest, GetStreamConfigRequest, ListBasinsRequest,
+        ListStreamsRequest,
+    },
 };
 
 #[tokio::main]
@@ -9,7 +12,7 @@ async fn main() {
     let token = std::env::var("S2_AUTH_TOKEN").unwrap();
 
     let config = ClientConfig::builder()
-        .url(Cloud::Local)
+        .host_uri(HostCloud::Local)
         .token(token)
         .build();
 
@@ -28,6 +31,23 @@ async fn main() {
             println!("WARN: {}", e);
         }
         Err(other) => exit_with_err(other),
+    };
+
+    let list_basins_req = ListBasinsRequest::builder().build();
+
+    match client.list_basins(list_basins_req).await {
+        Ok(basins_list) => {
+            println!(
+                "List of basins: {:#?}{}",
+                basins_list.basins,
+                if basins_list.has_more {
+                    " ... and more ..."
+                } else {
+                    ""
+                }
+            )
+        }
+        Err(err) => exit_with_err(err),
     };
 
     let basin_client = client.basin_client(basin).await.unwrap();

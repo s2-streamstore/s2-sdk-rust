@@ -388,15 +388,15 @@ impl TryFrom<CreateStreamRequest> for api::CreateStreamRequest {
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct ListBasinsRequest {
     /// List basin names that begin with this prefix.  
-    #[builder(setter(into))]
+    #[builder(default, setter(into))]
     pub prefix: String,
     /// Only return basins names that lexicographically start after this name.
     /// This can be the last basin name seen in a previous listing, to continue from there.
     /// It must be greater than or equal to the prefix if specified.
-    #[builder(setter(into))]
+    #[builder(default, setter(into))]
     pub start_after: String,
     /// Number of results, upto a maximum of 1000.    
-    #[builder(setter(into))]
+    #[builder(default, setter(into))]
     pub limit: u32,
 }
 
@@ -443,7 +443,7 @@ pub struct DeleteBasinRequest {
     #[builder(setter(into))]
     pub basin: String,
     /// Only delete if basin exists.
-    #[builder(setter(into))]
+    #[builder(default, setter(into))]
     pub if_exists: bool,
 }
 
@@ -460,7 +460,7 @@ pub struct DeleteStreamRequest {
     #[builder(setter(into))]
     pub stream: String,
     /// Only delete if stream exists.
-    #[builder(setter(into))]
+    #[builder(default, setter(into))]
     pub if_exists: bool,
 }
 
@@ -468,5 +468,55 @@ impl From<DeleteStreamRequest> for api::DeleteStreamRequest {
     fn from(value: DeleteStreamRequest) -> Self {
         let DeleteStreamRequest { stream, .. } = value;
         Self { stream }
+    }
+}
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct ReconfigureBasinRequest {
+    /// Updated configuration.
+    #[builder(setter(strip_option))]
+    pub config: Option<BasinConfig>,
+    /// Fieldmask to indicate which fields to update.
+    #[builder(default, setter(into, strip_option))]
+    pub mask: Option<Vec<String>>,
+}
+
+impl TryFrom<ReconfigureBasinRequest> for api::ReconfigureBasinRequest {
+    type Error = ConvertError;
+    fn try_from(value: ReconfigureBasinRequest) -> Result<Self, Self::Error> {
+        let ReconfigureBasinRequest { config, mask } = value;
+        Ok(Self {
+            config: config.map(TryInto::try_into).transpose()?,
+            mask: mask.map(|paths| prost_types::FieldMask { paths }),
+        })
+    }
+}
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct ReconfigureStreamRequest {
+    /// Name of the stream to reconfigure.
+    #[builder(setter(into))]
+    pub stream: String,
+    /// Updated configuration.
+    #[builder(setter(strip_option))]
+    pub config: Option<StreamConfig>,
+    /// Fieldmask to indicate which fields to update.
+    #[builder(default, setter(into, strip_option))]
+    pub mask: Option<Vec<String>>,
+}
+
+impl TryFrom<ReconfigureStreamRequest> for api::ReconfigureStreamRequest {
+    type Error = ConvertError;
+    fn try_from(value: ReconfigureStreamRequest) -> Result<Self, Self::Error> {
+        let ReconfigureStreamRequest {
+            stream,
+            config,
+            mask,
+        } = value;
+        Ok(Self {
+            stream,
+            config: config.map(TryInto::try_into).transpose()?,
+            mask: mask.map(|paths| prost_types::FieldMask { paths }),
+        })
     }
 }
