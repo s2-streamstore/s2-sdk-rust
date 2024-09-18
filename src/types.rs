@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 use typed_builder::TypedBuilder;
 
@@ -139,6 +139,18 @@ impl From<api::StorageClass> for StorageClass {
             api::StorageClass::Unspecified => Self::Unspecified,
             api::StorageClass::Standard => Self::Standard,
             api::StorageClass::Express => Self::Express,
+        }
+    }
+}
+
+impl FromStr for StorageClass {
+    type Err = ConvertError;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "unspecified" => Ok(Self::Unspecified),
+            "standard" => Ok(Self::Standard),
+            "express" => Ok(Self::Express),
+            _ => Err("invalid storage class value".into()),
         }
     }
 }
