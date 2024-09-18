@@ -520,3 +520,16 @@ impl TryFrom<ReconfigureStreamRequest> for api::ReconfigureStreamRequest {
         })
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct GetNextSeqNumResponse {
+    /// Next sequence number.
+    pub next_seq_num: u64,
+}
+
+impl From<api::GetNextSeqNumResponse> for GetNextSeqNumResponse {
+    fn from(value: api::GetNextSeqNumResponse) -> Self {
+        let api::GetNextSeqNumResponse { next_seq_num } = value;
+        Self { next_seq_num }
+    }
+}

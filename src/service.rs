@@ -1,5 +1,6 @@
 pub mod account;
 pub mod basin;
+pub mod stream;
 
 use backon::{ConstantBuilder, Retryable};
 use prost_types::method_options::IdempotencyLevel;

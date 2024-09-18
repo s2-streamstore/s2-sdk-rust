@@ -6,7 +6,10 @@ use tonic::transport::{Channel, Endpoint};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    api::{account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient},
+    api::{
+        account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient,
+        stream_service_client::StreamServiceClient,
+    },
     service::{
         account::{
             CreateBasinError, CreateBasinServiceRequest, DeleteBasinError,
@@ -19,7 +22,9 @@ use crate::{
             ListStreamsServiceRequest, ReconfigureBasinError, ReconfigureBasinServiceRequest,
             ReconfigureStreamError, ReconfigureStreamServiceRequest,
         },
-        send_request, ServiceError, ServiceRequest,
+        send_request,
+        stream::{GetNextSeqNumError, GetNextSeqNumServiceRequest},
+        ServiceError, ServiceRequest,
     },
     types,
 };
@@ -147,6 +152,13 @@ pub struct BasinClient {
 }
 
 impl BasinClient {
+    pub fn stream_client(&self, stream: impl Into<String>) -> StreamClient {
+        StreamClient {
+            inner: self.inner.clone(),
+            stream: stream.into(),
+        }
+    }
+
     pub async fn get_basin_config(
         &self,
     ) -> Result<types::GetBasinConfigResponse, ServiceError<GetBasinConfigError>> {
@@ -239,6 +251,25 @@ impl BasinClient {
 }
 
 #[derive(Debug, Clone)]
+pub struct StreamClient {
+    inner: ClientInner,
+    stream: String,
+}
+
+impl StreamClient {
+    pub async fn get_next_seq_num(
+        &self,
+    ) -> Result<types::GetNextSeqNumResponse, ServiceError<GetNextSeqNumError>> {
+        self.inner
+            .send(
+                GetNextSeqNumServiceRequest::new(self.inner.stream_service_client()),
+                self.stream.clone(),
+            )
+            .await
+    }
+}
+
+#[derive(Debug, Clone)]
 struct ClientInner {
     channel: Channel,
     basin: Option<String>,
@@ -306,6 +337,10 @@ impl ClientInner {
 
     pub fn basin_service_client(&self) -> BasinServiceClient<Channel> {
         BasinServiceClient::new(self.channel.clone())
+    }
+
+    pub fn stream_service_client(&self) -> StreamServiceClient<Channel> {
+        StreamServiceClient::new(self.channel.clone())
     }
 }
 
