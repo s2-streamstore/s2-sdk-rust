@@ -1,8 +1,8 @@
 pub mod account;
 pub mod basin;
+pub mod stream;
 
 use backon::{ConstantBuilder, Retryable};
-use http::Uri;
 use prost_types::method_options::IdempotencyLevel;
 use secrecy::{ExposeSecret, SecretString};
 use tonic::metadata::{AsciiMetadataValue, MetadataMap};
@@ -30,7 +30,6 @@ pub enum ServiceError<T: std::error::Error> {
 pub async fn send_request<T: ServiceRequest>(
     service: T,
     req: T::Request,
-    endpoint: &Uri,
     token: &SecretString,
     basin: Option<&str>,
 ) -> Result<T::Response, ServiceError<T::Error>> {
@@ -42,7 +41,6 @@ pub async fn send_request<T: ServiceRequest>(
             .map_err(ServiceError::Convert)?;
 
         add_authorization_header(req.metadata_mut(), token);
-        add_host_header(req.metadata_mut(), endpoint);
         add_basin_header(req.metadata_mut(), basin);
 
         service
@@ -90,12 +88,6 @@ fn add_authorization_header(meta: &mut MetadataMap, token: &SecretString) {
         .unwrap();
     val.set_sensitive(true);
     meta.insert("authorization", val);
-}
-
-fn add_host_header(meta: &mut MetadataMap, endpoint: &Uri) {
-    if let Some(host) = endpoint.host() {
-        meta.insert("host", host.parse().unwrap());
-    }
 }
 
 fn add_basin_header(meta: &mut MetadataMap, basin: Option<&str>) {

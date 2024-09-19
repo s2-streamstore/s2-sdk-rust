@@ -6,48 +6,55 @@ use tonic::transport::{Channel, Endpoint};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    api::{account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient},
+    api::{
+        account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient,
+        stream_service_client::StreamServiceClient,
+    },
     service::{
         account::{
             CreateBasinError, CreateBasinServiceRequest, DeleteBasinError,
             DeleteBasinServiceRequest, ListBasinsError, ListBasinsServiceRequest,
         },
         basin::{
-            CreateStreamError, CreateStreamServiceRequest, GetBasinConfigError,
-            GetBasinConfigServiceRequest, GetStreamConfigError, GetStreamConfigServiceRequest,
-            ListStreamsError, ListStreamsServiceRequest,
+            CreateStreamError, CreateStreamServiceRequest, DeleteStreamError,
+            DeleteStreamServiceRequest, GetBasinConfigError, GetBasinConfigServiceRequest,
+            GetStreamConfigError, GetStreamConfigServiceRequest, ListStreamsError,
+            ListStreamsServiceRequest, ReconfigureBasinError, ReconfigureBasinServiceRequest,
+            ReconfigureStreamError, ReconfigureStreamServiceRequest,
         },
-        send_request, ServiceError, ServiceRequest,
+        send_request,
+        stream::{GetNextSeqNumError, GetNextSeqNumServiceRequest},
+        ServiceError, ServiceRequest,
     },
     types,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Cloud {
+pub enum HostCloud {
     /// Localhost (to be used for testing).
     #[cfg(debug_assertions)]
     Local,
-    /// S2 hosted on cloud.
+    /// S2 hosted on AWS.
     #[default]
     Aws,
 }
 
-impl From<Cloud> for ClientUrl {
-    fn from(value: Cloud) -> Self {
+impl From<HostCloud> for HostUri {
+    fn from(value: HostCloud) -> Self {
         match value {
             #[cfg(debug_assertions)]
-            Cloud::Local => ClientUrl {
+            HostCloud::Local => HostUri {
                 global: "http://localhost:4243".try_into().unwrap(),
                 cell: None,
                 prefix_host_with_basin: false,
             },
-            Cloud::Aws => todo!("prod aws urls"),
+            HostCloud::Aws => todo!("prod aws uris"),
         }
     }
 }
 
 #[derive(Debug, Clone, TypedBuilder)]
-pub struct ClientUrl {
+pub struct HostUri {
     #[builder]
     pub global: Uri,
     #[builder(default)]
@@ -56,16 +63,16 @@ pub struct ClientUrl {
     pub prefix_host_with_basin: bool,
 }
 
-impl Default for ClientUrl {
+impl Default for HostUri {
     fn default() -> Self {
-        Cloud::default().into()
+        HostCloud::default().into()
     }
 }
 
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct ClientConfig {
     #[builder(default, setter(into))]
-    pub url: ClientUrl,
+    pub host_uri: HostUri,
     #[builder(setter(into))]
     pub token: SecretString,
     #[builder(default)]
@@ -123,12 +130,19 @@ impl Client {
         &self,
         req: types::DeleteBasinRequest,
     ) -> Result<(), ServiceError<DeleteBasinError>> {
-        self.inner
+        let if_exists = req.if_exists;
+
+        match self
+            .inner
             .send(
                 DeleteBasinServiceRequest::new(self.inner.account_service_client()),
                 req,
             )
             .await
+        {
+            Err(ServiceError::Remote(DeleteBasinError::NotFound(_))) if if_exists => Ok(()),
+            res => res,
+        }
     }
 }
 
@@ -138,6 +152,13 @@ pub struct BasinClient {
 }
 
 impl BasinClient {
+    pub fn stream_client(&self, stream: impl Into<String>) -> StreamClient {
+        StreamClient {
+            inner: self.inner.clone(),
+            stream: stream.into(),
+        }
+    }
+
     pub async fn get_basin_config(
         &self,
     ) -> Result<types::GetBasinConfigResponse, ServiceError<GetBasinConfigError>> {
@@ -145,6 +166,18 @@ impl BasinClient {
             .send(
                 GetBasinConfigServiceRequest::new(self.inner.basin_service_client()),
                 /* request = */ (),
+            )
+            .await
+    }
+
+    pub async fn reconfigure_basin(
+        &self,
+        req: types::ReconfigureBasinRequest,
+    ) -> Result<(), ServiceError<ReconfigureBasinError>> {
+        self.inner
+            .send(
+                ReconfigureBasinServiceRequest::new(self.inner.basin_service_client()),
+                req,
             )
             .await
     }
@@ -184,26 +217,76 @@ impl BasinClient {
             )
             .await
     }
+
+    pub async fn reconfigure_stream(
+        &self,
+        req: types::ReconfigureStreamRequest,
+    ) -> Result<(), ServiceError<ReconfigureStreamError>> {
+        self.inner
+            .send(
+                ReconfigureStreamServiceRequest::new(self.inner.basin_service_client()),
+                req,
+            )
+            .await
+    }
+
+    pub async fn delete_stream(
+        &self,
+        req: types::DeleteStreamRequest,
+    ) -> Result<(), ServiceError<DeleteStreamError>> {
+        let if_exists = req.if_exists;
+
+        match self
+            .inner
+            .send(
+                DeleteStreamServiceRequest::new(self.inner.basin_service_client()),
+                req,
+            )
+            .await
+        {
+            Err(ServiceError::Remote(DeleteStreamError::NotFound(_))) if if_exists => Ok(()),
+            res => res,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StreamClient {
+    inner: ClientInner,
+    stream: String,
+}
+
+impl StreamClient {
+    pub async fn get_next_seq_num(
+        &self,
+    ) -> Result<types::GetNextSeqNumResponse, ServiceError<GetNextSeqNumError>> {
+        self.inner
+            .send(
+                GetNextSeqNumServiceRequest::new(self.inner.stream_service_client()),
+                self.stream.clone(),
+            )
+            .await
+    }
 }
 
 #[derive(Debug, Clone)]
 struct ClientInner {
-    channel: ConnectedChannel,
+    channel: Channel,
     basin: Option<String>,
     config: ClientConfig,
 }
 
 impl ClientInner {
     pub async fn connect_global(config: ClientConfig) -> Result<Self, ClientError> {
-        let uri = config.url.global.clone();
+        let uri = config.host_uri.global.clone();
         Self::connect(config, uri).await
     }
 
     pub async fn connect_cell(&self, basin: impl Into<String>) -> Result<Self, ClientError> {
         let basin = basin.into();
 
-        match self.config.url.cell.clone() {
-            Some(uri) if self.config.url.prefix_host_with_basin => {
+        match self.config.host_uri.cell.clone() {
+            Some(uri) if self.config.host_uri.prefix_host_with_basin => {
                 let host = uri.host().ok_or(ClientError::MissingHost)?;
                 let port = uri.port_u16().map_or(String::new(), |p| format!(":{}", p));
                 let authority: Authority = format!("{basin}.{host}{port}").parse()?;
@@ -234,10 +317,7 @@ impl ClientInner {
             endpoint.connect_lazy()
         };
         Ok(Self {
-            channel: ConnectedChannel {
-                inner: channel,
-                endpoint: uri,
-            },
+            channel,
             basin: None,
             config,
         })
@@ -248,29 +328,20 @@ impl ClientInner {
         service: T,
         req: T::Request,
     ) -> Result<T::Response, ServiceError<T::Error>> {
-        send_request(
-            service,
-            req,
-            &self.channel.endpoint,
-            &self.config.token,
-            self.basin.as_deref(),
-        )
-        .await
+        send_request(service, req, &self.config.token, self.basin.as_deref()).await
     }
 
     pub fn account_service_client(&self) -> AccountServiceClient<Channel> {
-        AccountServiceClient::new(self.channel.inner.clone())
+        AccountServiceClient::new(self.channel.clone())
     }
 
     pub fn basin_service_client(&self) -> BasinServiceClient<Channel> {
-        BasinServiceClient::new(self.channel.inner.clone())
+        BasinServiceClient::new(self.channel.clone())
     }
-}
 
-#[derive(Debug, Clone)]
-struct ConnectedChannel {
-    inner: Channel,
-    endpoint: Uri,
+    pub fn stream_service_client(&self) -> StreamServiceClient<Channel> {
+        StreamServiceClient::new(self.channel.clone())
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
