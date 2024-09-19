@@ -72,6 +72,8 @@ pub struct ClientConfig {
     pub test_connection: bool,
     #[builder(default = Duration::from_secs(3), setter(into))]
     pub connection_timeout: Duration,
+    #[builder(default = Duration::from_secs(10), setter(into))]
+    pub request_timeout: Duration,
 }
 
 #[derive(Debug, Clone)]
