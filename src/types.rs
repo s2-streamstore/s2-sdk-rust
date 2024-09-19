@@ -299,7 +299,7 @@ pub struct ListStreamsRequest {
     #[builder(default, setter(into))]
     pub start_after: String,
     #[builder(default, setter(into))]
-    pub limit: usize,
+    pub limit: u32,
 }
 
 impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
@@ -313,9 +313,7 @@ impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
         Ok(Self {
             prefix,
             start_after,
-            limit: limit
-                .try_into()
-                .map_err(|_| "request limit does not fit into u32 bounds")?,
+            limit,
         })
     }
 }
