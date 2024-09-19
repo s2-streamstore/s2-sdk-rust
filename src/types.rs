@@ -313,9 +313,7 @@ impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
         Ok(Self {
             prefix,
             start_after,
-            limit: limit
-                .try_into()
-                .map_err(|_| "request limit does not fit into u32 bounds")?,
+            limit: limit as u64,
         })
     }
 }
@@ -409,7 +407,7 @@ pub struct ListBasinsRequest {
     pub start_after: String,
     /// Number of results, upto a maximum of 1000.    
     #[builder(default, setter(into))]
-    pub limit: u32,
+    pub limit: usize,
 }
 
 impl From<ListBasinsRequest> for api::ListBasinsRequest {
@@ -422,7 +420,7 @@ impl From<ListBasinsRequest> for api::ListBasinsRequest {
         Self {
             prefix,
             start_after,
-            limit,
+            limit: limit as u64,
         }
     }
 }
