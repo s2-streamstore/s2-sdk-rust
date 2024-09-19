@@ -229,7 +229,9 @@ impl ClientInner {
     async fn connect(config: ClientConfig, uri: Uri) -> Result<Self, ClientError> {
         // TODO: Connection pool?
         let endpoint: Endpoint = uri.clone().into();
-        let endpoint = endpoint.connect_timeout(config.connection_timeout);
+        let endpoint = endpoint
+            .connect_timeout(config.connection_timeout)
+            .timeout(config.request_timeout);
         let channel = if config.test_connection {
             endpoint.connect().await?
         } else {
