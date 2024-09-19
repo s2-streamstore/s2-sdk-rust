@@ -1,12 +1,11 @@
 use prost_types::method_options::IdempotencyLevel;
 use tonic::{transport::Channel, IntoRequest};
 
+use super::ServiceRequest;
 use crate::{
     api::{self, stream_service_client::StreamServiceClient},
     types,
 };
-
-use super::ServiceRequest;
 
 #[derive(Debug, Clone)]
 pub struct GetNextSeqNumServiceRequest {

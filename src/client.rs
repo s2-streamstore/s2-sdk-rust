@@ -79,6 +79,8 @@ pub struct ClientConfig {
     pub test_connection: bool,
     #[builder(default = Duration::from_secs(3), setter(into))]
     pub connection_timeout: Duration,
+    #[builder(default = Duration::from_secs(5), setter(into))]
+    pub request_timeout: Duration,
 }
 
 #[derive(Debug, Clone)]
@@ -310,7 +312,9 @@ impl ClientInner {
     async fn connect(config: ClientConfig, uri: Uri) -> Result<Self, ClientError> {
         // TODO: Connection pool?
         let endpoint: Endpoint = uri.clone().into();
-        let endpoint = endpoint.connect_timeout(config.connection_timeout);
+        let endpoint = endpoint
+            .connect_timeout(config.connection_timeout)
+            .timeout(config.request_timeout);
         let channel = if config.test_connection {
             endpoint.connect().await?
         } else {
