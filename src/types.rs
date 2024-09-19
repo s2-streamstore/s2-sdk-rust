@@ -313,9 +313,7 @@ impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
         Ok(Self {
             prefix,
             start_after,
-            limit: limit
-                .try_into()
-                .map_err(|_| "request limit does not fit into u32 bounds")?,
+            limit: limit as u64,
         })
     }
 }
@@ -422,9 +420,7 @@ impl From<ListBasinsRequest> for api::ListBasinsRequest {
         Self {
             prefix,
             start_after,
-            limit: limit
-                .try_into()
-                .expect("request limit does not fit into u32 bounds"),
+            limit: limit as u64,
         }
     }
 }
