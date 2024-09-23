@@ -109,10 +109,10 @@ impl Client {
         req: types::ListBasinsRequest,
     ) -> Result<types::ListBasinsResponse, ServiceError<ListBasinsError>> {
         self.inner
-            .send(
-                ListBasinsServiceRequest::new(self.inner.account_service_client()),
+            .send(ListBasinsServiceRequest::new(
+                self.inner.account_service_client(),
                 req,
-            )
+            ))
             .await
     }
 
@@ -122,10 +122,10 @@ impl Client {
         req: types::CreateBasinRequest,
     ) -> Result<types::CreateBasinResponse, ServiceError<CreateBasinError>> {
         self.inner
-            .send(
-                CreateBasinServiceRequest::new(self.inner.account_service_client()),
+            .send(CreateBasinServiceRequest::new(
+                self.inner.account_service_client(),
                 req,
-            )
+            ))
             .await
     }
 
@@ -138,10 +138,10 @@ impl Client {
 
         match self
             .inner
-            .send(
-                DeleteBasinServiceRequest::new(self.inner.account_service_client()),
+            .send(DeleteBasinServiceRequest::new(
+                self.inner.account_service_client(),
                 req,
-            )
+            ))
             .await
         {
             Err(ServiceError::Remote(DeleteBasinError::NotFound(_))) if if_exists => Ok(()),
@@ -167,10 +167,9 @@ impl BasinClient {
         &self,
     ) -> Result<types::GetBasinConfigResponse, ServiceError<GetBasinConfigError>> {
         self.inner
-            .send(
-                GetBasinConfigServiceRequest::new(self.inner.basin_service_client()),
-                /* request = */ (),
-            )
+            .send(GetBasinConfigServiceRequest::new(
+                self.inner.basin_service_client(),
+            ))
             .await
     }
 
@@ -179,10 +178,10 @@ impl BasinClient {
         req: types::ReconfigureBasinRequest,
     ) -> Result<(), ServiceError<ReconfigureBasinError>> {
         self.inner
-            .send(
-                ReconfigureBasinServiceRequest::new(self.inner.basin_service_client()),
+            .send(ReconfigureBasinServiceRequest::new(
+                self.inner.basin_service_client(),
                 req,
-            )
+            ))
             .await
     }
 
@@ -191,10 +190,10 @@ impl BasinClient {
         req: types::CreateStreamRequest,
     ) -> Result<(), ServiceError<CreateStreamError>> {
         self.inner
-            .send(
-                CreateStreamServiceRequest::new(self.inner.basin_service_client()),
+            .send(CreateStreamServiceRequest::new(
+                self.inner.basin_service_client(),
                 req,
-            )
+            ))
             .await
     }
 
@@ -203,10 +202,10 @@ impl BasinClient {
         req: types::ListStreamsRequest,
     ) -> Result<types::ListStreamsResponse, ServiceError<ListStreamsError>> {
         self.inner
-            .send(
-                ListStreamsServiceRequest::new(self.inner.basin_service_client()),
+            .send(ListStreamsServiceRequest::new(
+                self.inner.basin_service_client(),
                 req,
-            )
+            ))
             .await
     }
 
@@ -215,10 +214,10 @@ impl BasinClient {
         req: types::GetStreamConfigRequest,
     ) -> Result<types::GetStreamConfigResponse, ServiceError<GetStreamConfigError>> {
         self.inner
-            .send(
-                GetStreamConfigServiceRequest::new(self.inner.basin_service_client()),
+            .send(GetStreamConfigServiceRequest::new(
+                self.inner.basin_service_client(),
                 req,
-            )
+            ))
             .await
     }
 
@@ -227,10 +226,10 @@ impl BasinClient {
         req: types::ReconfigureStreamRequest,
     ) -> Result<(), ServiceError<ReconfigureStreamError>> {
         self.inner
-            .send(
-                ReconfigureStreamServiceRequest::new(self.inner.basin_service_client()),
+            .send(ReconfigureStreamServiceRequest::new(
+                self.inner.basin_service_client(),
                 req,
-            )
+            ))
             .await
     }
 
@@ -242,10 +241,10 @@ impl BasinClient {
 
         match self
             .inner
-            .send(
-                DeleteStreamServiceRequest::new(self.inner.basin_service_client()),
+            .send(DeleteStreamServiceRequest::new(
+                self.inner.basin_service_client(),
                 req,
-            )
+            ))
             .await
         {
             Err(ServiceError::Remote(DeleteStreamError::NotFound(_))) if if_exists => Ok(()),
@@ -265,10 +264,10 @@ impl StreamClient {
         &self,
     ) -> Result<types::GetNextSeqNumResponse, ServiceError<GetNextSeqNumError>> {
         self.inner
-            .send(
-                GetNextSeqNumServiceRequest::new(self.inner.stream_service_client()),
-                self.stream.clone(),
-            )
+            .send(GetNextSeqNumServiceRequest::new(
+                self.inner.stream_service_client(),
+                &self.stream,
+            ))
             .await
     }
 
@@ -277,10 +276,11 @@ impl StreamClient {
         req: types::AppendRequest,
     ) -> Result<types::AppendResponse, ServiceError<AppendError>> {
         self.inner
-            .send(
-                AppendServiceRequest::new(self.inner.stream_service_client()),
-                (self.stream.clone(), req),
-            )
+            .send(AppendServiceRequest::new(
+                self.inner.stream_service_client(),
+                &self.stream,
+                req,
+            ))
             .await
     }
 }
@@ -343,10 +343,9 @@ impl ClientInner {
 
     pub async fn send<T: ServiceRequest>(
         &self,
-        service: T,
-        req: T::Request,
+        service_req: T,
     ) -> Result<T::Response, ServiceError<T::Error>> {
-        send_request(service, req, &self.config.token, self.basin.as_deref()).await
+        send_request(service_req, &self.config.token, self.basin.as_deref()).await
     }
 
     pub fn account_service_client(&self) -> AccountServiceClient<Channel> {

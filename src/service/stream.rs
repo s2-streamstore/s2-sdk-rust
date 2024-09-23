@@ -11,16 +11,19 @@ use super::ServiceRequest;
 #[derive(Debug, Clone)]
 pub struct GetNextSeqNumServiceRequest {
     client: StreamServiceClient<Channel>,
+    stream: String,
 }
 
 impl GetNextSeqNumServiceRequest {
-    pub fn new(client: StreamServiceClient<Channel>) -> Self {
-        Self { client }
+    pub fn new(client: StreamServiceClient<Channel>, stream: impl Into<String>) -> Self {
+        Self {
+            client,
+            stream: stream.into(),
+        }
     }
 }
 
 impl ServiceRequest for GetNextSeqNumServiceRequest {
-    type Request = String;
     type ApiRequest = api::GetNextSeqNumRequest;
     type Response = types::GetNextSeqNumResponse;
     type ApiResponse = api::GetNextSeqNumResponse;
@@ -28,11 +31,10 @@ impl ServiceRequest for GetNextSeqNumServiceRequest {
 
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
-    fn prepare_request(
-        &self,
-        req: Self::Request,
-    ) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
-        let req = api::GetNextSeqNumRequest { stream: req };
+    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+        let req = api::GetNextSeqNumRequest {
+            stream: self.stream.clone(),
+        };
         Ok(req.into_request())
     }
 
@@ -78,16 +80,25 @@ pub enum GetNextSeqNumError {
 #[derive(Debug, Clone)]
 pub struct AppendServiceRequest {
     client: StreamServiceClient<Channel>,
+    stream: String,
+    req: types::AppendRequest,
 }
 
 impl AppendServiceRequest {
-    pub fn new(client: StreamServiceClient<Channel>) -> Self {
-        Self { client }
+    pub fn new(
+        client: StreamServiceClient<Channel>,
+        stream: impl Into<String>,
+        req: types::AppendRequest,
+    ) -> Self {
+        Self {
+            client,
+            stream: stream.into(),
+            req,
+        }
     }
 }
 
 impl ServiceRequest for AppendServiceRequest {
-    type Request = (String, types::AppendRequest);
     type ApiRequest = api::AppendRequest;
     type Response = types::AppendResponse;
     type ApiResponse = api::AppendResponse;
@@ -95,12 +106,12 @@ impl ServiceRequest for AppendServiceRequest {
 
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 
-    fn prepare_request(
-        &self,
-        req: Self::Request,
-    ) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
-        let (stream, req) = req;
-        Ok(req.into_api_type(stream).into_request())
+    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+        Ok(self
+            .req
+            .clone()
+            .into_api_type(self.stream.clone())
+            .into_request())
     }
 
     fn parse_response(

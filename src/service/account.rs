@@ -10,16 +10,16 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct CreateBasinServiceRequest {
     client: AccountServiceClient<Channel>,
+    req: types::CreateBasinRequest,
 }
 
 impl CreateBasinServiceRequest {
-    pub fn new(client: AccountServiceClient<Channel>) -> Self {
-        Self { client }
+    pub fn new(client: AccountServiceClient<Channel>, req: types::CreateBasinRequest) -> Self {
+        Self { client, req }
     }
 }
 
 impl ServiceRequest for CreateBasinServiceRequest {
-    type Request = types::CreateBasinRequest;
     type ApiRequest = api::CreateBasinRequest;
     type Response = types::CreateBasinResponse;
     type ApiResponse = api::CreateBasinResponse;
@@ -27,11 +27,8 @@ impl ServiceRequest for CreateBasinServiceRequest {
 
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 
-    fn prepare_request(
-        &self,
-        req: Self::Request,
-    ) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
-        let req: api::CreateBasinRequest = req.try_into()?;
+    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
+        let req: api::CreateBasinRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
 
@@ -77,16 +74,16 @@ pub enum CreateBasinError {
 #[derive(Debug, Clone)]
 pub struct ListBasinsServiceRequest {
     client: AccountServiceClient<Channel>,
+    req: types::ListBasinsRequest,
 }
 
 impl ListBasinsServiceRequest {
-    pub fn new(client: AccountServiceClient<Channel>) -> Self {
-        Self { client }
+    pub fn new(client: AccountServiceClient<Channel>, req: types::ListBasinsRequest) -> Self {
+        Self { client, req }
     }
 }
 
 impl ServiceRequest for ListBasinsServiceRequest {
-    type Request = types::ListBasinsRequest;
     type ApiRequest = api::ListBasinsRequest;
     type Response = types::ListBasinsResponse;
     type ApiResponse = api::ListBasinsResponse;
@@ -94,11 +91,8 @@ impl ServiceRequest for ListBasinsServiceRequest {
 
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
-    fn prepare_request(
-        &self,
-        req: Self::Request,
-    ) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
-        let req: api::ListBasinsRequest = req.try_into()?;
+    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
+        let req: api::ListBasinsRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
 
@@ -139,16 +133,16 @@ pub enum ListBasinsError {
 #[derive(Debug, Clone)]
 pub struct DeleteBasinServiceRequest {
     client: AccountServiceClient<Channel>,
+    req: types::DeleteBasinRequest,
 }
 
 impl DeleteBasinServiceRequest {
-    pub fn new(client: AccountServiceClient<Channel>) -> Self {
-        Self { client }
+    pub fn new(client: AccountServiceClient<Channel>, req: types::DeleteBasinRequest) -> Self {
+        Self { client, req }
     }
 }
 
 impl ServiceRequest for DeleteBasinServiceRequest {
-    type Request = types::DeleteBasinRequest;
     type ApiRequest = api::DeleteBasinRequest;
     type Response = ();
     type ApiResponse = api::DeleteBasinResponse;
@@ -156,11 +150,8 @@ impl ServiceRequest for DeleteBasinServiceRequest {
 
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 
-    fn prepare_request(
-        &self,
-        req: Self::Request,
-    ) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
-        let req: api::DeleteBasinRequest = req.into();
+    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
+        let req: api::DeleteBasinRequest = self.req.clone().into();
         Ok(req.into_request())
     }
 
