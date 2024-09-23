@@ -98,7 +98,7 @@ impl ServiceRequest for ListBasinsServiceRequest {
         &self,
         req: Self::Request,
     ) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
-        let req: api::ListBasinsRequest = req.into();
+        let req: api::ListBasinsRequest = req.try_into()?;
         Ok(req.into_request())
     }
 

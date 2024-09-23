@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 use typed_builder::TypedBuilder;
 
@@ -124,6 +124,18 @@ impl From<api::StorageClass> for StorageClass {
             api::StorageClass::Unspecified => Self::Unspecified,
             api::StorageClass::Standard => Self::Standard,
             api::StorageClass::Express => Self::Express,
+        }
+    }
+}
+
+impl FromStr for StorageClass {
+    type Err = ConvertError;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "unspecified" => Ok(Self::Unspecified),
+            "standard" => Ok(Self::Standard),
+            "express" => Ok(Self::Express),
+            _ => Err("invalid storage class value".into()),
         }
     }
 }
@@ -397,21 +409,24 @@ pub struct ListBasinsRequest {
     pub start_after: String,
     /// Number of results, upto a maximum of 1000.    
     #[builder(default, setter(into))]
-    pub limit: u32,
+    pub limit: usize,
 }
 
-impl From<ListBasinsRequest> for api::ListBasinsRequest {
-    fn from(value: ListBasinsRequest) -> Self {
+impl TryFrom<ListBasinsRequest> for api::ListBasinsRequest {
+    type Error = ConvertError;
+    fn try_from(value: ListBasinsRequest) -> Result<Self, Self::Error> {
         let ListBasinsRequest {
             prefix,
             start_after,
             limit,
         } = value;
-        Self {
+        Ok(Self {
             prefix,
             start_after,
-            limit,
-        }
+            limit: limit
+                .try_into()
+                .map_err(|_| "request limit does not fit into u64 bounds")?,
+        })
     }
 }
 
