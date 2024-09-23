@@ -39,14 +39,14 @@ impl ServiceRequest for ListStreamsServiceRequest {
         Ok(resp.into_inner().into())
     }
 
-    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
-        match status.code() {
+    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
+        Err(match status.code() {
             tonic::Code::NotFound => Some(ListStreamsError::NotFound(status.message().to_string())),
             tonic::Code::InvalidArgument => Some(ListStreamsError::InvalidArgument(
                 status.message().to_string(),
             )),
             _ => None,
-        }
+        })
     }
 
     async fn send(
@@ -99,13 +99,13 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
         resp.into_inner().try_into()
     }
 
-    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
-        match status.code() {
+    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
+        Err(match status.code() {
             tonic::Code::NotFound => {
                 Some(GetBasinConfigError::NotFound(status.message().to_string()))
             }
             _ => None,
-        }
+        })
     }
 
     async fn send(
@@ -158,8 +158,8 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
         resp.into_inner().try_into()
     }
 
-    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
-        match status.code() {
+    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
+        Err(match status.code() {
             tonic::Code::NotFound => {
                 Some(GetStreamConfigError::NotFound(status.message().to_string()))
             }
@@ -167,7 +167,7 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
                 status.message().to_string(),
             )),
             _ => None,
-        }
+        })
     }
 
     async fn send(
@@ -222,8 +222,8 @@ impl ServiceRequest for CreateStreamServiceRequest {
         Ok(())
     }
 
-    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
-        match status.code() {
+    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
+        Err(match status.code() {
             tonic::Code::AlreadyExists => Some(CreateStreamError::AlreadyExists(
                 status.message().to_string(),
             )),
@@ -234,7 +234,7 @@ impl ServiceRequest for CreateStreamServiceRequest {
                 status.message().to_string(),
             )),
             _ => None,
-        }
+        })
     }
 
     async fn send(
@@ -291,15 +291,16 @@ impl ServiceRequest for DeleteStreamServiceRequest {
         Ok(())
     }
 
-    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
+    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
         match status.code() {
-            tonic::Code::NotFound => {
-                Some(DeleteStreamError::NotFound(status.message().to_string()))
-            }
-            tonic::Code::InvalidArgument => Some(DeleteStreamError::InvalidArgument(
+            tonic::Code::NotFound if self.req.if_exists => Ok(()),
+            tonic::Code::NotFound => Err(Some(DeleteStreamError::NotFound(
                 status.message().to_string(),
-            )),
-            _ => None,
+            ))),
+            tonic::Code::InvalidArgument => Err(Some(DeleteStreamError::InvalidArgument(
+                status.message().to_string(),
+            ))),
+            _ => Err(None),
         }
     }
 
@@ -355,8 +356,8 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
         Ok(())
     }
 
-    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
-        match status.code() {
+    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
+        Err(match status.code() {
             tonic::Code::NotFound => Some(ReconfigureBasinError::NotFound(
                 status.message().to_string(),
             )),
@@ -364,7 +365,7 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
                 status.message().to_string(),
             )),
             _ => None,
-        }
+        })
     }
 
     async fn send(
@@ -419,8 +420,8 @@ impl ServiceRequest for ReconfigureStreamServiceRequest {
         Ok(())
     }
 
-    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
-        match status.code() {
+    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
+        Err(match status.code() {
             tonic::Code::NotFound => Some(ReconfigureStreamError::NotFound(
                 status.message().to_string(),
             )),
@@ -428,7 +429,7 @@ impl ServiceRequest for ReconfigureStreamServiceRequest {
                 status.message().to_string(),
             )),
             _ => None,
-        }
+        })
     }
 
     async fn send(

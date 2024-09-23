@@ -1,12 +1,11 @@
 use prost_types::method_options::IdempotencyLevel;
 use tonic::{transport::Channel, IntoRequest};
 
+use super::ServiceRequest;
 use crate::{
     api::{self, stream_service_client::StreamServiceClient},
     types,
 };
-
-use super::ServiceRequest;
 
 #[derive(Debug, Clone)]
 pub struct GetNextSeqNumServiceRequest {
@@ -45,8 +44,8 @@ impl ServiceRequest for GetNextSeqNumServiceRequest {
         Ok(resp.into_inner().into())
     }
 
-    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
-        match status.code() {
+    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
+        Err(match status.code() {
             tonic::Code::NotFound => {
                 Some(GetNextSeqNumError::NotFound(status.message().to_string()))
             }
@@ -54,7 +53,7 @@ impl ServiceRequest for GetNextSeqNumServiceRequest {
                 status.message().to_string(),
             )),
             _ => None,
-        }
+        })
     }
 
     async fn send(
@@ -121,14 +120,14 @@ impl ServiceRequest for AppendServiceRequest {
         resp.into_inner().try_into()
     }
 
-    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
-        match status.code() {
+    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
+        Err(match status.code() {
             tonic::Code::NotFound => Some(AppendError::NotFound(status.message().to_string())),
             tonic::Code::InvalidArgument => {
                 Some(AppendError::InvalidArgument(status.message().to_string()))
             }
             _ => None,
-        }
+        })
     }
 
     async fn send(
@@ -145,6 +144,77 @@ impl ServiceRequest for AppendServiceRequest {
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppendError {
+    #[error("Not found: {0}")]
+    NotFound(String),
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct ReadServiceRequest {
+    client: StreamServiceClient<Channel>,
+    stream: String,
+    req: types::ReadRequest,
+}
+
+impl ReadServiceRequest {
+    pub fn new(
+        client: StreamServiceClient<Channel>,
+        stream: impl Into<String>,
+        req: types::ReadRequest,
+    ) -> Self {
+        Self {
+            client,
+            stream: stream.into(),
+            req,
+        }
+    }
+}
+
+impl ServiceRequest for ReadServiceRequest {
+    type ApiRequest = api::ReadRequest;
+    type Response = types::ReadResponse;
+    type ApiResponse = api::ReadResponse;
+    type Error = ReadError;
+
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
+
+    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+        let req = self.req.clone().try_into_api_type(self.stream.clone())?;
+        Ok(req.into_request())
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
+    }
+
+    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
+        Err(match status.code() {
+            tonic::Code::NotFound => Some(ReadError::NotFound(status.message().to_string())),
+            tonic::Code::InvalidArgument => {
+                Some(ReadError::InvalidArgument(status.message().to_string()))
+            }
+            _ => None,
+        })
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.read(req).await
+    }
+
+    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ReadError {
     #[error("Not found: {0}")]
     NotFound(String),
     #[error("Invalid argument: {0}")]

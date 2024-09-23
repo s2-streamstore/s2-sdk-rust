@@ -40,27 +40,30 @@ pub async fn send_request<T: ServiceRequest>(
         add_authorization_header(req.metadata_mut(), token);
         add_basin_header(req.metadata_mut(), basin);
 
-        service
-            .send(req)
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::Internal => ServiceError::Internal,
+        match service.send(req).await {
+            Ok(resp) => service.parse_response(resp).map_err(ServiceError::Convert),
+            Err(status) => match status.code() {
+                tonic::Code::Internal => Err(ServiceError::Internal),
                 tonic::Code::Unimplemented => {
-                    ServiceError::NotSupported(status.message().to_string())
+                    Err(ServiceError::NotSupported(status.message().to_string()))
                 }
                 tonic::Code::Unauthenticated => {
-                    ServiceError::Unauthenticated(status.message().to_string())
+                    Err(ServiceError::Unauthenticated(status.message().to_string()))
                 }
-                tonic::Code::Unavailable => ServiceError::Unavailable(status.message().to_string()),
-                _ => service
-                    .parse_status(&status)
-                    .map(ServiceError::Remote)
-                    .unwrap_or_else(|| ServiceError::Unknown(status.message().to_string())),
-            })
+                tonic::Code::Unavailable => {
+                    Err(ServiceError::Unavailable(status.message().to_string()))
+                }
+                _ => match service.parse_status(&status) {
+                    Ok(resp) => Ok(resp),
+                    Err(None) => Err(ServiceError::Unknown(status.message().to_string())),
+                    Err(Some(e)) => Err(ServiceError::Remote(e)),
+                },
+            },
+        }
     };
 
     // TODO: Configure retry.
-    let resp = Retryable::retry(retry_fn, ConstantBuilder::default())
+    Retryable::retry(retry_fn, ConstantBuilder::default())
         .when(|e| match e {
             // Always retry on unavailable (if the request doesn't have any
             // side-effects).
@@ -74,9 +77,7 @@ pub async fn send_request<T: ServiceRequest>(
             }
             e => service.should_retry(e),
         })
-        .await?;
-
-    service.parse_response(resp).map_err(ServiceError::Convert)
+        .await
 }
 
 fn add_authorization_header(meta: &mut MetadataMap, token: &SecretString) {
@@ -118,7 +119,7 @@ pub trait ServiceRequest: Clone {
     ) -> Result<Self::Response, ConvertError>;
 
     /// Take the tonic status and generate the error.
-    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error>;
+    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>>;
 
     /// Actually send the tonic request to receive a raw response and the parsed error.
     async fn send(

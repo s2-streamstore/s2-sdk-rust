@@ -39,8 +39,8 @@ impl ServiceRequest for CreateBasinServiceRequest {
         resp.into_inner().try_into()
     }
 
-    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
-        match status.code() {
+    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
+        Err(match status.code() {
             tonic::Code::InvalidArgument => Some(CreateBasinError::InvalidArgument(
                 status.message().to_string(),
             )),
@@ -48,7 +48,7 @@ impl ServiceRequest for CreateBasinServiceRequest {
                 status.message().to_string(),
             )),
             _ => None,
-        }
+        })
     }
 
     async fn send(
@@ -103,13 +103,13 @@ impl ServiceRequest for ListBasinsServiceRequest {
         resp.into_inner().try_into()
     }
 
-    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
-        match status.code() {
+    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
+        Err(match status.code() {
             tonic::Code::InvalidArgument => Some(ListBasinsError::InvalidArgument(
                 status.message().to_string(),
             )),
             _ => None,
-        }
+        })
     }
 
     async fn send(
@@ -162,13 +162,16 @@ impl ServiceRequest for DeleteBasinServiceRequest {
         Ok(())
     }
 
-    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
+    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
         match status.code() {
-            tonic::Code::InvalidArgument => Some(DeleteBasinError::InvalidArgument(
+            tonic::Code::InvalidArgument => Err(Some(DeleteBasinError::InvalidArgument(
                 status.message().to_string(),
-            )),
-            tonic::Code::NotFound => Some(DeleteBasinError::NotFound(status.message().to_string())),
-            _ => None,
+            ))),
+            tonic::Code::NotFound if self.req.if_exists => Ok(()),
+            tonic::Code::NotFound => Err(Some(DeleteBasinError::NotFound(
+                status.message().to_string(),
+            ))),
+            _ => Err(None),
         }
     }
 

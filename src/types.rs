@@ -567,6 +567,16 @@ impl From<Header> for api::Header {
     }
 }
 
+impl From<api::Header> for Header {
+    fn from(value: api::Header) -> Self {
+        let api::Header { name, value } = value;
+        Self {
+            name: name.into(),
+            value: value.into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct AppendRecord {
     /// Series of name-value pairs for this record.
@@ -595,10 +605,10 @@ pub struct AppendInput {
     #[builder]
     pub records: Vec<AppendRecord>,
     /// Enforce that the sequence number issued to the first record matches.
-    #[builder(default)]
+    #[builder(default, setter(into, strip_option))]
     pub match_seq_num: Option<u64>,
     /// Enforce a fencing token which must have been previously set by a `fence` command record.
-    #[builder(default)]
+    #[builder(default, setter(into, strip_option))]
     pub fencing_token: Option<Vec<u8>>,
 }
 
@@ -674,6 +684,116 @@ impl TryFrom<api::AppendResponse> for AppendResponse {
         let output = output.ok_or("missing append output")?;
         Ok(Self {
             output: output.into(),
+        })
+    }
+}
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct ReadRequest {
+    /// Starting sequence number (inclusive). If not specified, the latest
+    /// record.
+    #[builder(default, setter(into, strip_option))]
+    pub start_seq_num: Option<u64>,
+    /// Limit on how many records can be returned upto a maximum of 1000, which
+    /// is the default.
+    pub limit: usize,
+}
+
+impl ReadRequest {
+    pub fn try_into_api_type(
+        self,
+        stream: impl Into<String>,
+    ) -> Result<api::ReadRequest, ConvertError> {
+        let Self {
+            start_seq_num,
+            limit,
+        } = self;
+        Ok(api::ReadRequest {
+            stream: stream.into(),
+            start_seq_num,
+            limit: limit
+                .try_into()
+                .map_err(|_| "request limit does not fit into u32 bounds")?,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SequencedRecord {
+    pub seq_num: u64,
+    pub headers: Vec<Header>,
+    pub body: Vec<u8>,
+}
+
+impl From<api::SequencedRecord> for SequencedRecord {
+    fn from(value: api::SequencedRecord) -> Self {
+        let api::SequencedRecord {
+            seq_num,
+            headers,
+            body,
+        } = value;
+        Self {
+            seq_num,
+            headers: headers.into_iter().map(Into::into).collect(),
+            body: body.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SequencedRecordBatch {
+    pub records: Vec<SequencedRecord>,
+}
+
+impl From<api::SequencedRecordBatch> for SequencedRecordBatch {
+    fn from(value: api::SequencedRecordBatch) -> Self {
+        let api::SequencedRecordBatch { records } = value;
+        Self {
+            records: records.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ReadOutput {
+    Batch(SequencedRecordBatch),
+    FirstSeqNum(u64),
+    NextSeqNum(u64),
+}
+
+impl From<api::read_output::Output> for ReadOutput {
+    fn from(value: api::read_output::Output) -> Self {
+        match value {
+            api::read_output::Output::Batch(batch) => Self::Batch(batch.into()),
+            api::read_output::Output::FirstSeqNum(first_seq_num) => {
+                Self::FirstSeqNum(first_seq_num)
+            }
+            api::read_output::Output::NextSeqNum(next_seq_num) => Self::NextSeqNum(next_seq_num),
+        }
+    }
+}
+
+impl TryFrom<api::ReadOutput> for ReadOutput {
+    type Error = ConvertError;
+    fn try_from(value: api::ReadOutput) -> Result<Self, Self::Error> {
+        let api::ReadOutput { output } = value;
+        let output = output.ok_or("missing read output")?;
+        Ok(output.into())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ReadResponse {
+    pub output: ReadOutput,
+}
+
+impl TryFrom<api::ReadResponse> for ReadResponse {
+    type Error = ConvertError;
+    fn try_from(value: api::ReadResponse) -> Result<Self, Self::Error> {
+        let api::ReadResponse { output } = value;
+        let output = output.ok_or("missing output in read response")?;
+        Ok(Self {
+            output: output.try_into()?,
         })
     }
 }

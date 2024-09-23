@@ -25,6 +25,7 @@ use crate::{
         send_request,
         stream::{
             AppendError, AppendServiceRequest, GetNextSeqNumError, GetNextSeqNumServiceRequest,
+            ReadError, ReadServiceRequest,
         },
         ServiceError, ServiceRequest,
     },
@@ -134,19 +135,12 @@ impl Client {
         &self,
         req: types::DeleteBasinRequest,
     ) -> Result<(), ServiceError<DeleteBasinError>> {
-        let if_exists = req.if_exists;
-
-        match self
-            .inner
+        self.inner
             .send(DeleteBasinServiceRequest::new(
                 self.inner.account_service_client(),
                 req,
             ))
             .await
-        {
-            Err(ServiceError::Remote(DeleteBasinError::NotFound(_))) if if_exists => Ok(()),
-            res => res,
-        }
     }
 }
 
@@ -237,19 +231,12 @@ impl BasinClient {
         &self,
         req: types::DeleteStreamRequest,
     ) -> Result<(), ServiceError<DeleteStreamError>> {
-        let if_exists = req.if_exists;
-
-        match self
-            .inner
+        self.inner
             .send(DeleteStreamServiceRequest::new(
                 self.inner.basin_service_client(),
                 req,
             ))
             .await
-        {
-            Err(ServiceError::Remote(DeleteStreamError::NotFound(_))) if if_exists => Ok(()),
-            res => res,
-        }
     }
 }
 
@@ -277,6 +264,19 @@ impl StreamClient {
     ) -> Result<types::AppendResponse, ServiceError<AppendError>> {
         self.inner
             .send(AppendServiceRequest::new(
+                self.inner.stream_service_client(),
+                &self.stream,
+                req,
+            ))
+            .await
+    }
+
+    pub async fn read(
+        &self,
+        req: types::ReadRequest,
+    ) -> Result<types::ReadResponse, ServiceError<ReadError>> {
+        self.inner
+            .send(ReadServiceRequest::new(
                 self.inner.stream_service_client(),
                 &self.stream,
                 req,
