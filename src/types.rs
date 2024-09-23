@@ -533,3 +533,132 @@ impl From<api::GetNextSeqNumResponse> for GetNextSeqNumResponse {
         Self { next_seq_num }
     }
 }
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct Header {
+    #[builder(setter(into))]
+    pub name: Vec<u8>,
+    #[builder(setter(into))]
+    pub value: Vec<u8>,
+}
+
+impl From<Header> for api::Header {
+    fn from(value: Header) -> Self {
+        let Header { name, value } = value;
+        Self {
+            name: name.into(),
+            value: value.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct AppendRecord {
+    /// Series of name-value pairs for this record.
+    #[builder(default)]
+    pub headers: Vec<Header>,
+    /// Body of the record.
+    #[builder(setter(into))]
+    pub body: Vec<u8>,
+}
+
+impl From<AppendRecord> for api::AppendRecord {
+    fn from(value: AppendRecord) -> Self {
+        let AppendRecord { headers, body } = value;
+        Self {
+            headers: headers.into_iter().map(Into::into).collect(),
+            body: body.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct AppendInput {
+    /// Batch of records to append atomically, which must contain at least one
+    /// record, and no more than 1000. The total size of a batch of records may
+    /// not exceed 1MiB.
+    #[builder]
+    pub records: Vec<AppendRecord>,
+    /// Enforce that the sequence number issued to the first record matches.
+    #[builder(default)]
+    pub match_seq_num: Option<u64>,
+    /// Enforce a fencing token which must have been previously set by a `fence` command record.
+    #[builder(default)]
+    pub fencing_token: Option<Vec<u8>>,
+}
+
+impl AppendInput {
+    pub fn into_api_type(self, stream: impl Into<String>) -> api::AppendInput {
+        let Self {
+            records,
+            match_seq_num,
+            fencing_token,
+        } = self;
+        api::AppendInput {
+            stream: stream.into(),
+            records: records.into_iter().map(Into::into).collect(),
+            match_seq_num,
+            fencing_token: fencing_token.map(Into::into),
+        }
+    }
+}
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct AppendRequest {
+    /// Input for the append request.
+    #[builder]
+    pub input: AppendInput,
+}
+
+impl AppendRequest {
+    pub fn into_api_type(self, stream: impl Into<String>) -> api::AppendRequest {
+        let Self { input } = self;
+        api::AppendRequest {
+            input: Some(input.into_api_type(stream)),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AppendOutput {
+    /// Sequence number of first record appended.
+    pub start_seq_num: u64,
+    /// Sequence number of last record appended + 1.
+    /// `end_seq_num - start_seq_num` will be the number of records in the batch.
+    pub end_seq_num: u64,
+    /// Sequence number of last durable record on the stream + 1.
+    /// This can be greater than `end_seq_num` in case of concurrent appends.
+    pub next_seq_num: u64,
+}
+
+impl From<api::AppendOutput> for AppendOutput {
+    fn from(value: api::AppendOutput) -> Self {
+        let api::AppendOutput {
+            start_seq_num,
+            end_seq_num,
+            next_seq_num,
+        } = value;
+        Self {
+            start_seq_num,
+            end_seq_num,
+            next_seq_num,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AppendResponse {
+    /// Response details for an append.
+    pub output: AppendOutput,
+}
+
+impl TryFrom<api::AppendResponse> for AppendResponse {
+    type Error = ConvertError;
+    fn try_from(value: api::AppendResponse) -> Result<Self, Self::Error> {
+        let api::AppendResponse { output } = value;
+        let output = output.ok_or("missing append output")?;
+        Ok(Self {
+            output: output.into(),
+        })
+    }
+}

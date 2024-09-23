@@ -2,8 +2,9 @@ use s2::{
     client::{Client, ClientConfig, HostCloud},
     service_error::{CreateBasinError, CreateStreamError, ServiceError},
     types::{
-        CreateBasinRequest, CreateStreamRequest, DeleteBasinRequest, DeleteStreamRequest,
-        GetStreamConfigRequest, ListBasinsRequest, ListStreamsRequest,
+        AppendInput, AppendRecord, AppendRequest, CreateBasinRequest, CreateStreamRequest,
+        DeleteBasinRequest, DeleteStreamRequest, GetStreamConfigRequest, ListBasinsRequest,
+        ListStreamsRequest,
     },
 };
 
@@ -100,6 +101,24 @@ async fn main() {
     };
 
     let stream_client = basin_client.stream_client(stream);
+
+    let append_req = AppendRequest::builder()
+        .input(
+            AppendInput::builder()
+                .records(vec![
+                    AppendRecord::builder().body(b"hello world").build(),
+                    AppendRecord::builder().body(b"bye world").build(),
+                ])
+                .build(),
+        )
+        .build();
+
+    match stream_client.append(append_req).await {
+        Ok(resp) => {
+            println!("Appended: {resp:#?}");
+        }
+        Err(err) => exit_with_err(err),
+    };
 
     match stream_client.get_next_seq_num().await {
         Ok(next_seq_num) => {

@@ -23,7 +23,9 @@ use crate::{
             ReconfigureStreamError, ReconfigureStreamServiceRequest,
         },
         send_request,
-        stream::{GetNextSeqNumError, GetNextSeqNumServiceRequest},
+        stream::{
+            AppendError, AppendServiceRequest, GetNextSeqNumError, GetNextSeqNumServiceRequest,
+        },
         ServiceError, ServiceRequest,
     },
     types,
@@ -264,6 +266,18 @@ impl StreamClient {
             .send(
                 GetNextSeqNumServiceRequest::new(self.inner.stream_service_client()),
                 self.stream.clone(),
+            )
+            .await
+    }
+
+    pub async fn append(
+        &self,
+        req: types::AppendRequest,
+    ) -> Result<types::AppendResponse, ServiceError<AppendError>> {
+        self.inner
+            .send(
+                AppendServiceRequest::new(self.inner.stream_service_client()),
+                (self.stream.clone(), req),
             )
             .await
     }
