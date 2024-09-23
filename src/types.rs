@@ -315,7 +315,7 @@ impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
             start_after,
             limit: limit
                 .try_into()
-                .map_err(|_| "request limit does not fit into u32 bounds")?,
+                .map_err(|_| "request limit does not fit into u64 bounds")?,
         })
     }
 }
