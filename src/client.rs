@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use futures::Stream;
 use http::{uri::Authority, Uri};
 use secrecy::SecretString;
 use tonic::transport::{Channel, Endpoint};
@@ -25,9 +26,9 @@ use crate::{
         send_request,
         stream::{
             AppendError, AppendServiceRequest, GetNextSeqNumError, GetNextSeqNumServiceRequest,
-            ReadError, ReadServiceRequest,
+            ReadError, ReadServiceRequest, ReadSessionError, ReadSessionServiceRequest,
         },
-        ServiceError, ServiceRequest,
+        ServiceError, ServiceRequest, ServiceStreamResponse,
     },
     types,
 };
@@ -282,6 +283,23 @@ impl StreamClient {
                 req,
             ))
             .await
+    }
+
+    pub async fn read_session(
+        &self,
+        req: types::ReadSessionRequest,
+    ) -> Result<
+        ServiceStreamResponse<types::ReadSessionResponse, ReadSessionError>,
+        ServiceError<ReadSessionError>,
+    > {
+        self.inner
+            .send(ReadSessionServiceRequest::new(
+                self.inner.stream_service_client(),
+                &self.stream,
+                req,
+            ))
+            .await
+            .map(ServiceStreamResponse::new)
     }
 }
 

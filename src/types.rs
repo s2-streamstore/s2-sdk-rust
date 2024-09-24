@@ -802,6 +802,7 @@ impl TryFrom<api::ReadResponse> for ReadResponse {
 pub struct ReadSessionRequest {
     /// Starting sequence number (inclusive). If not specified, the latest
     /// record.
+    #[builder(default, setter(into, strip_option))]
     pub start_seq_num: Option<u64>,
 }
 

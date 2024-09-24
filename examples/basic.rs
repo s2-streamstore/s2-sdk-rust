@@ -1,10 +1,11 @@
+use futures::StreamExt;
 use s2::{
     client::{Client, ClientConfig, HostCloud},
     service_error::{CreateBasinError, CreateStreamError, ServiceError},
     types::{
         AppendInput, AppendRecord, AppendRequest, CreateBasinRequest, CreateStreamRequest,
         DeleteBasinRequest, DeleteStreamRequest, GetStreamConfigRequest, ListBasinsRequest,
-        ListStreamsRequest,
+        ListStreamsRequest, ReadSessionRequest,
     },
 };
 
@@ -123,6 +124,15 @@ async fn main() {
     match stream_client.get_next_seq_num().await {
         Ok(next_seq_num) => {
             println!("Next seq num: {next_seq_num:#?}");
+        }
+        Err(err) => exit_with_err(err),
+    };
+
+    let read_session_req = ReadSessionRequest::builder().build();
+
+    match stream_client.read_session(read_session_req).await {
+        Ok(mut stream) => {
+            println!("Read: {:#?}", stream.next().await);
         }
         Err(err) => exit_with_err(err),
     };
