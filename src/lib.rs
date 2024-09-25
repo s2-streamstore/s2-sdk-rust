@@ -4,6 +4,7 @@ mod service;
 pub mod client;
 pub mod types;
 
+pub use futures;
 pub use http::uri;
 pub use secrecy::SecretString;
 pub use service::StreamingResponse;
@@ -15,7 +16,9 @@ pub mod service_error {
             CreateStreamError, DeleteStreamError, GetBasinConfigError, GetStreamConfigError,
             ListStreamsError, ReconfigureBasinError, ReconfigureStreamError,
         },
-        stream::{AppendError, GetNextSeqNumError, ReadError, ReadSessionError},
+        stream::{
+            AppendError, AppendSessionError, GetNextSeqNumError, ReadError, ReadSessionError,
+        },
         ServiceError,
     };
 }
