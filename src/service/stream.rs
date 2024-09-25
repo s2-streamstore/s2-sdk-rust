@@ -1,7 +1,12 @@
+use std::fmt;
+
 use prost_types::method_options::IdempotencyLevel;
 use tonic::{transport::Channel, IntoRequest};
 
-use super::{ServiceRequest, StreamingResponse, WithStreamingResponse};
+use super::{
+    ServiceRequest, ServiceStreamingRequest, ServiceStreamingResponse, WithStreamingRequest,
+    WithStreamingResponse,
+};
 use crate::{
     api::{self, stream_service_client::StreamServiceClient},
     types,
@@ -244,7 +249,7 @@ impl ReadSessionServiceRequest {
 
 impl ServiceRequest for ReadSessionServiceRequest {
     type ApiRequest = api::ReadSessionRequest;
-    type Response = StreamingResponse<Self>;
+    type Response = ServiceStreamingResponse<Self>;
     type ApiResponse = tonic::Streaming<api::ReadSessionResponse>;
     type Error = ReadSessionError;
 
@@ -259,7 +264,10 @@ impl ServiceRequest for ReadSessionServiceRequest {
         &self,
         resp: tonic::Response<Self::ApiResponse>,
     ) -> Result<Self::Response, types::ConvertError> {
-        Ok(StreamingResponse::new(self.clone(), resp.into_inner()))
+        Ok(ServiceStreamingResponse::new(
+            self.clone(),
+            resp.into_inner(),
+        ))
     }
 
     fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
@@ -311,6 +319,157 @@ impl WithStreamingResponse for ReadSessionServiceRequest {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReadSessionError {
+    #[error("Not found: {0}")]
+    NotFound(String),
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct AppendSessionServiceRequest<S>
+where
+    S: 'static
+        + Send
+        + futures::Stream<Item = types::AppendSessionRequest>
+        + Unpin
+        + fmt::Debug
+        // TODO: An append request is probably never going to be retried but the
+        // "Clone" requirement makes specifying it difficult. Need to figure out
+        // a way to make the clone requirement optional somehow.
+        + Clone,
+{
+    client: StreamServiceClient<Channel>,
+    stream: String,
+    req: S,
+}
+
+impl<S> AppendSessionServiceRequest<S>
+where
+    S: 'static
+        + Send
+        + futures::Stream<Item = types::AppendSessionRequest>
+        + Unpin
+        + fmt::Debug
+        + Clone,
+{
+    pub fn new(client: StreamServiceClient<Channel>, stream: impl Into<String>, req: S) -> Self {
+        Self {
+            client,
+            stream: stream.into(),
+            req,
+        }
+    }
+}
+
+impl<S> ServiceRequest for AppendSessionServiceRequest<S>
+where
+    S: 'static
+        + Send
+        + futures::Stream<Item = types::AppendSessionRequest>
+        + Unpin
+        + fmt::Debug
+        + Clone,
+{
+    type ApiRequest = ServiceStreamingRequest<Self, S>;
+    type Response = ServiceStreamingResponse<Self>;
+    type ApiResponse = tonic::Streaming<api::AppendSessionResponse>;
+    type Error = AppendSessionError;
+
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
+
+    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+        let req = ServiceStreamingRequest::new(self.clone(), self.req.clone());
+        Ok(req.into_request())
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(ServiceStreamingResponse::new(
+            self.clone(),
+            resp.into_inner(),
+        ))
+    }
+
+    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
+        Err(match status.code() {
+            tonic::Code::NotFound => {
+                Some(AppendSessionError::NotFound(status.message().to_string()))
+            }
+            tonic::Code::InvalidArgument => Some(AppendSessionError::InvalidArgument(
+                status.message().to_string(),
+            )),
+            _ => None,
+        })
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.append_session(req).await
+    }
+
+    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
+        false
+    }
+}
+
+impl<S> WithStreamingRequest for AppendSessionServiceRequest<S>
+where
+    S: 'static
+        + Send
+        + futures::Stream<Item = types::AppendSessionRequest>
+        + Unpin
+        + fmt::Debug
+        + Clone,
+{
+    type RequestItem = types::AppendSessionRequest;
+    type ApiRequestItem = api::AppendSessionRequest;
+
+    fn prepare_request_item(&self, req: Self::RequestItem) -> Self::ApiRequestItem {
+        req.into_api_type(&self.stream)
+    }
+}
+
+impl<S> WithStreamingResponse for AppendSessionServiceRequest<S>
+where
+    S: 'static
+        + Send
+        + futures::Stream<Item = types::AppendSessionRequest>
+        + Unpin
+        + fmt::Debug
+        + Clone,
+{
+    type ResponseItem = types::AppendSessionResponse;
+    type ApiResponseItem = api::AppendSessionResponse;
+
+    fn parse_response_item(
+        &self,
+        resp: Self::ApiResponseItem,
+    ) -> Result<Self::ResponseItem, types::ConvertError> {
+        resp.try_into()
+    }
+
+    fn parse_response_item_status(
+        &self,
+        status: &tonic::Status,
+    ) -> Result<Self::ResponseItem, Option<Self::Error>> {
+        Err(match status.code() {
+            tonic::Code::NotFound => {
+                Some(AppendSessionError::NotFound(status.message().to_string()))
+            }
+            tonic::Code::InvalidArgument => Some(AppendSessionError::InvalidArgument(
+                status.message().to_string(),
+            )),
+            _ => None,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum AppendSessionError {
     #[error("Not found: {0}")]
     NotFound(String),
     #[error("Invalid argument: {0}")]

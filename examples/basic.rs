@@ -3,9 +3,9 @@ use s2::{
     client::{Client, ClientConfig, HostCloud},
     service_error::{CreateBasinError, CreateStreamError, ServiceError},
     types::{
-        AppendInput, AppendRecord, AppendRequest, CreateBasinRequest, CreateStreamRequest,
-        DeleteBasinRequest, DeleteStreamRequest, GetStreamConfigRequest, ListBasinsRequest,
-        ListStreamsRequest, ReadSessionRequest,
+        AppendInput, AppendRecord, AppendRequest, AppendSessionRequest, CreateBasinRequest,
+        CreateStreamRequest, DeleteBasinRequest, DeleteStreamRequest, GetStreamConfigRequest,
+        ListBasinsRequest, ListStreamsRequest, ReadSessionRequest,
     },
 };
 
@@ -103,20 +103,28 @@ async fn main() {
 
     let stream_client = basin_client.stream_client(stream);
 
-    let append_req = AppendRequest::builder()
-        .input(
-            AppendInput::builder()
-                .records(vec![
-                    AppendRecord::builder().body(b"hello world").build(),
-                    AppendRecord::builder().body(b"bye world").build(),
-                ])
-                .build(),
-        )
+    let append_input = AppendInput::builder()
+        .records(vec![
+            AppendRecord::builder().body(b"hello world").build(),
+            AppendRecord::builder().body(b"bye world").build(),
+        ])
         .build();
+
+    let append_req = AppendRequest::builder().input(append_input.clone()).build();
 
     match stream_client.append(append_req).await {
         Ok(resp) => {
             println!("Appended: {resp:#?}");
+        }
+        Err(err) => exit_with_err(err),
+    };
+
+    let append_session_req =
+        futures::stream::iter([AppendSessionRequest::builder().input(append_input).build()]);
+
+    match stream_client.append_session(append_session_req).await {
+        Ok(mut stream) => {
+            println!("Appended in session: {:#?}", stream.next().await);
         }
         Err(err) => exit_with_err(err),
     };
@@ -132,7 +140,7 @@ async fn main() {
 
     match stream_client.read_session(read_session_req).await {
         Ok(mut stream) => {
-            println!("Read: {:#?}", stream.next().await);
+            println!("Read session: {:#?}", stream.next().await);
         }
         Err(err) => exit_with_err(err),
     };

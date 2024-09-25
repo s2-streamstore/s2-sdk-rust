@@ -137,10 +137,55 @@ pub trait ServiceRequest: Clone {
     fn should_retry(&self, err: &ServiceError<Self::Error>) -> bool;
 }
 
+pub trait WithStreamingRequest: Unpin + ServiceRequest {
+    type RequestItem;
+    type ApiRequestItem;
+
+    fn prepare_request_item(&self, req: Self::RequestItem) -> Self::ApiRequestItem;
+}
+
+pub struct ServiceStreamingRequest<R, S>
+where
+    R: WithStreamingRequest,
+    S: futures::Stream<Item = R::RequestItem> + Unpin,
+{
+    service_req: R,
+    stream: S,
+}
+
+impl<R, S> ServiceStreamingRequest<R, S>
+where
+    R: WithStreamingRequest,
+    S: futures::Stream<Item = R::RequestItem> + Unpin,
+{
+    pub fn new(service_req: R, stream: S) -> Self {
+        Self {
+            service_req,
+            stream,
+        }
+    }
+}
+
+impl<R, S> futures::Stream for ServiceStreamingRequest<R, S>
+where
+    R: WithStreamingRequest,
+    S: futures::Stream<Item = R::RequestItem> + Unpin,
+{
+    type Item = R::ApiRequestItem;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.stream.poll_next_unpin(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Ready(Some(req)) => Poll::Ready(Some(self.service_req.prepare_request_item(req))),
+        }
+    }
+}
+
 pub trait WithStreamingResponse:
     Unpin
     + ServiceRequest<
-        Response = StreamingResponse<Self>,
+        Response = ServiceStreamingResponse<Self>,
         ApiResponse = tonic::Streaming<Self::ApiResponseItem>,
     >
 {
@@ -162,12 +207,12 @@ pub trait WithStreamingResponse:
     ) -> Result<Self::ResponseItem, Option<Self::Error>>;
 }
 
-pub struct StreamingResponse<S: WithStreamingResponse> {
+pub struct ServiceStreamingResponse<S: WithStreamingResponse> {
     stream: tonic::Streaming<S::ApiResponseItem>,
     service_req: S,
 }
 
-impl<S: WithStreamingResponse> StreamingResponse<S> {
+impl<S: WithStreamingResponse> ServiceStreamingResponse<S> {
     pub fn new(service_req: S, stream: tonic::Streaming<S::ApiResponseItem>) -> Self {
         Self {
             stream,
@@ -176,7 +221,7 @@ impl<S: WithStreamingResponse> StreamingResponse<S> {
     }
 }
 
-impl<S: WithStreamingResponse> futures::Stream for StreamingResponse<S> {
+impl<S: WithStreamingResponse> futures::Stream for ServiceStreamingResponse<S> {
     type Item = Result<S::ResponseItem, ServiceError<S::Error>>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -213,12 +258,13 @@ impl<S: WithStreamingResponse> futures::Stream for StreamingResponse<S> {
     }
 }
 
-pub struct ServiceStreamResponse<R, E: std::error::Error>(
+/// Wrapper around `ServiceStreamingResponse` to expose publically.
+pub struct StreamingResponse<R, E: std::error::Error>(
     Box<dyn Unpin + futures::Stream<Item = Result<R, ServiceError<E>>>>,
 );
 
-impl<R, E: std::error::Error> ServiceStreamResponse<R, E> {
-    pub(crate) fn new<S>(s: StreamingResponse<S>) -> Self
+impl<R, E: std::error::Error> StreamingResponse<R, E> {
+    pub(crate) fn new<S>(s: ServiceStreamingResponse<S>) -> Self
     where
         S: WithStreamingResponse<ResponseItem = R, Error = E> + 'static,
     {
@@ -226,7 +272,7 @@ impl<R, E: std::error::Error> ServiceStreamResponse<R, E> {
     }
 }
 
-impl<R, E: std::error::Error> futures::Stream for ServiceStreamResponse<R, E> {
+impl<R, E: std::error::Error> futures::Stream for StreamingResponse<R, E> {
     type Item = Result<R, ServiceError<E>>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

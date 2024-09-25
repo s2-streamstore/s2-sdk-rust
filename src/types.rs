@@ -831,3 +831,34 @@ impl TryFrom<api::ReadSessionResponse> for ReadSessionResponse {
         })
     }
 }
+
+#[derive(Debug, Clone, TypedBuilder)]
+pub struct AppendSessionRequest {
+    #[builder]
+    pub input: AppendInput,
+}
+
+impl AppendSessionRequest {
+    pub fn into_api_type(self, stream: impl Into<String>) -> api::AppendSessionRequest {
+        let Self { input } = self;
+        api::AppendSessionRequest {
+            input: Some(input.into_api_type(stream)),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AppendSessionResponse {
+    pub output: AppendOutput,
+}
+
+impl TryFrom<api::AppendSessionResponse> for AppendSessionResponse {
+    type Error = ConvertError;
+    fn try_from(value: api::AppendSessionResponse) -> Result<Self, Self::Error> {
+        let api::AppendSessionResponse { output } = value;
+        let output = output.ok_or("missing append output")?;
+        Ok(Self {
+            output: output.into(),
+        })
+    }
+}

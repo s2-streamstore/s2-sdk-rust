@@ -1,6 +1,5 @@
-use std::time::Duration;
+use std::{fmt, time::Duration};
 
-use futures::Stream;
 use http::{uri::Authority, Uri};
 use secrecy::SecretString;
 use tonic::transport::{Channel, Endpoint};
@@ -25,10 +24,11 @@ use crate::{
         },
         send_request,
         stream::{
-            AppendError, AppendServiceRequest, GetNextSeqNumError, GetNextSeqNumServiceRequest,
-            ReadError, ReadServiceRequest, ReadSessionError, ReadSessionServiceRequest,
+            AppendError, AppendServiceRequest, AppendSessionError, AppendSessionServiceRequest,
+            GetNextSeqNumError, GetNextSeqNumServiceRequest, ReadError, ReadServiceRequest,
+            ReadSessionError, ReadSessionServiceRequest,
         },
-        ServiceError, ServiceRequest, ServiceStreamResponse,
+        ServiceError, ServiceRequest, StreamingResponse,
     },
     types,
 };
@@ -289,7 +289,7 @@ impl StreamClient {
         &self,
         req: types::ReadSessionRequest,
     ) -> Result<
-        ServiceStreamResponse<types::ReadSessionResponse, ReadSessionError>,
+        StreamingResponse<types::ReadSessionResponse, ReadSessionError>,
         ServiceError<ReadSessionError>,
     > {
         self.inner
@@ -299,7 +299,32 @@ impl StreamClient {
                 req,
             ))
             .await
-            .map(ServiceStreamResponse::new)
+            .map(StreamingResponse::new)
+    }
+
+    pub async fn append_session<S>(
+        &self,
+        req: S,
+    ) -> Result<
+        StreamingResponse<types::AppendSessionResponse, AppendSessionError>,
+        ServiceError<AppendSessionError>,
+    >
+    where
+        S: 'static
+            + Send
+            + futures::Stream<Item = types::AppendSessionRequest>
+            + Unpin
+            + fmt::Debug
+            + Clone,
+    {
+        self.inner
+            .send(AppendSessionServiceRequest::new(
+                self.inner.stream_service_client(),
+                &self.stream,
+                req,
+            ))
+            .await
+            .map(StreamingResponse::new)
     }
 }
 
