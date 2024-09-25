@@ -9,8 +9,8 @@ pub use secrecy::SecretString;
 
 pub mod service_error {
     pub use crate::service::{
-        account::{CreateBasinError, DeleteBasinError},
-        basin::{CreateStreamError, GetBasinConfigError, GetStreamConfigError, ListStreamsError},
+        account::{CreateBasinError, DeleteBasinError, GetBasinConfigError},
+        basin::{CreateStreamError, GetStreamConfigError, ListStreamsError},
         ServiceError,
     };
 }
