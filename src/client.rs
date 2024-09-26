@@ -13,14 +13,15 @@ use crate::{
     service::{
         account::{
             CreateBasinError, CreateBasinServiceRequest, DeleteBasinError,
-            DeleteBasinServiceRequest, ListBasinsError, ListBasinsServiceRequest,
+            DeleteBasinServiceRequest, GetBasinConfigError, GetBasinConfigServiceRequest,
+            ListBasinsError, ListBasinsServiceRequest, ReconfigureBasinError,
+            ReconfigureBasinServiceRequest,
         },
         basin::{
             CreateStreamError, CreateStreamServiceRequest, DeleteStreamError,
-            DeleteStreamServiceRequest, GetBasinConfigError, GetBasinConfigServiceRequest,
-            GetStreamConfigError, GetStreamConfigServiceRequest, ListStreamsError,
-            ListStreamsServiceRequest, ReconfigureBasinError, ReconfigureBasinServiceRequest,
-            ReconfigureStreamError, ReconfigureStreamServiceRequest,
+            DeleteStreamServiceRequest, GetStreamConfigError, GetStreamConfigServiceRequest,
+            ListStreamsError, ListStreamsServiceRequest, ReconfigureStreamError,
+            ReconfigureStreamServiceRequest,
         },
         send_request,
         stream::{GetNextSeqNumError, GetNextSeqNumServiceRequest},
@@ -146,6 +147,30 @@ impl Client {
             res => res,
         }
     }
+
+    pub async fn get_basin_config(
+        &self,
+        req: types::GetBasinConfigRequest,
+    ) -> Result<types::GetBasinConfigResponse, ServiceError<GetBasinConfigError>> {
+        self.inner
+            .send(
+                GetBasinConfigServiceRequest::new(self.inner.account_service_client()),
+                req,
+            )
+            .await
+    }
+
+    pub async fn reconfigure_basin(
+        &self,
+        req: types::ReconfigureBasinRequest,
+    ) -> Result<(), ServiceError<ReconfigureBasinError>> {
+        self.inner
+            .send(
+                ReconfigureBasinServiceRequest::new(self.inner.account_service_client()),
+                req,
+            )
+            .await
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -159,29 +184,6 @@ impl BasinClient {
             inner: self.inner.clone(),
             stream: stream.into(),
         }
-    }
-
-    pub async fn get_basin_config(
-        &self,
-    ) -> Result<types::GetBasinConfigResponse, ServiceError<GetBasinConfigError>> {
-        self.inner
-            .send(
-                GetBasinConfigServiceRequest::new(self.inner.basin_service_client()),
-                /* request = */ (),
-            )
-            .await
-    }
-
-    pub async fn reconfigure_basin(
-        &self,
-        req: types::ReconfigureBasinRequest,
-    ) -> Result<(), ServiceError<ReconfigureBasinError>> {
-        self.inner
-            .send(
-                ReconfigureBasinServiceRequest::new(self.inner.basin_service_client()),
-                req,
-            )
-            .await
     }
 
     pub async fn create_stream(

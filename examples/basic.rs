@@ -3,7 +3,7 @@ use s2::{
     service_error::{CreateBasinError, CreateStreamError, ServiceError},
     types::{
         CreateBasinRequest, CreateStreamRequest, DeleteBasinRequest, DeleteStreamRequest,
-        GetStreamConfigRequest, ListBasinsRequest, ListStreamsRequest,
+        GetBasinConfigRequest, GetStreamConfigRequest, ListBasinsRequest, ListStreamsRequest,
     },
 };
 
@@ -50,9 +50,8 @@ async fn main() {
         Err(err) => exit_with_err(err),
     };
 
-    let basin_client = client.basin_client(basin).await.unwrap();
-
-    match basin_client.get_basin_config().await {
+    let get_basin_config_req = GetBasinConfigRequest::builder().basin(basin).build();
+    match client.get_basin_config(get_basin_config_req).await {
         Ok(config) => {
             println!("Basin config: {config:#?}");
         }
@@ -62,6 +61,7 @@ async fn main() {
     let stream = "s2-sdk-example-stream";
 
     let create_stream_req = CreateStreamRequest::builder().stream(stream).build();
+    let basin_client = client.basin_client(basin).await.unwrap();
 
     match basin_client.create_stream(create_stream_req).await {
         Ok(()) => {

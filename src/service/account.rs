@@ -200,3 +200,132 @@ pub enum DeleteBasinError {
     #[error("Not found: {0}")]
     NotFound(String),
 }
+
+#[derive(Debug, Clone)]
+pub struct GetBasinConfigServiceRequest {
+    client: AccountServiceClient<Channel>,
+}
+
+impl GetBasinConfigServiceRequest {
+    pub fn new(client: AccountServiceClient<Channel>) -> Self {
+        Self { client }
+    }
+}
+
+impl ServiceRequest for GetBasinConfigServiceRequest {
+    type Request = types::GetBasinConfigRequest;
+    type ApiRequest = api::GetBasinConfigRequest;
+    type Response = types::GetBasinConfigResponse;
+    type ApiResponse = api::GetBasinConfigResponse;
+    type Error = GetBasinConfigError;
+
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
+
+    fn prepare_request(
+        &self,
+        req: Self::Request,
+    ) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+        let req: api::GetBasinConfigRequest = req.into();
+        Ok(req.into_request())
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
+    }
+
+    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
+        match status.code() {
+            tonic::Code::NotFound => {
+                Some(GetBasinConfigError::NotFound(status.message().to_string()))
+            }
+            _ => None,
+        }
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.get_basin_config(req).await
+    }
+
+    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GetBasinConfigError {
+    #[error("Not found: {0}")]
+    NotFound(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct ReconfigureBasinServiceRequest {
+    client: AccountServiceClient<Channel>,
+}
+
+impl ReconfigureBasinServiceRequest {
+    pub fn new(client: AccountServiceClient<Channel>) -> Self {
+        Self { client }
+    }
+}
+
+impl ServiceRequest for ReconfigureBasinServiceRequest {
+    type Request = types::ReconfigureBasinRequest;
+    type ApiRequest = api::ReconfigureBasinRequest;
+    type Response = ();
+    type ApiResponse = api::ReconfigureBasinResponse;
+    type Error = ReconfigureBasinError;
+
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
+
+    fn prepare_request(
+        &self,
+        req: Self::Request,
+    ) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+        let req: api::ReconfigureBasinRequest = req.try_into()?;
+        Ok(req.into_request())
+    }
+
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(())
+    }
+
+    fn parse_status(&self, status: &tonic::Status) -> Option<Self::Error> {
+        match status.code() {
+            tonic::Code::NotFound => Some(ReconfigureBasinError::NotFound(
+                status.message().to_string(),
+            )),
+            tonic::Code::InvalidArgument => Some(ReconfigureBasinError::InvalidArgument(
+                status.message().to_string(),
+            )),
+            _ => None,
+        }
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.reconfigure_basin(req).await
+    }
+
+    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ReconfigureBasinError {
+    #[error("Not found: {0}")]
+    NotFound(String),
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+}
