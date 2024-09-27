@@ -398,16 +398,16 @@ impl TryFrom<CreateStreamRequest> for api::CreateStreamRequest {
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct ListBasinsRequest {
     /// List basin names that begin with this prefix.  
-    #[builder(default, setter(into))]
-    pub prefix: String,
+    #[builder(default, setter(into, strip_option))]
+    pub prefix: Option<String>,
     /// Only return basins names that lexicographically start after this name.
     /// This can be the last basin name seen in a previous listing, to continue from there.
     /// It must be greater than or equal to the prefix if specified.
-    #[builder(default, setter(into))]
-    pub start_after: String,
+    #[builder(default, setter(into, strip_option))]
+    pub start_after: Option<String>,
     /// Number of results, upto a maximum of 1000.    
-    #[builder(default, setter(into))]
-    pub limit: usize,
+    #[builder(default, setter(into, strip_option))]
+    pub limit: Option<usize>,
 }
 
 impl From<ListBasinsRequest> for api::ListBasinsRequest {
@@ -418,9 +418,9 @@ impl From<ListBasinsRequest> for api::ListBasinsRequest {
             limit,
         } = value;
         Self {
-            prefix,
-            start_after,
-            limit: limit as u64,
+            prefix: prefix.unwrap_or_default(),
+            start_after: start_after.unwrap_or_default(),
+            limit: limit.map(|limit| limit as u64).unwrap_or_default(),
         }
     }
 }
