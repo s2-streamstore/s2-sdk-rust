@@ -229,6 +229,17 @@ impl TryFrom<i32> for BasinState {
     }
 }
 
+impl std::fmt::Display for BasinState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BasinState::Unspecified => write!(f, "unspecified"),
+            BasinState::Active => write!(f, "active"),
+            BasinState::Creating => write!(f, "creating"),
+            BasinState::Deleting => write!(f, "deleting"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct BasinMetadata {
     #[builder(setter(into))]
