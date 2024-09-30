@@ -331,6 +331,12 @@ impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
     }
 }
 
+impl Default for ListStreamsRequest {
+    fn default() -> Self {
+        Self::builder().build()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ListStreamsResponse {
     pub streams: Vec<String>,
@@ -438,6 +444,12 @@ impl TryFrom<ListBasinsRequest> for api::ListBasinsRequest {
                 .try_into()
                 .map_err(|_| "request limit does not fit into u64 bounds")?,
         })
+    }
+}
+
+impl Default for ListBasinsRequest {
+    fn default() -> Self {
+        Self::builder().build()
     }
 }
 
@@ -584,7 +596,7 @@ impl From<api::GetNextSeqNumResponse> for GetNextSeqNumResponse {
 
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct Header {
-    #[builder(setter(into))]
+    #[builder(default, setter(into))]
     pub name: Vec<u8>,
     #[builder(setter(into))]
     pub value: Vec<u8>,
@@ -610,6 +622,26 @@ impl From<api::Header> for Header {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum CommandRecord {
+    Fence { fencing_token: Vec<u8> },
+    Trim { seq_num: u64 },
+}
+
+impl CommandRecord {
+    pub fn fence<T: Into<Vec<u8>>>(fencing_token: Option<T>) -> Self {
+        Self::Fence {
+            fencing_token: fencing_token.map(Into::into).unwrap_or_default(),
+        }
+    }
+
+    pub fn trim(seq_num: impl Into<u64>) -> Self {
+        Self::Trim {
+            seq_num: seq_num.into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct AppendRecord {
     /// Series of name-value pairs for this record.
@@ -626,6 +658,19 @@ impl From<AppendRecord> for api::AppendRecord {
         Self {
             headers: headers.into_iter().map(Into::into).collect(),
             body: body.into(),
+        }
+    }
+}
+
+impl From<CommandRecord> for AppendRecord {
+    fn from(value: CommandRecord) -> Self {
+        let (header_value, body) = match value {
+            CommandRecord::Fence { fencing_token } => ("fence", fencing_token),
+            CommandRecord::Trim { seq_num } => ("trim", seq_num.to_be_bytes().to_vec()),
+        };
+        Self {
+            headers: vec![Header::builder().value(header_value).build()],
+            body,
         }
     }
 }
