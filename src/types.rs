@@ -185,47 +185,58 @@ impl From<api::stream_config::RetentionPolicy> for RetentionPolicy {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BasinStatus {
+pub enum BasinState {
     Unspecified,
     Active,
     Creating,
     Deleting,
 }
 
-impl From<BasinStatus> for api::BasinStatus {
-    fn from(value: BasinStatus) -> Self {
+impl From<BasinState> for api::BasinState {
+    fn from(value: BasinState) -> Self {
         match value {
-            BasinStatus::Unspecified => Self::Unspecified,
-            BasinStatus::Active => Self::Active,
-            BasinStatus::Creating => Self::Creating,
-            BasinStatus::Deleting => Self::Deleting,
+            BasinState::Unspecified => Self::Unspecified,
+            BasinState::Active => Self::Active,
+            BasinState::Creating => Self::Creating,
+            BasinState::Deleting => Self::Deleting,
         }
     }
 }
 
-impl From<api::BasinStatus> for BasinStatus {
-    fn from(value: api::BasinStatus) -> Self {
+impl From<api::BasinState> for BasinState {
+    fn from(value: api::BasinState) -> Self {
         match value {
-            api::BasinStatus::Unspecified => Self::Unspecified,
-            api::BasinStatus::Active => Self::Active,
-            api::BasinStatus::Creating => Self::Creating,
-            api::BasinStatus::Deleting => Self::Deleting,
+            api::BasinState::Unspecified => Self::Unspecified,
+            api::BasinState::Active => Self::Active,
+            api::BasinState::Creating => Self::Creating,
+            api::BasinState::Deleting => Self::Deleting,
         }
     }
 }
 
-impl From<BasinStatus> for i32 {
-    fn from(value: BasinStatus) -> Self {
-        api::BasinStatus::from(value).into()
+impl From<BasinState> for i32 {
+    fn from(value: BasinState) -> Self {
+        api::BasinState::from(value).into()
     }
 }
 
-impl TryFrom<i32> for BasinStatus {
+impl TryFrom<i32> for BasinState {
     type Error = ConvertError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        api::BasinStatus::try_from(value)
+        api::BasinState::try_from(value)
             .map(Into::into)
             .map_err(|_| "invalid basin status value".into())
+    }
+}
+
+impl std::fmt::Display for BasinState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BasinState::Unspecified => write!(f, "unspecified"),
+            BasinState::Active => write!(f, "active"),
+            BasinState::Creating => write!(f, "creating"),
+            BasinState::Deleting => write!(f, "deleting"),
+        }
     }
 }
 
@@ -238,7 +249,7 @@ pub struct BasinMetadata {
     #[builder(setter(into))]
     pub cell: String,
     #[builder(setter(into))]
-    pub status: BasinStatus,
+    pub state: BasinState,
 }
 
 impl From<BasinMetadata> for api::BasinMetadata {
@@ -247,13 +258,13 @@ impl From<BasinMetadata> for api::BasinMetadata {
             name,
             scope,
             cell,
-            status,
+            state,
         } = value;
         Self {
             name,
             scope,
             cell,
-            status: status.into(),
+            state: state.into(),
         }
     }
 }
@@ -265,13 +276,13 @@ impl TryFrom<api::BasinMetadata> for BasinMetadata {
             name,
             scope,
             cell,
-            status,
+            state,
         } = value;
         Ok(Self {
             name,
             scope,
             cell,
-            status: status.try_into()?,
+            state: state.try_into()?,
         })
     }
 }
@@ -470,6 +481,20 @@ impl From<DeleteBasinRequest> for api::DeleteBasinRequest {
 }
 
 #[derive(Debug, Clone, TypedBuilder)]
+pub struct GetBasinConfigRequest {
+    /// Name of the basin.
+    #[builder(setter(into))]
+    pub basin: String,
+}
+
+impl From<GetBasinConfigRequest> for api::GetBasinConfigRequest {
+    fn from(value: GetBasinConfigRequest) -> Self {
+        let GetBasinConfigRequest { basin } = value;
+        Self { basin }
+    }
+}
+
+#[derive(Debug, Clone, TypedBuilder)]
 pub struct DeleteStreamRequest {
     /// Name of the stream to delete.
     #[builder(setter(into))]
@@ -488,6 +513,9 @@ impl From<DeleteStreamRequest> for api::DeleteStreamRequest {
 
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct ReconfigureBasinRequest {
+    /// Name of the basin.
+    #[builder(setter(into))]
+    pub basin: String,
     /// Updated configuration.
     #[builder(setter(strip_option))]
     pub config: Option<BasinConfig>,
@@ -499,8 +527,13 @@ pub struct ReconfigureBasinRequest {
 impl TryFrom<ReconfigureBasinRequest> for api::ReconfigureBasinRequest {
     type Error = ConvertError;
     fn try_from(value: ReconfigureBasinRequest) -> Result<Self, Self::Error> {
-        let ReconfigureBasinRequest { config, mask } = value;
+        let ReconfigureBasinRequest {
+            basin,
+            config,
+            mask,
+        } = value;
         Ok(Self {
+            basin,
             config: config.map(TryInto::try_into).transpose()?,
             mask: mask.map(|paths| prost_types::FieldMask { paths }),
         })

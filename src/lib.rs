@@ -11,10 +11,13 @@ pub use service::StreamingResponse;
 
 pub mod service_error {
     pub use crate::service::{
-        account::{CreateBasinError, DeleteBasinError, ListBasinsError},
+        account::{
+            CreateBasinError, DeleteBasinError, GetBasinConfigError, ListBasinsError,
+            ReconfigureBasinError,
+        },
         basin::{
-            CreateStreamError, DeleteStreamError, GetBasinConfigError, GetStreamConfigError,
-            ListStreamsError, ReconfigureBasinError, ReconfigureStreamError,
+            CreateStreamError, DeleteStreamError, GetStreamConfigError, ListStreamsError,
+            ReconfigureStreamError,
         },
         stream::{
             AppendError, AppendSessionError, GetNextSeqNumError, ReadError, ReadSessionError,
