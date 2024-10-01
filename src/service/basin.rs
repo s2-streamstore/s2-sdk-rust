@@ -1,7 +1,6 @@
-use prost_types::method_options::IdempotencyLevel;
 use tonic::{transport::Channel, IntoRequest};
 
-use super::ServiceRequest;
+use super::{IdempodentRequest, ServiceRequest};
 use crate::{
     api::{self, basin_service_client::BasinServiceClient},
     types,
@@ -25,9 +24,7 @@ impl ServiceRequest for ListStreamsServiceRequest {
     type ApiResponse = api::ListStreamsResponse;
     type Error = ListStreamsError;
 
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
-
-    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ListStreamsRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -55,10 +52,10 @@ impl ServiceRequest for ListStreamsServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.list_streams(req).await
     }
+}
 
-    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
-        false
-    }
+impl IdempodentRequest for ListStreamsServiceRequest {
+    const NO_SIDE_EFFECTS: bool = true;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -87,9 +84,7 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
     type ApiResponse = api::GetStreamConfigResponse;
     type Error = GetStreamConfigError;
 
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
-
-    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::GetStreamConfigRequest = self.req.clone().into();
         Ok(req.into_request())
     }
@@ -119,10 +114,10 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.get_stream_config(req).await
     }
+}
 
-    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
-        false
-    }
+impl IdempodentRequest for GetStreamConfigServiceRequest {
+    const NO_SIDE_EFFECTS: bool = true;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -151,9 +146,7 @@ impl ServiceRequest for CreateStreamServiceRequest {
     type ApiResponse = api::CreateStreamResponse;
     type Error = CreateStreamError;
 
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
-
-    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::CreateStreamRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -186,10 +179,6 @@ impl ServiceRequest for CreateStreamServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.create_stream(req).await
     }
-
-    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
-        false
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -220,9 +209,7 @@ impl ServiceRequest for DeleteStreamServiceRequest {
     type ApiResponse = api::DeleteStreamResponse;
     type Error = DeleteStreamError;
 
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
-
-    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::DeleteStreamRequest = self.req.clone().into();
         Ok(req.into_request())
     }
@@ -253,10 +240,10 @@ impl ServiceRequest for DeleteStreamServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.delete_stream(req).await
     }
+}
 
-    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
-        false
-    }
+impl IdempodentRequest for DeleteStreamServiceRequest {
+    const NO_SIDE_EFFECTS: bool = false;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -285,9 +272,7 @@ impl ServiceRequest for ReconfigureStreamServiceRequest {
     type ApiResponse = api::ReconfigureStreamResponse;
     type Error = ReconfigureStreamError;
 
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
-
-    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ReconfigureStreamRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -316,10 +301,6 @@ impl ServiceRequest for ReconfigureStreamServiceRequest {
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.reconfigure_stream(req).await
-    }
-
-    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
-        false
     }
 }
 

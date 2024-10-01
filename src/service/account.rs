@@ -1,7 +1,6 @@
-use prost_types::method_options::IdempotencyLevel;
 use tonic::{transport::Channel, IntoRequest};
 
-use super::{ServiceError, ServiceRequest};
+use super::{IdempodentRequest, ServiceRequest};
 use crate::{
     api::{self, account_service_client::AccountServiceClient},
     types::{self, ConvertError},
@@ -25,9 +24,7 @@ impl ServiceRequest for CreateBasinServiceRequest {
     type ApiResponse = api::CreateBasinResponse;
     type Error = CreateBasinError;
 
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
-
-    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
         let req: api::CreateBasinRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -57,10 +54,6 @@ impl ServiceRequest for CreateBasinServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.create_basin(req).await
     }
-
-    fn should_retry(&self, _status: &ServiceError<Self::Error>) -> bool {
-        false
-    }
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -89,9 +82,7 @@ impl ServiceRequest for ListBasinsServiceRequest {
     type ApiResponse = api::ListBasinsResponse;
     type Error = ListBasinsError;
 
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
-
-    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
         let req: api::ListBasinsRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -118,10 +109,10 @@ impl ServiceRequest for ListBasinsServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.list_basins(req).await
     }
+}
 
-    fn should_retry(&self, _status: &ServiceError<Self::Error>) -> bool {
-        false
-    }
+impl IdempodentRequest for ListBasinsServiceRequest {
+    const NO_SIDE_EFFECTS: bool = true;
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -148,9 +139,7 @@ impl ServiceRequest for DeleteBasinServiceRequest {
     type ApiResponse = api::DeleteBasinResponse;
     type Error = DeleteBasinError;
 
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
-
-    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
         let req: api::DeleteBasinRequest = self.req.clone().into();
         Ok(req.into_request())
     }
@@ -181,10 +170,10 @@ impl ServiceRequest for DeleteBasinServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.delete_basin(req).await
     }
+}
 
-    fn should_retry(&self, _status: &ServiceError<Self::Error>) -> bool {
-        false
-    }
+impl IdempodentRequest for DeleteBasinServiceRequest {
+    const NO_SIDE_EFFECTS: bool = false;
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -213,9 +202,7 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
     type ApiResponse = api::GetBasinConfigResponse;
     type Error = GetBasinConfigError;
 
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
-
-    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::GetBasinConfigRequest = self.req.clone().into();
         Ok(req.into_request())
     }
@@ -242,10 +229,10 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.get_basin_config(req).await
     }
+}
 
-    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
-        false
-    }
+impl IdempodentRequest for GetBasinConfigServiceRequest {
+    const NO_SIDE_EFFECTS: bool = true;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -272,9 +259,7 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
     type ApiResponse = api::ReconfigureBasinResponse;
     type Error = ReconfigureBasinError;
 
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
-
-    fn prepare_request(&self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ReconfigureBasinRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -304,10 +289,10 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.reconfigure_basin(req).await
     }
+}
 
-    fn should_retry(&self, _err: &super::ServiceError<Self::Error>) -> bool {
-        false
-    }
+impl IdempodentRequest for ReconfigureBasinServiceRequest {
+    const NO_SIDE_EFFECTS: bool = false;
 }
 
 #[derive(Debug, thiserror::Error)]

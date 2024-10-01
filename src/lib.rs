@@ -7,7 +7,7 @@ pub mod types;
 pub use futures;
 pub use http::uri;
 pub use secrecy::SecretString;
-pub use service::StreamingResponse;
+pub use service::Streaming;
 
 pub mod service_error {
     pub use crate::service::{

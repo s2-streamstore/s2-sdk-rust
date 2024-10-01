@@ -23,13 +23,13 @@ use crate::{
             ListStreamsError, ListStreamsServiceRequest, ReconfigureStreamError,
             ReconfigureStreamServiceRequest,
         },
-        send_request,
+        send_request, send_retryable_request,
         stream::{
             AppendError, AppendServiceRequest, AppendSessionError, AppendSessionServiceRequest,
             GetNextSeqNumError, GetNextSeqNumServiceRequest, ReadError, ReadServiceRequest,
             ReadSessionError, ReadSessionServiceRequest,
         },
-        ServiceError, ServiceRequest, StreamingResponse,
+        RetryableRequest, ServiceError, ServiceRequest, Streaming,
     },
     types,
 };
@@ -112,7 +112,7 @@ impl Client {
         req: types::ListBasinsRequest,
     ) -> Result<types::ListBasinsResponse, ServiceError<ListBasinsError>> {
         self.inner
-            .send(ListBasinsServiceRequest::new(
+            .send_retryable(ListBasinsServiceRequest::new(
                 self.inner.account_service_client(),
                 req,
             ))
@@ -138,7 +138,7 @@ impl Client {
         req: types::DeleteBasinRequest,
     ) -> Result<(), ServiceError<DeleteBasinError>> {
         self.inner
-            .send(DeleteBasinServiceRequest::new(
+            .send_retryable(DeleteBasinServiceRequest::new(
                 self.inner.account_service_client(),
                 req,
             ))
@@ -150,7 +150,7 @@ impl Client {
         req: types::GetBasinConfigRequest,
     ) -> Result<types::GetBasinConfigResponse, ServiceError<GetBasinConfigError>> {
         self.inner
-            .send(GetBasinConfigServiceRequest::new(
+            .send_retryable(GetBasinConfigServiceRequest::new(
                 self.inner.account_service_client(),
                 req,
             ))
@@ -162,7 +162,7 @@ impl Client {
         req: types::ReconfigureBasinRequest,
     ) -> Result<(), ServiceError<ReconfigureBasinError>> {
         self.inner
-            .send(ReconfigureBasinServiceRequest::new(
+            .send_retryable(ReconfigureBasinServiceRequest::new(
                 self.inner.account_service_client(),
                 req,
             ))
@@ -200,7 +200,7 @@ impl BasinClient {
         req: types::ListStreamsRequest,
     ) -> Result<types::ListStreamsResponse, ServiceError<ListStreamsError>> {
         self.inner
-            .send(ListStreamsServiceRequest::new(
+            .send_retryable(ListStreamsServiceRequest::new(
                 self.inner.basin_service_client(),
                 req,
             ))
@@ -212,7 +212,7 @@ impl BasinClient {
         req: types::GetStreamConfigRequest,
     ) -> Result<types::GetStreamConfigResponse, ServiceError<GetStreamConfigError>> {
         self.inner
-            .send(GetStreamConfigServiceRequest::new(
+            .send_retryable(GetStreamConfigServiceRequest::new(
                 self.inner.basin_service_client(),
                 req,
             ))
@@ -236,7 +236,7 @@ impl BasinClient {
         req: types::DeleteStreamRequest,
     ) -> Result<(), ServiceError<DeleteStreamError>> {
         self.inner
-            .send(DeleteStreamServiceRequest::new(
+            .send_retryable(DeleteStreamServiceRequest::new(
                 self.inner.basin_service_client(),
                 req,
             ))
@@ -255,7 +255,7 @@ impl StreamClient {
         &self,
     ) -> Result<types::GetNextSeqNumResponse, ServiceError<GetNextSeqNumError>> {
         self.inner
-            .send(GetNextSeqNumServiceRequest::new(
+            .send_retryable(GetNextSeqNumServiceRequest::new(
                 self.inner.stream_service_client(),
                 &self.stream,
             ))
@@ -280,7 +280,7 @@ impl StreamClient {
         req: types::ReadRequest,
     ) -> Result<types::ReadResponse, ServiceError<ReadError>> {
         self.inner
-            .send(ReadServiceRequest::new(
+            .send_retryable(ReadServiceRequest::new(
                 self.inner.stream_service_client(),
                 &self.stream,
                 req,
@@ -292,24 +292,24 @@ impl StreamClient {
         &self,
         req: types::ReadSessionRequest,
     ) -> Result<
-        StreamingResponse<types::ReadSessionResponse, ReadSessionError>,
+        Streaming<types::ReadSessionResponse, ReadSessionError>,
         ServiceError<ReadSessionError>,
     > {
         self.inner
-            .send(ReadSessionServiceRequest::new(
+            .send_retryable(ReadSessionServiceRequest::new(
                 self.inner.stream_service_client(),
                 &self.stream,
                 req,
             ))
             .await
-            .map(StreamingResponse::new)
+            .map(Streaming::new)
     }
 
     pub async fn append_session<S>(
         &self,
         req: S,
     ) -> Result<
-        StreamingResponse<types::AppendSessionResponse, AppendSessionError>,
+        Streaming<types::AppendSessionResponse, AppendSessionError>,
         ServiceError<AppendSessionError>,
     >
     where
@@ -327,7 +327,7 @@ impl StreamClient {
                 req,
             ))
             .await
-            .map(StreamingResponse::new)
+            .map(Streaming::new)
     }
 }
 
@@ -392,6 +392,13 @@ impl ClientInner {
         service_req: T,
     ) -> Result<T::Response, ServiceError<T::Error>> {
         send_request(service_req, &self.config.token, self.basin.as_deref()).await
+    }
+
+    pub async fn send_retryable<T: RetryableRequest>(
+        &self,
+        service_req: T,
+    ) -> Result<T::Response, ServiceError<T::Error>> {
+        send_retryable_request(service_req, &self.config.token, self.basin.as_deref()).await
     }
 
     pub fn account_service_client(&self) -> AccountServiceClient<Channel> {
