@@ -7,7 +7,6 @@ use std::{
     task::{Context, Poll},
 };
 
-use backon::{ConstantBuilder, Retryable};
 use futures::StreamExt;
 use secrecy::{ExposeSecret, SecretString};
 use tonic::metadata::{AsciiMetadataValue, MetadataMap};
@@ -62,19 +61,6 @@ pub async fn send_request<T: ServiceRequest>(
             },
         },
     }
-}
-
-pub async fn send_retryable_request<T: RetryableRequest>(
-    service: T,
-    token: &SecretString,
-    basin: Option<&str>,
-) -> Result<T::Response, ServiceError<T::Error>> {
-    let retry_fn = || async { send_request(service.clone(), token, basin).await };
-
-    // TODO: Configure retry.
-    Retryable::retry(retry_fn, ConstantBuilder::default())
-        .when(|e| service.should_retry(e))
-        .await
 }
 
 fn add_authorization_header(meta: &mut MetadataMap, token: &SecretString) {

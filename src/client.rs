@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use backon::{ConstantBuilder, Retryable};
 use http::{uri::Authority, Uri};
 use secrecy::SecretString;
 use tonic::transport::{Channel, Endpoint};
@@ -23,7 +24,7 @@ use crate::{
             ListStreamsError, ListStreamsServiceRequest, ReconfigureStreamError,
             ReconfigureStreamServiceRequest,
         },
-        send_request, send_retryable_request,
+        send_request,
         stream::{
             AppendError, AppendServiceRequest, AppendSessionError, AppendSessionServiceRequest,
             GetNextSeqNumError, GetNextSeqNumServiceRequest, ReadError, ReadServiceRequest,
@@ -406,7 +407,12 @@ impl ClientInner {
         &self,
         service_req: T,
     ) -> Result<T::Response, ServiceError<T::Error>> {
-        send_retryable_request(service_req, &self.config.token, self.basin.as_deref()).await
+        let retry_fn = || async { self.send(service_req.clone()).await };
+
+        retry_fn
+            .retry(ConstantBuilder::default()) // TODO: Configure retry.
+            .when(|e| service_req.should_retry(e))
+            .await
     }
 
     pub fn account_service_client(&self) -> AccountServiceClient<Channel> {
