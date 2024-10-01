@@ -80,7 +80,7 @@ impl GetStreamConfigServiceRequest {
 
 impl ServiceRequest for GetStreamConfigServiceRequest {
     type ApiRequest = api::GetStreamConfigRequest;
-    type Response = types::GetStreamConfigResponse;
+    type Response = types::StreamConfig;
     type ApiResponse = api::GetStreamConfigResponse;
     type Error = GetStreamConfigError;
 

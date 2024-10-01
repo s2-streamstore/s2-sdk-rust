@@ -26,7 +26,7 @@ impl GetNextSeqNumServiceRequest {
 
 impl ServiceRequest for GetNextSeqNumServiceRequest {
     type ApiRequest = api::GetNextSeqNumRequest;
-    type Response = types::GetNextSeqNumResponse;
+    type Response = u64;
     type ApiResponse = api::GetNextSeqNumResponse;
     type Error = GetNextSeqNumError;
 
@@ -99,7 +99,7 @@ impl ReadServiceRequest {
 
 impl ServiceRequest for ReadServiceRequest {
     type ApiRequest = api::ReadRequest;
-    type Response = types::ReadResponse;
+    type Response = types::ReadOutput;
     type ApiResponse = api::ReadResponse;
     type Error = ReadError;
 
@@ -249,14 +249,14 @@ pub enum ReadSessionError {
 pub struct AppendServiceRequest {
     client: StreamServiceClient<Channel>,
     stream: String,
-    req: types::AppendRequest,
+    req: types::AppendInput,
 }
 
 impl AppendServiceRequest {
     pub fn new(
         client: StreamServiceClient<Channel>,
         stream: impl Into<String>,
-        req: types::AppendRequest,
+        req: types::AppendInput,
     ) -> Self {
         Self {
             client,
@@ -268,16 +268,15 @@ impl AppendServiceRequest {
 
 impl ServiceRequest for AppendServiceRequest {
     type ApiRequest = api::AppendRequest;
-    type Response = types::AppendResponse;
+    type Response = types::AppendOutput;
     type ApiResponse = api::AppendResponse;
     type Error = AppendError;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
-        Ok(self
-            .req
-            .clone()
-            .into_api_type(self.stream.clone())
-            .into_request())
+        Ok(api::AppendRequest {
+            input: Some(self.req.clone().into_api_type(self.stream.clone())),
+        }
+        .into_request())
     }
 
     fn parse_response(
@@ -315,7 +314,7 @@ pub enum AppendError {
 
 pub struct AppendSessionServiceRequest<S>
 where
-    S: 'static + Send + futures::Stream<Item = types::AppendSessionRequest> + Unpin,
+    S: 'static + Send + futures::Stream<Item = types::AppendInput> + Unpin,
 {
     client: StreamServiceClient<Channel>,
     stream: String,
@@ -324,7 +323,7 @@ where
 
 impl<S> AppendSessionServiceRequest<S>
 where
-    S: 'static + Send + futures::Stream<Item = types::AppendSessionRequest> + Unpin,
+    S: 'static + Send + futures::Stream<Item = types::AppendInput> + Unpin,
 {
     pub fn new(client: StreamServiceClient<Channel>, stream: impl Into<String>, req: S) -> Self {
         Self {
@@ -337,7 +336,7 @@ where
 
 impl<S> ServiceRequest for AppendSessionServiceRequest<S>
 where
-    S: 'static + Send + futures::Stream<Item = types::AppendSessionRequest> + Unpin,
+    S: 'static + Send + futures::Stream<Item = types::AppendInput> + Unpin,
 {
     type ApiRequest = ServiceStreamingRequest<AppendSessionStreamingRequest, S>;
     type Response = ServiceStreamingResponse<AppendSessionStreamingResponse>;
@@ -395,18 +394,20 @@ impl AppendSessionStreamingRequest {
 }
 
 impl StreamingRequest for AppendSessionStreamingRequest {
-    type RequestItem = types::AppendSessionRequest;
+    type RequestItem = types::AppendInput;
     type ApiRequestItem = api::AppendSessionRequest;
 
     fn prepare_request_item(&self, req: Self::RequestItem) -> Self::ApiRequestItem {
-        req.into_api_type(&self.stream)
+        api::AppendSessionRequest {
+            input: Some(req.into_api_type(&self.stream)),
+        }
     }
 }
 
 pub struct AppendSessionStreamingResponse;
 
 impl StreamingResponse for AppendSessionStreamingResponse {
-    type ResponseItem = types::AppendSessionResponse;
+    type ResponseItem = types::AppendOutput;
     type ApiResponseItem = api::AppendSessionResponse;
     type Error = AppendSessionError;
 

@@ -1,4 +1,4 @@
-use std::{fmt, time::Duration};
+use std::time::Duration;
 
 use http::{uri::Authority, Uri};
 use secrecy::SecretString;
@@ -81,7 +81,7 @@ pub struct ClientConfig {
     #[builder(setter(into))]
     pub token: SecretString,
     #[builder(default)]
-    pub test_connection: bool,
+    pub connect_lazily: bool,
     #[builder(default = Duration::from_secs(3), setter(into))]
     pub connection_timeout: Duration,
     #[builder(default = Duration::from_secs(5), setter(into))]
@@ -123,7 +123,7 @@ impl Client {
     pub async fn create_basin(
         &self,
         req: types::CreateBasinRequest,
-    ) -> Result<types::CreateBasinResponse, ServiceError<CreateBasinError>> {
+    ) -> Result<types::BasinMetadata, ServiceError<CreateBasinError>> {
         self.inner
             .send(CreateBasinServiceRequest::new(
                 self.inner.account_service_client(),
@@ -148,7 +148,7 @@ impl Client {
     pub async fn get_basin_config(
         &self,
         req: types::GetBasinConfigRequest,
-    ) -> Result<types::GetBasinConfigResponse, ServiceError<GetBasinConfigError>> {
+    ) -> Result<types::BasinConfig, ServiceError<GetBasinConfigError>> {
         self.inner
             .send_retryable(GetBasinConfigServiceRequest::new(
                 self.inner.account_service_client(),
@@ -176,6 +176,14 @@ pub struct BasinClient {
 }
 
 impl BasinClient {
+    pub async fn connect(
+        config: ClientConfig,
+        basin: impl Into<String>,
+    ) -> Result<Self, ClientError> {
+        let client = Client::connect(config).await?;
+        client.basin_client(basin).await
+    }
+
     pub fn stream_client(&self, stream: impl Into<String>) -> StreamClient {
         StreamClient {
             inner: self.inner.clone(),
@@ -210,7 +218,7 @@ impl BasinClient {
     pub async fn get_stream_config(
         &self,
         req: types::GetStreamConfigRequest,
-    ) -> Result<types::GetStreamConfigResponse, ServiceError<GetStreamConfigError>> {
+    ) -> Result<types::StreamConfig, ServiceError<GetStreamConfigError>> {
         self.inner
             .send_retryable(GetStreamConfigServiceRequest::new(
                 self.inner.basin_service_client(),
@@ -251,9 +259,17 @@ pub struct StreamClient {
 }
 
 impl StreamClient {
-    pub async fn get_next_seq_num(
-        &self,
-    ) -> Result<types::GetNextSeqNumResponse, ServiceError<GetNextSeqNumError>> {
+    pub async fn connect(
+        config: ClientConfig,
+        basin: impl Into<String>,
+        stream: impl Into<String>,
+    ) -> Result<Self, ClientError> {
+        BasinClient::connect(config, basin)
+            .await
+            .map(|client| client.stream_client(stream))
+    }
+
+    pub async fn get_next_seq_num(&self) -> Result<u64, ServiceError<GetNextSeqNumError>> {
         self.inner
             .send_retryable(GetNextSeqNumServiceRequest::new(
                 self.inner.stream_service_client(),
@@ -262,23 +278,10 @@ impl StreamClient {
             .await
     }
 
-    pub async fn append(
-        &self,
-        req: types::AppendRequest,
-    ) -> Result<types::AppendResponse, ServiceError<AppendError>> {
-        self.inner
-            .send(AppendServiceRequest::new(
-                self.inner.stream_service_client(),
-                &self.stream,
-                req,
-            ))
-            .await
-    }
-
     pub async fn read(
         &self,
         req: types::ReadRequest,
-    ) -> Result<types::ReadResponse, ServiceError<ReadError>> {
+    ) -> Result<types::ReadOutput, ServiceError<ReadError>> {
         self.inner
             .send_retryable(ReadServiceRequest::new(
                 self.inner.stream_service_client(),
@@ -305,20 +308,25 @@ impl StreamClient {
             .map(Streaming::new)
     }
 
+    pub async fn append(
+        &self,
+        req: types::AppendInput,
+    ) -> Result<types::AppendOutput, ServiceError<AppendError>> {
+        self.inner
+            .send(AppendServiceRequest::new(
+                self.inner.stream_service_client(),
+                &self.stream,
+                req,
+            ))
+            .await
+    }
+
     pub async fn append_session<S>(
         &self,
         req: S,
-    ) -> Result<
-        Streaming<types::AppendSessionResponse, AppendSessionError>,
-        ServiceError<AppendSessionError>,
-    >
+    ) -> Result<Streaming<types::AppendOutput, AppendSessionError>, ServiceError<AppendSessionError>>
     where
-        S: 'static
-            + Send
-            + futures::Stream<Item = types::AppendSessionRequest>
-            + Unpin
-            + fmt::Debug
-            + Clone,
+        S: 'static + Send + futures::Stream<Item = types::AppendInput> + Unpin,
     {
         self.inner
             .send(AppendSessionServiceRequest::new(
@@ -375,10 +383,10 @@ impl ClientInner {
         let endpoint = endpoint
             .connect_timeout(config.connection_timeout)
             .timeout(config.request_timeout);
-        let channel = if config.test_connection {
-            endpoint.connect().await?
-        } else {
+        let channel = if config.connect_lazily {
             endpoint.connect_lazy()
+        } else {
+            endpoint.connect().await?
         };
         Ok(Self {
             channel,

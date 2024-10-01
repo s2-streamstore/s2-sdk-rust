@@ -20,7 +20,7 @@ impl CreateBasinServiceRequest {
 
 impl ServiceRequest for CreateBasinServiceRequest {
     type ApiRequest = api::CreateBasinRequest;
-    type Response = types::CreateBasinResponse;
+    type Response = types::BasinMetadata;
     type ApiResponse = api::CreateBasinResponse;
     type Error = CreateBasinError;
 
@@ -198,7 +198,7 @@ impl GetBasinConfigServiceRequest {
 
 impl ServiceRequest for GetBasinConfigServiceRequest {
     type ApiRequest = api::GetBasinConfigRequest;
-    type Response = types::GetBasinConfigResponse;
+    type Response = types::BasinConfig;
     type ApiResponse = api::GetBasinConfigResponse;
     type Error = GetBasinConfigError;
 

@@ -5,9 +5,9 @@ use s2::{
     client::{Client, ClientConfig, HostCloud},
     service_error::{CreateBasinError, CreateStreamError, ServiceError},
     types::{
-        AppendInput, AppendRecord, AppendRequest, AppendSessionRequest, CreateBasinRequest,
-        CreateStreamRequest, DeleteBasinRequest, DeleteStreamRequest, GetBasinConfigRequest,
-        GetStreamConfigRequest, ListBasinsRequest, ListStreamsRequest, ReadSessionRequest,
+        AppendInput, AppendRecord, CreateBasinRequest, CreateStreamRequest, DeleteBasinRequest,
+        DeleteStreamRequest, GetBasinConfigRequest, GetStreamConfigRequest, ListBasinsRequest,
+        ListStreamsRequest, ReadSessionRequest,
     },
 };
 
@@ -114,17 +114,14 @@ async fn main() {
         ])
         .build();
 
-    let append_req = AppendRequest::builder().input(append_input.clone()).build();
-
-    match stream_client.append(append_req).await {
+    match stream_client.append(append_input.clone()).await {
         Ok(resp) => {
             println!("Appended: {resp:#?}");
         }
         Err(err) => exit_with_err(err),
     };
 
-    let append_session_req =
-        futures::stream::iter([AppendSessionRequest::builder().input(append_input).build()]);
+    let append_session_req = futures::stream::iter([append_input]);
 
     match stream_client.append_session(append_session_req).await {
         Ok(mut stream) => {

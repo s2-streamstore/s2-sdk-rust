@@ -287,19 +287,12 @@ impl TryFrom<api::BasinMetadata> for BasinMetadata {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct CreateBasinResponse {
-    pub basin: BasinMetadata,
-}
-
-impl TryFrom<api::CreateBasinResponse> for CreateBasinResponse {
+impl TryFrom<api::CreateBasinResponse> for BasinMetadata {
     type Error = ConvertError;
     fn try_from(value: api::CreateBasinResponse) -> Result<Self, Self::Error> {
         let api::CreateBasinResponse { basin } = value;
         let basin = basin.ok_or("missing basin metadata")?;
-        Ok(Self {
-            basin: basin.try_into()?,
-        })
+        basin.try_into()
     }
 }
 
@@ -350,19 +343,12 @@ impl From<api::ListStreamsResponse> for ListStreamsResponse {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct GetBasinConfigResponse {
-    pub config: BasinConfig,
-}
-
-impl TryFrom<api::GetBasinConfigResponse> for GetBasinConfigResponse {
+impl TryFrom<api::GetBasinConfigResponse> for BasinConfig {
     type Error = ConvertError;
     fn try_from(value: api::GetBasinConfigResponse) -> Result<Self, Self::Error> {
         let api::GetBasinConfigResponse { config } = value;
         let config = config.ok_or("missing basin config")?;
-        Ok(Self {
-            config: config.try_into()?,
-        })
+        config.try_into()
     }
 }
 
@@ -379,19 +365,12 @@ impl From<GetStreamConfigRequest> for api::GetStreamConfigRequest {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct GetStreamConfigResponse {
-    pub config: StreamConfig,
-}
-
-impl TryFrom<api::GetStreamConfigResponse> for GetStreamConfigResponse {
+impl TryFrom<api::GetStreamConfigResponse> for StreamConfig {
     type Error = ConvertError;
     fn try_from(value: api::GetStreamConfigResponse) -> Result<Self, Self::Error> {
         let api::GetStreamConfigResponse { config } = value;
         let config = config.ok_or("missing stream config")?;
-        Ok(Self {
-            config: config.try_into()?,
-        })
+        config.try_into()
     }
 }
 
@@ -581,16 +560,10 @@ impl TryFrom<ReconfigureStreamRequest> for api::ReconfigureStreamRequest {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct GetNextSeqNumResponse {
-    /// Next sequence number.
-    pub next_seq_num: u64,
-}
-
-impl From<api::GetNextSeqNumResponse> for GetNextSeqNumResponse {
+impl From<api::GetNextSeqNumResponse> for u64 {
     fn from(value: api::GetNextSeqNumResponse) -> Self {
         let api::GetNextSeqNumResponse { next_seq_num } = value;
-        Self { next_seq_num }
+        next_seq_num
     }
 }
 
@@ -706,22 +679,6 @@ impl AppendInput {
     }
 }
 
-#[derive(Debug, Clone, TypedBuilder)]
-pub struct AppendRequest {
-    /// Input for the append request.
-    #[builder]
-    pub input: AppendInput,
-}
-
-impl AppendRequest {
-    pub fn into_api_type(self, stream: impl Into<String>) -> api::AppendRequest {
-        let Self { input } = self;
-        api::AppendRequest {
-            input: Some(input.into_api_type(stream)),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct AppendOutput {
     /// Sequence number of first record appended.
@@ -749,20 +706,21 @@ impl From<api::AppendOutput> for AppendOutput {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct AppendResponse {
-    /// Response details for an append.
-    pub output: AppendOutput,
-}
-
-impl TryFrom<api::AppendResponse> for AppendResponse {
+impl TryFrom<api::AppendResponse> for AppendOutput {
     type Error = ConvertError;
     fn try_from(value: api::AppendResponse) -> Result<Self, Self::Error> {
         let api::AppendResponse { output } = value;
         let output = output.ok_or("missing append output")?;
-        Ok(Self {
-            output: output.into(),
-        })
+        Ok(output.into())
+    }
+}
+
+impl TryFrom<api::AppendSessionResponse> for AppendOutput {
+    type Error = ConvertError;
+    fn try_from(value: api::AppendSessionResponse) -> Result<Self, Self::Error> {
+        let api::AppendSessionResponse { output } = value;
+        let output = output.ok_or("missing append output")?;
+        Ok(output.into())
     }
 }
 
@@ -860,19 +818,12 @@ impl TryFrom<api::ReadOutput> for ReadOutput {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ReadResponse {
-    pub output: ReadOutput,
-}
-
-impl TryFrom<api::ReadResponse> for ReadResponse {
+impl TryFrom<api::ReadResponse> for ReadOutput {
     type Error = ConvertError;
     fn try_from(value: api::ReadResponse) -> Result<Self, Self::Error> {
         let api::ReadResponse { output } = value;
         let output = output.ok_or("missing output in read response")?;
-        Ok(Self {
-            output: output.try_into()?,
-        })
+        output.try_into()
     }
 }
 
@@ -906,37 +857,6 @@ impl TryFrom<api::ReadSessionResponse> for ReadSessionResponse {
         let output = output.ok_or("missing output in read session response")?;
         Ok(Self {
             output: output.try_into()?,
-        })
-    }
-}
-
-#[derive(Debug, Clone, TypedBuilder)]
-pub struct AppendSessionRequest {
-    #[builder]
-    pub input: AppendInput,
-}
-
-impl AppendSessionRequest {
-    pub fn into_api_type(self, stream: impl Into<String>) -> api::AppendSessionRequest {
-        let Self { input } = self;
-        api::AppendSessionRequest {
-            input: Some(input.into_api_type(stream)),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct AppendSessionResponse {
-    pub output: AppendOutput,
-}
-
-impl TryFrom<api::AppendSessionResponse> for AppendSessionResponse {
-    type Error = ConvertError;
-    fn try_from(value: api::AppendSessionResponse) -> Result<Self, Self::Error> {
-        let api::AppendSessionResponse { output } = value;
-        let output = output.ok_or("missing append output")?;
-        Ok(Self {
-            output: output.into(),
         })
     }
 }
