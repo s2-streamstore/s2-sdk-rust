@@ -80,7 +80,7 @@ pub struct ClientConfig {
     pub host_uri: HostUri,
     #[builder(setter(into))]
     pub token: SecretString,
-    #[builder(default)]
+    #[builder(default = true)]
     pub connect_lazily: bool,
     #[builder(default = Duration::from_secs(3), setter(into))]
     pub connection_timeout: Duration,
