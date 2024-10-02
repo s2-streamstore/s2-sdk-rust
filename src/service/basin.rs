@@ -69,12 +69,15 @@ pub enum ListStreamsError {
 #[derive(Debug, Clone)]
 pub struct GetStreamConfigServiceRequest {
     client: BasinServiceClient<Channel>,
-    req: types::GetStreamConfigRequest,
+    stream: String,
 }
 
 impl GetStreamConfigServiceRequest {
-    pub fn new(client: BasinServiceClient<Channel>, req: types::GetStreamConfigRequest) -> Self {
-        Self { client, req }
+    pub fn new(client: BasinServiceClient<Channel>, stream: impl Into<String>) -> Self {
+        Self {
+            client,
+            stream: stream.into(),
+        }
     }
 }
 
@@ -85,7 +88,9 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
     type Error = GetStreamConfigError;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
-        let req: api::GetStreamConfigRequest = self.req.clone().into();
+        let req = api::GetStreamConfigRequest {
+            stream: self.stream.clone(),
+        };
         Ok(req.into_request())
     }
 

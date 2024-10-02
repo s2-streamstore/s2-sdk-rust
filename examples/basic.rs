@@ -6,8 +6,7 @@ use s2::{
     service_error::{CreateBasinError, CreateStreamError, ServiceError},
     types::{
         AppendInput, AppendRecord, CreateBasinRequest, CreateStreamRequest, DeleteBasinRequest,
-        DeleteStreamRequest, GetBasinConfigRequest, GetStreamConfigRequest, ListBasinsRequest,
-        ListStreamsRequest, ReadSessionRequest,
+        DeleteStreamRequest, ListBasinsRequest, ListStreamsRequest, ReadSessionRequest,
     },
 };
 
@@ -15,11 +14,9 @@ use s2::{
 async fn main() {
     let token = std::env::var("S2_AUTH_TOKEN").unwrap();
 
-    let config = ClientConfig::builder()
-        .host_uri(HostCloud::Local)
-        .token(token)
-        .request_timeout(Duration::from_secs(10))
-        .build();
+    let config = ClientConfig::new(token)
+        .with_host_uri(HostCloud::Local)
+        .with_request_timeout(Duration::from_secs(10));
 
     println!("Connecting with {config:#?}");
 
@@ -27,7 +24,7 @@ async fn main() {
 
     let basin = "s2-sdk-example-basin";
 
-    let create_basin_req = CreateBasinRequest::builder().basin(basin).build();
+    let create_basin_req = CreateBasinRequest::new(basin);
 
     match client.create_basin(create_basin_req).await {
         Ok(created_basin) => {
@@ -39,7 +36,7 @@ async fn main() {
         Err(other) => exit_with_err(other),
     };
 
-    let list_basins_req = ListBasinsRequest::builder().build();
+    let list_basins_req = ListBasinsRequest::new();
 
     match client.list_basins(list_basins_req).await {
         Ok(basins_list) => {
@@ -56,8 +53,7 @@ async fn main() {
         Err(err) => exit_with_err(err),
     };
 
-    let get_basin_config_req = GetBasinConfigRequest::builder().basin(basin).build();
-    match client.get_basin_config(get_basin_config_req).await {
+    match client.get_basin_config(basin).await {
         Ok(config) => {
             println!("Basin config: {config:#?}");
         }
@@ -66,7 +62,8 @@ async fn main() {
 
     let stream = "s2-sdk-example-stream";
 
-    let create_stream_req = CreateStreamRequest::builder().stream(stream).build();
+    let create_stream_req = CreateStreamRequest::new(stream);
+
     let basin_client = client.basin_client(basin).await.unwrap();
 
     match basin_client.create_stream(create_stream_req).await {
@@ -79,7 +76,7 @@ async fn main() {
         Err(other) => exit_with_err(other),
     };
 
-    let list_streams_req = ListStreamsRequest::builder().build();
+    let list_streams_req = ListStreamsRequest::new();
 
     match basin_client.list_streams(list_streams_req).await {
         Ok(streams_list) => {
@@ -96,9 +93,7 @@ async fn main() {
         Err(err) => exit_with_err(err),
     }
 
-    let get_stream_config_req = GetStreamConfigRequest::builder().stream(stream).build();
-
-    match basin_client.get_stream_config(get_stream_config_req).await {
+    match basin_client.get_stream_config(stream).await {
         Ok(config) => {
             println!("Stream config: {config:#?}");
         }
@@ -107,12 +102,10 @@ async fn main() {
 
     let stream_client = basin_client.stream_client(stream);
 
-    let append_input = AppendInput::builder()
-        .records(vec![
-            AppendRecord::builder().body(b"hello world").build(),
-            AppendRecord::builder().body(b"bye world").build(),
-        ])
-        .build();
+    let append_input = AppendInput::new([
+        AppendRecord::new(b"hello world"),
+        AppendRecord::new(b"bye world"),
+    ]);
 
     match stream_client.append(append_input.clone()).await {
         Ok(resp) => {
@@ -137,7 +130,7 @@ async fn main() {
         Err(err) => exit_with_err(err),
     };
 
-    let read_session_req = ReadSessionRequest::builder().build();
+    let read_session_req = ReadSessionRequest::default();
 
     match stream_client.read_session(read_session_req).await {
         Ok(mut stream) => {
@@ -146,10 +139,7 @@ async fn main() {
         Err(err) => exit_with_err(err),
     };
 
-    let delete_stream_req = DeleteStreamRequest::builder()
-        .stream(stream)
-        .if_exists(true)
-        .build();
+    let delete_stream_req = DeleteStreamRequest::new(stream).with_if_exists(true);
 
     match basin_client.delete_stream(delete_stream_req).await {
         Ok(()) => {
@@ -158,10 +148,7 @@ async fn main() {
         Err(err) => exit_with_err(err),
     };
 
-    let delete_basin_req = DeleteBasinRequest::builder()
-        .basin(basin)
-        .if_exists(false)
-        .build();
+    let delete_basin_req = DeleteBasinRequest::new(basin).with_if_exists(false);
 
     match client.delete_basin(delete_basin_req).await {
         Ok(()) => {
