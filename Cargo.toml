@@ -12,7 +12,6 @@ prost-types = "0.13.1"
 secrecy = "0.8.0"
 thiserror = "1.0.63"
 tonic = "0.12.2"
-typed-builder = "0.20.0"
 serde = { version = "1.0.210", optional = true, features = ["derive"] }
 
 [build-dependencies]

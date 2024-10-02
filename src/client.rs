@@ -4,7 +4,6 @@ use backon::{ConstantBuilder, Retryable};
 use http::{uri::Authority, Uri};
 use secrecy::SecretString;
 use tonic::transport::{Channel, Endpoint};
-use typed_builder::TypedBuilder;
 
 use crate::{
     api::{
@@ -59,13 +58,10 @@ impl From<HostCloud> for HostUri {
     }
 }
 
-#[derive(Debug, Clone, TypedBuilder)]
+#[derive(Debug, Clone)]
 pub struct HostUri {
-    #[builder]
     pub global: Uri,
-    #[builder(default)]
     pub cell: Option<Uri>,
-    #[builder(default)]
     pub prefix_host_with_basin: bool,
 }
 
@@ -75,18 +71,77 @@ impl Default for HostUri {
     }
 }
 
-#[derive(Debug, Clone, TypedBuilder)]
+impl HostUri {
+    pub fn new(global_uri: impl Into<Uri>) -> Self {
+        Self {
+            global: global_uri.into(),
+            cell: None,
+            prefix_host_with_basin: false,
+        }
+    }
+
+    pub fn with_cell_uri(self, cell_uri: impl Into<Uri>) -> Self {
+        Self {
+            cell: Some(cell_uri.into()),
+            ..self
+        }
+    }
+
+    pub fn with_prefix_host_with_basin(self, prefix_host_with_basin: bool) -> Self {
+        Self {
+            prefix_host_with_basin,
+            ..self
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct ClientConfig {
-    #[builder(default, setter(into))]
-    pub host_uri: HostUri,
-    #[builder(setter(into))]
     pub token: SecretString,
-    #[builder(default = true)]
+    pub host_uri: HostUri,
     pub connect_lazily: bool,
-    #[builder(default = Duration::from_secs(3), setter(into))]
     pub connection_timeout: Duration,
-    #[builder(default = Duration::from_secs(5), setter(into))]
     pub request_timeout: Duration,
+}
+
+impl ClientConfig {
+    pub fn new(token: impl Into<SecretString>) -> Self {
+        Self {
+            token: token.into(),
+            host_uri: HostUri::default(),
+            connect_lazily: true,
+            connection_timeout: Duration::from_secs(3),
+            request_timeout: Duration::from_secs(5),
+        }
+    }
+
+    pub fn with_host_uri(self, host_uri: impl Into<HostUri>) -> Self {
+        Self {
+            host_uri: host_uri.into(),
+            ..self
+        }
+    }
+
+    pub fn with_connect_lazily(self, connect_lazily: bool) -> Self {
+        Self {
+            connect_lazily,
+            ..self
+        }
+    }
+
+    pub fn with_connection_timeout(self, connection_timeout: impl Into<Duration>) -> Self {
+        Self {
+            connection_timeout: connection_timeout.into(),
+            ..self
+        }
+    }
+
+    pub fn with_request_timeout(self, request_timeout: impl Into<Duration>) -> Self {
+        Self {
+            request_timeout: request_timeout.into(),
+            ..self
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -148,12 +203,12 @@ impl Client {
 
     pub async fn get_basin_config(
         &self,
-        req: types::GetBasinConfigRequest,
+        basin: impl Into<String>,
     ) -> Result<types::BasinConfig, ServiceError<GetBasinConfigError>> {
         self.inner
             .send_retryable(GetBasinConfigServiceRequest::new(
                 self.inner.account_service_client(),
-                req,
+                basin,
             ))
             .await
     }
@@ -218,12 +273,12 @@ impl BasinClient {
 
     pub async fn get_stream_config(
         &self,
-        req: types::GetStreamConfigRequest,
+        stream: impl Into<String>,
     ) -> Result<types::StreamConfig, ServiceError<GetStreamConfigError>> {
         self.inner
             .send_retryable(GetStreamConfigServiceRequest::new(
                 self.inner.basin_service_client(),
-                req,
+                stream,
             ))
             .await
     }

@@ -187,12 +187,15 @@ pub enum DeleteBasinError {
 #[derive(Debug, Clone)]
 pub struct GetBasinConfigServiceRequest {
     client: AccountServiceClient<Channel>,
-    req: types::GetBasinConfigRequest,
+    basin: String,
 }
 
 impl GetBasinConfigServiceRequest {
-    pub fn new(client: AccountServiceClient<Channel>, req: types::GetBasinConfigRequest) -> Self {
-        Self { client, req }
+    pub fn new(client: AccountServiceClient<Channel>, basin: impl Into<String>) -> Self {
+        Self {
+            client,
+            basin: basin.into(),
+        }
     }
 }
 
@@ -203,7 +206,9 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
     type Error = GetBasinConfigError;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
-        let req: api::GetBasinConfigRequest = self.req.clone().into();
+        let req = api::GetBasinConfigRequest {
+            basin: self.basin.clone(),
+        };
         Ok(req.into_request())
     }
 
