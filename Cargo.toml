@@ -12,9 +12,13 @@ secrecy = "0.8.0"
 thiserror = "1.0.63"
 tonic = "0.12.2"
 typed-builder = "0.20.0"
+serde = { version = "1.0.210", optional = true, features = ["derive"] }
 
 [build-dependencies]
 tonic-build = { version = "0.12.2", features = ["prost"] }
 
 [dev-dependencies]
 tokio = { version = "*", features = ["full"] }
+
+[features]
+serde = ["dep:serde"]
