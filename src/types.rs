@@ -4,6 +4,9 @@ use typed_builder::TypedBuilder;
 
 use crate::api;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("{0}")]
 pub struct ConvertError(String);
@@ -14,6 +17,7 @@ impl<T: Into<String>> From<T> for ConvertError {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct CreateBasinRequest {
     #[builder(setter(into))]
@@ -35,6 +39,7 @@ impl TryFrom<CreateBasinRequest> for api::CreateBasinRequest {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct BasinConfig {
     #[builder]
@@ -65,6 +70,7 @@ impl TryFrom<api::BasinConfig> for BasinConfig {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct StreamConfig {
     #[builder(setter(into))]
@@ -101,6 +107,7 @@ impl TryFrom<api::StreamConfig> for StreamConfig {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StorageClass {
     Unspecified,
@@ -155,6 +162,7 @@ impl TryFrom<i32> for StorageClass {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub enum RetentionPolicy {
     Age(Duration),
@@ -184,6 +192,7 @@ impl From<api::stream_config::RetentionPolicy> for RetentionPolicy {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BasinState {
     Unspecified,
@@ -240,6 +249,7 @@ impl std::fmt::Display for BasinState {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct BasinMetadata {
     #[builder(setter(into))]
@@ -296,6 +306,7 @@ impl TryFrom<api::CreateBasinResponse> for BasinMetadata {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct ListStreamsRequest {
     #[builder(default, setter(into))]
@@ -330,6 +341,7 @@ impl Default for ListStreamsRequest {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct ListStreamsResponse {
     pub streams: Vec<String>,
@@ -352,6 +364,7 @@ impl TryFrom<api::GetBasinConfigResponse> for BasinConfig {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct GetStreamConfigRequest {
     #[builder(setter(into))]
@@ -374,6 +387,7 @@ impl TryFrom<api::GetStreamConfigResponse> for StreamConfig {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct CreateStreamRequest {
     #[builder(setter(into))]
@@ -393,6 +407,7 @@ impl TryFrom<CreateStreamRequest> for api::CreateStreamRequest {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct ListBasinsRequest {
     /// List basin names that begin with this prefix.  
@@ -432,6 +447,7 @@ impl Default for ListBasinsRequest {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct ListBasinsResponse {
     /// Matching basins.
@@ -454,6 +470,7 @@ impl TryFrom<api::ListBasinsResponse> for ListBasinsResponse {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct DeleteBasinRequest {
     /// Name of the basin to delete.
@@ -471,6 +488,7 @@ impl From<DeleteBasinRequest> for api::DeleteBasinRequest {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct GetBasinConfigRequest {
     /// Name of the basin.
@@ -485,6 +503,7 @@ impl From<GetBasinConfigRequest> for api::GetBasinConfigRequest {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct DeleteStreamRequest {
     /// Name of the stream to delete.
@@ -502,6 +521,7 @@ impl From<DeleteStreamRequest> for api::DeleteStreamRequest {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct ReconfigureBasinRequest {
     /// Name of the basin.
@@ -531,6 +551,7 @@ impl TryFrom<ReconfigureBasinRequest> for api::ReconfigureBasinRequest {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, TypedBuilder)]
 pub struct ReconfigureStreamRequest {
     /// Name of the stream to reconfigure.
@@ -595,6 +616,7 @@ impl From<api::Header> for Header {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub enum CommandRecord {
     Fence { fencing_token: Vec<u8> },
