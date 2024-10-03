@@ -1,11 +1,9 @@
 use std::{str::FromStr, time::Duration};
 
-use typed_builder::TypedBuilder;
-
-use crate::api;
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+use crate::api;
 
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("{0}")]
@@ -18,13 +16,27 @@ impl<T: Into<String>> From<T> for ConvertError {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, TypedBuilder)]
+#[derive(Debug, Clone)]
 pub struct CreateBasinRequest {
-    #[builder(setter(into))]
     pub basin: String,
-    #[builder(default)]
     pub config: Option<BasinConfig>,
     // TODO: Add assignment (when it's supported).
+}
+
+impl CreateBasinRequest {
+    pub fn new(basin: impl Into<String>) -> Self {
+        Self {
+            basin: basin.into(),
+            config: None,
+        }
+    }
+
+    pub fn with_config(self, config: BasinConfig) -> Self {
+        Self {
+            config: Some(config),
+            ..self
+        }
+    }
 }
 
 impl TryFrom<CreateBasinRequest> for api::CreateBasinRequest {
@@ -40,10 +52,21 @@ impl TryFrom<CreateBasinRequest> for api::CreateBasinRequest {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, TypedBuilder)]
+#[derive(Debug, Clone, Default)]
 pub struct BasinConfig {
-    #[builder]
     pub default_stream_config: Option<StreamConfig>,
+}
+
+impl BasinConfig {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_default_stream_config(default_stream_config: StreamConfig) -> Self {
+        Self {
+            default_stream_config: Some(default_stream_config),
+        }
+    }
 }
 
 impl TryFrom<BasinConfig> for api::BasinConfig {
@@ -71,12 +94,30 @@ impl TryFrom<api::BasinConfig> for BasinConfig {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, TypedBuilder)]
+#[derive(Debug, Clone, Default)]
 pub struct StreamConfig {
-    #[builder(setter(into))]
     pub storage_class: StorageClass,
-    #[builder(setter(into))]
     pub retention_policy: Option<RetentionPolicy>,
+}
+
+impl StreamConfig {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_storage_class(self, storage_class: impl Into<StorageClass>) -> Self {
+        Self {
+            storage_class: storage_class.into(),
+            ..self
+        }
+    }
+
+    pub fn with_retention_policy(self, retention_policy: RetentionPolicy) -> Self {
+        Self {
+            retention_policy: Some(retention_policy),
+            ..self
+        }
+    }
 }
 
 impl TryFrom<StreamConfig> for api::StreamConfig {
@@ -108,8 +149,9 @@ impl TryFrom<api::StreamConfig> for StreamConfig {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StorageClass {
+    #[default]
     Unspecified,
     Standard,
     Express,
@@ -250,15 +292,11 @@ impl std::fmt::Display for BasinState {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, TypedBuilder)]
+#[derive(Debug, Clone)]
 pub struct BasinMetadata {
-    #[builder(setter(into))]
     pub name: String,
-    #[builder(setter(into))]
     pub scope: String,
-    #[builder(setter(into))]
     pub cell: String,
-    #[builder(setter(into))]
     pub state: BasinState,
 }
 
@@ -297,32 +335,48 @@ impl TryFrom<api::BasinMetadata> for BasinMetadata {
     }
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone)]
-pub struct CreateBasinResponse {
-    pub basin: BasinMetadata,
-}
-
-impl TryFrom<api::CreateBasinResponse> for CreateBasinResponse {
+impl TryFrom<api::CreateBasinResponse> for BasinMetadata {
     type Error = ConvertError;
     fn try_from(value: api::CreateBasinResponse) -> Result<Self, Self::Error> {
         let api::CreateBasinResponse { basin } = value;
         let basin = basin.ok_or("missing basin metadata")?;
-        Ok(Self {
-            basin: basin.try_into()?,
-        })
+        basin.try_into()
     }
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, TypedBuilder)]
+#[derive(Debug, Clone, Default)]
 pub struct ListStreamsRequest {
-    #[builder(default, setter(into))]
     pub prefix: String,
-    #[builder(default, setter(into))]
     pub start_after: String,
-    #[builder(default, setter(into))]
     pub limit: usize,
+}
+
+impl ListStreamsRequest {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_prefix(self, prefix: impl Into<String>) -> Self {
+        Self {
+            prefix: prefix.into(),
+            ..self
+        }
+    }
+
+    pub fn with_start_after(self, start_after: impl Into<String>) -> Self {
+        Self {
+            start_after: start_after.into(),
+            ..self
+        }
+    }
+
+    pub fn with_limit(self, limit: impl Into<usize>) -> Self {
+        Self {
+            limit: limit.into(),
+            ..self
+        }
+    }
 }
 
 impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
@@ -336,7 +390,9 @@ impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
         Ok(Self {
             prefix,
             start_after,
-            limit: limit as u64,
+            limit: limit
+                .try_into()
+                .map_err(|_| "request limit does not fit into u64 bounds")?,
         })
     }
 }
@@ -355,61 +411,45 @@ impl From<api::ListStreamsResponse> for ListStreamsResponse {
     }
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone)]
-pub struct GetBasinConfigResponse {
-    pub config: BasinConfig,
-}
-
-impl TryFrom<api::GetBasinConfigResponse> for GetBasinConfigResponse {
+impl TryFrom<api::GetBasinConfigResponse> for BasinConfig {
     type Error = ConvertError;
     fn try_from(value: api::GetBasinConfigResponse) -> Result<Self, Self::Error> {
         let api::GetBasinConfigResponse { config } = value;
         let config = config.ok_or("missing basin config")?;
-        Ok(Self {
-            config: config.try_into()?,
-        })
+        config.try_into()
     }
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, TypedBuilder)]
-pub struct GetStreamConfigRequest {
-    #[builder(setter(into))]
-    pub stream: String,
-}
-
-impl From<GetStreamConfigRequest> for api::GetStreamConfigRequest {
-    fn from(value: GetStreamConfigRequest) -> Self {
-        let GetStreamConfigRequest { stream } = value;
-        Self { stream }
+impl TryFrom<api::GetStreamConfigResponse> for StreamConfig {
+    type Error = ConvertError;
+    fn try_from(value: api::GetStreamConfigResponse) -> Result<Self, Self::Error> {
+        let api::GetStreamConfigResponse { config } = value;
+        let config = config.ok_or("missing stream config")?;
+        config.try_into()
     }
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
-pub struct GetStreamConfigResponse {
-    pub config: StreamConfig,
-}
-
-impl TryFrom<api::GetStreamConfigResponse> for GetStreamConfigResponse {
-    type Error = ConvertError;
-    fn try_from(value: api::GetStreamConfigResponse) -> Result<Self, Self::Error> {
-        let api::GetStreamConfigResponse { config } = value;
-        let config = config.ok_or("missing stream config")?;
-        Ok(Self {
-            config: config.try_into()?,
-        })
-    }
-}
-
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, TypedBuilder)]
 pub struct CreateStreamRequest {
-    #[builder(setter(into))]
     pub stream: String,
-    #[builder(default)]
     pub config: Option<StreamConfig>,
+}
+
+impl CreateStreamRequest {
+    pub fn new(stream: impl Into<String>) -> Self {
+        Self {
+            stream: stream.into(),
+            config: None,
+        }
+    }
+
+    pub fn with_config(self, config: StreamConfig) -> Self {
+        Self {
+            config: Some(config),
+            ..self
+        }
+    }
 }
 
 impl TryFrom<CreateStreamRequest> for api::CreateStreamRequest {
@@ -424,33 +464,60 @@ impl TryFrom<CreateStreamRequest> for api::CreateStreamRequest {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, TypedBuilder)]
+#[derive(Debug, Clone, Default)]
 pub struct ListBasinsRequest {
     /// List basin names that begin with this prefix.  
-    #[builder(default, setter(into))]
     pub prefix: String,
     /// Only return basins names that lexicographically start after this name.
     /// This can be the last basin name seen in a previous listing, to continue from there.
     /// It must be greater than or equal to the prefix if specified.
-    #[builder(default, setter(into))]
     pub start_after: String,
     /// Number of results, upto a maximum of 1000.    
-    #[builder(default, setter(into))]
     pub limit: usize,
 }
 
-impl From<ListBasinsRequest> for api::ListBasinsRequest {
-    fn from(value: ListBasinsRequest) -> Self {
+impl ListBasinsRequest {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_prefix(self, prefix: impl Into<String>) -> Self {
+        Self {
+            prefix: prefix.into(),
+            ..self
+        }
+    }
+
+    pub fn with_start_after(self, start_after: impl Into<String>) -> Self {
+        Self {
+            start_after: start_after.into(),
+            ..self
+        }
+    }
+
+    pub fn with_limit(self, limit: impl Into<usize>) -> Self {
+        Self {
+            limit: limit.into(),
+            ..self
+        }
+    }
+}
+
+impl TryFrom<ListBasinsRequest> for api::ListBasinsRequest {
+    type Error = ConvertError;
+    fn try_from(value: ListBasinsRequest) -> Result<Self, Self::Error> {
         let ListBasinsRequest {
             prefix,
             start_after,
             limit,
         } = value;
-        Self {
+        Ok(Self {
             prefix,
             start_after,
-            limit: limit as u64,
-        }
+            limit: limit
+                .try_into()
+                .map_err(|_| "request limit does not fit into u64 bounds")?,
+        })
     }
 }
 
@@ -478,14 +545,25 @@ impl TryFrom<api::ListBasinsResponse> for ListBasinsResponse {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, TypedBuilder)]
+#[derive(Debug, Clone)]
 pub struct DeleteBasinRequest {
     /// Name of the basin to delete.
-    #[builder(setter(into))]
     pub basin: String,
     /// Only delete if basin exists.
-    #[builder(default, setter(into))]
     pub if_exists: bool,
+}
+
+impl DeleteBasinRequest {
+    pub fn new(basin: impl Into<String>) -> Self {
+        Self {
+            basin: basin.into(),
+            if_exists: false,
+        }
+    }
+
+    pub fn with_if_exists(self, if_exists: bool) -> Self {
+        Self { if_exists, ..self }
+    }
 }
 
 impl From<DeleteBasinRequest> for api::DeleteBasinRequest {
@@ -496,29 +574,25 @@ impl From<DeleteBasinRequest> for api::DeleteBasinRequest {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, TypedBuilder)]
-pub struct GetBasinConfigRequest {
-    /// Name of the basin.
-    #[builder(setter(into))]
-    pub basin: String,
-}
-
-impl From<GetBasinConfigRequest> for api::GetBasinConfigRequest {
-    fn from(value: GetBasinConfigRequest) -> Self {
-        let GetBasinConfigRequest { basin } = value;
-        Self { basin }
-    }
-}
-
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, TypedBuilder)]
+#[derive(Debug, Clone)]
 pub struct DeleteStreamRequest {
     /// Name of the stream to delete.
-    #[builder(setter(into))]
     pub stream: String,
     /// Only delete if stream exists.
-    #[builder(default, setter(into))]
     pub if_exists: bool,
+}
+
+impl DeleteStreamRequest {
+    pub fn new(stream: impl Into<String>) -> Self {
+        Self {
+            stream: stream.into(),
+            if_exists: false,
+        }
+    }
+
+    pub fn with_if_exists(self, if_exists: bool) -> Self {
+        Self { if_exists, ..self }
+    }
 }
 
 impl From<DeleteStreamRequest> for api::DeleteStreamRequest {
@@ -529,17 +603,38 @@ impl From<DeleteStreamRequest> for api::DeleteStreamRequest {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, TypedBuilder)]
+#[derive(Debug, Clone)]
 pub struct ReconfigureBasinRequest {
     /// Name of the basin.
-    #[builder(setter(into))]
     pub basin: String,
     /// Updated configuration.
-    #[builder(setter(strip_option))]
     pub config: Option<BasinConfig>,
     /// Fieldmask to indicate which fields to update.
-    #[builder(default, setter(into, strip_option))]
     pub mask: Option<Vec<String>>,
+}
+
+impl ReconfigureBasinRequest {
+    pub fn new(basin: impl Into<String>) -> Self {
+        Self {
+            basin: basin.into(),
+            config: None,
+            mask: None,
+        }
+    }
+
+    pub fn with_config(self, config: BasinConfig) -> Self {
+        Self {
+            config: Some(config),
+            ..self
+        }
+    }
+
+    pub fn with_mask(self, mask: impl Into<Vec<String>>) -> Self {
+        Self {
+            mask: Some(mask.into()),
+            ..self
+        }
+    }
 }
 
 impl TryFrom<ReconfigureBasinRequest> for api::ReconfigureBasinRequest {
@@ -559,17 +654,38 @@ impl TryFrom<ReconfigureBasinRequest> for api::ReconfigureBasinRequest {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, Clone, TypedBuilder)]
+#[derive(Debug, Clone)]
 pub struct ReconfigureStreamRequest {
     /// Name of the stream to reconfigure.
-    #[builder(setter(into))]
     pub stream: String,
     /// Updated configuration.
-    #[builder(setter(strip_option))]
     pub config: Option<StreamConfig>,
     /// Fieldmask to indicate which fields to update.
-    #[builder(default, setter(into, strip_option))]
     pub mask: Option<Vec<String>>,
+}
+
+impl ReconfigureStreamRequest {
+    pub fn new(stream: impl Into<String>) -> Self {
+        Self {
+            stream: stream.into(),
+            config: None,
+            mask: None,
+        }
+    }
+
+    pub fn with_config(self, config: StreamConfig) -> Self {
+        Self {
+            config: Some(config),
+            ..self
+        }
+    }
+
+    pub fn with_mask(self, mask: impl Into<Vec<String>>) -> Self {
+        Self {
+            mask: Some(mask.into()),
+            ..self
+        }
+    }
 }
 
 impl TryFrom<ReconfigureStreamRequest> for api::ReconfigureStreamRequest {
@@ -588,16 +704,379 @@ impl TryFrom<ReconfigureStreamRequest> for api::ReconfigureStreamRequest {
     }
 }
 
+impl From<api::GetNextSeqNumResponse> for u64 {
+    fn from(value: api::GetNextSeqNumResponse) -> Self {
+        let api::GetNextSeqNumResponse { next_seq_num } = value;
+        next_seq_num
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Header {
+    pub name: Vec<u8>,
+    pub value: Vec<u8>,
+}
+
+impl Header {
+    pub fn new(name: impl Into<Vec<u8>>, value: impl Into<Vec<u8>>) -> Self {
+        Self {
+            name: name.into(),
+            value: value.into(),
+        }
+    }
+
+    pub fn from_value(value: impl Into<Vec<u8>>) -> Self {
+        Self {
+            name: Vec::new(),
+            value: value.into(),
+        }
+    }
+}
+
+impl From<Header> for api::Header {
+    fn from(value: Header) -> Self {
+        let Header { name, value } = value;
+        Self {
+            name: name.into(),
+            value: value.into(),
+        }
+    }
+}
+
+impl From<api::Header> for Header {
+    fn from(value: api::Header) -> Self {
+        let api::Header { name, value } = value;
+        Self {
+            name: name.into(),
+            value: value.into(),
+        }
+    }
+}
+
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
-pub struct GetNextSeqNumResponse {
-    /// Next sequence number.
+pub enum CommandRecord {
+    Fence { fencing_token: Vec<u8> },
+    Trim { seq_num: u64 },
+}
+
+impl CommandRecord {
+    pub fn fence<T: Into<Vec<u8>>>(fencing_token: Option<T>) -> Self {
+        Self::Fence {
+            fencing_token: fencing_token.map(Into::into).unwrap_or_default(),
+        }
+    }
+
+    pub fn trim(seq_num: impl Into<u64>) -> Self {
+        Self::Trim {
+            seq_num: seq_num.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AppendRecord {
+    /// Series of name-value pairs for this record.
+    pub headers: Vec<Header>,
+    /// Body of the record.
+    pub body: Vec<u8>,
+}
+
+impl AppendRecord {
+    pub fn new(body: impl Into<Vec<u8>>) -> Self {
+        Self {
+            headers: Vec::new(),
+            body: body.into(),
+        }
+    }
+
+    pub fn with_headers(self, headers: impl Into<Vec<Header>>) -> Self {
+        Self {
+            headers: headers.into(),
+            ..self
+        }
+    }
+}
+
+impl From<AppendRecord> for api::AppendRecord {
+    fn from(value: AppendRecord) -> Self {
+        let AppendRecord { headers, body } = value;
+        Self {
+            headers: headers.into_iter().map(Into::into).collect(),
+            body: body.into(),
+        }
+    }
+}
+
+impl From<CommandRecord> for AppendRecord {
+    fn from(value: CommandRecord) -> Self {
+        let (header_value, body) = match value {
+            CommandRecord::Fence { fencing_token } => ("fence", fencing_token),
+            CommandRecord::Trim { seq_num } => ("trim", seq_num.to_be_bytes().to_vec()),
+        };
+        Self {
+            headers: vec![Header::from_value(header_value)],
+            body,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AppendInput {
+    /// Batch of records to append atomically, which must contain at least one
+    /// record, and no more than 1000. The total size of a batch of records may
+    /// not exceed 1MiB.
+    pub records: Vec<AppendRecord>,
+    /// Enforce that the sequence number issued to the first record matches.
+    pub match_seq_num: Option<u64>,
+    /// Enforce a fencing token which must have been previously set by a `fence` command record.
+    pub fencing_token: Option<Vec<u8>>,
+}
+
+impl AppendInput {
+    pub fn new(records: impl Into<Vec<AppendRecord>>) -> Self {
+        Self {
+            records: records.into(),
+            match_seq_num: None,
+            fencing_token: None,
+        }
+    }
+
+    pub fn with_match_seq_num(self, match_seq_num: impl Into<u64>) -> Self {
+        Self {
+            match_seq_num: Some(match_seq_num.into()),
+            ..self
+        }
+    }
+
+    pub fn with_fencing_token(self, fencing_token: impl Into<Vec<u8>>) -> Self {
+        Self {
+            fencing_token: Some(fencing_token.into()),
+            ..self
+        }
+    }
+
+    pub fn into_api_type(self, stream: impl Into<String>) -> api::AppendInput {
+        let Self {
+            records,
+            match_seq_num,
+            fencing_token,
+        } = self;
+        api::AppendInput {
+            stream: stream.into(),
+            records: records.into_iter().map(Into::into).collect(),
+            match_seq_num,
+            fencing_token: fencing_token.map(Into::into),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AppendOutput {
+    /// Sequence number of first record appended.
+    pub start_seq_num: u64,
+    /// Sequence number of last record appended + 1.
+    /// `end_seq_num - start_seq_num` will be the number of records in the batch.
+    pub end_seq_num: u64,
+    /// Sequence number of last durable record on the stream + 1.
+    /// This can be greater than `end_seq_num` in case of concurrent appends.
     pub next_seq_num: u64,
 }
 
-impl From<api::GetNextSeqNumResponse> for GetNextSeqNumResponse {
-    fn from(value: api::GetNextSeqNumResponse) -> Self {
-        let api::GetNextSeqNumResponse { next_seq_num } = value;
-        Self { next_seq_num }
+impl From<api::AppendOutput> for AppendOutput {
+    fn from(value: api::AppendOutput) -> Self {
+        let api::AppendOutput {
+            start_seq_num,
+            end_seq_num,
+            next_seq_num,
+        } = value;
+        Self {
+            start_seq_num,
+            end_seq_num,
+            next_seq_num,
+        }
+    }
+}
+
+impl TryFrom<api::AppendResponse> for AppendOutput {
+    type Error = ConvertError;
+    fn try_from(value: api::AppendResponse) -> Result<Self, Self::Error> {
+        let api::AppendResponse { output } = value;
+        let output = output.ok_or("missing append output")?;
+        Ok(output.into())
+    }
+}
+
+impl TryFrom<api::AppendSessionResponse> for AppendOutput {
+    type Error = ConvertError;
+    fn try_from(value: api::AppendSessionResponse) -> Result<Self, Self::Error> {
+        let api::AppendSessionResponse { output } = value;
+        let output = output.ok_or("missing append output")?;
+        Ok(output.into())
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ReadRequest {
+    /// Starting sequence number (inclusive). If not specified, the latest
+    /// record.
+    pub start_seq_num: Option<u64>,
+    /// Limit on how many records can be returned upto a maximum of 1000, which
+    /// is the default.
+    pub limit: usize,
+}
+
+impl ReadRequest {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_start_seq_num(self, start_seq_num: impl Into<u64>) -> Self {
+        Self {
+            start_seq_num: Some(start_seq_num.into()),
+            ..self
+        }
+    }
+
+    pub fn with_limit(self, limit: impl Into<usize>) -> Self {
+        Self {
+            limit: limit.into(),
+            ..self
+        }
+    }
+}
+
+impl ReadRequest {
+    pub fn try_into_api_type(
+        self,
+        stream: impl Into<String>,
+    ) -> Result<api::ReadRequest, ConvertError> {
+        let Self {
+            start_seq_num,
+            limit,
+        } = self;
+        Ok(api::ReadRequest {
+            stream: stream.into(),
+            start_seq_num,
+            limit: limit
+                .try_into()
+                .map_err(|_| "request limit does not fit into u32 bounds")?,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SequencedRecord {
+    pub seq_num: u64,
+    pub headers: Vec<Header>,
+    pub body: Vec<u8>,
+}
+
+impl From<api::SequencedRecord> for SequencedRecord {
+    fn from(value: api::SequencedRecord) -> Self {
+        let api::SequencedRecord {
+            seq_num,
+            headers,
+            body,
+        } = value;
+        Self {
+            seq_num,
+            headers: headers.into_iter().map(Into::into).collect(),
+            body: body.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SequencedRecordBatch {
+    pub records: Vec<SequencedRecord>,
+}
+
+impl From<api::SequencedRecordBatch> for SequencedRecordBatch {
+    fn from(value: api::SequencedRecordBatch) -> Self {
+        let api::SequencedRecordBatch { records } = value;
+        Self {
+            records: records.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ReadOutput {
+    Batch(SequencedRecordBatch),
+    FirstSeqNum(u64),
+    NextSeqNum(u64),
+}
+
+impl From<api::read_output::Output> for ReadOutput {
+    fn from(value: api::read_output::Output) -> Self {
+        match value {
+            api::read_output::Output::Batch(batch) => Self::Batch(batch.into()),
+            api::read_output::Output::FirstSeqNum(first_seq_num) => {
+                Self::FirstSeqNum(first_seq_num)
+            }
+            api::read_output::Output::NextSeqNum(next_seq_num) => Self::NextSeqNum(next_seq_num),
+        }
+    }
+}
+
+impl TryFrom<api::ReadOutput> for ReadOutput {
+    type Error = ConvertError;
+    fn try_from(value: api::ReadOutput) -> Result<Self, Self::Error> {
+        let api::ReadOutput { output } = value;
+        let output = output.ok_or("missing read output")?;
+        Ok(output.into())
+    }
+}
+
+impl TryFrom<api::ReadResponse> for ReadOutput {
+    type Error = ConvertError;
+    fn try_from(value: api::ReadResponse) -> Result<Self, Self::Error> {
+        let api::ReadResponse { output } = value;
+        let output = output.ok_or("missing output in read response")?;
+        output.try_into()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ReadSessionRequest {
+    /// Starting sequence number (inclusive). If not specified, the latest
+    /// record.
+    pub start_seq_num: Option<u64>,
+}
+
+impl ReadSessionRequest {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_start_seq_num(self, start_seq_num: impl Into<u64>) -> Self {
+        Self {
+            start_seq_num: Some(start_seq_num.into()),
+        }
+    }
+
+    pub fn into_api_type(self, stream: impl Into<String>) -> api::ReadSessionRequest {
+        let Self { start_seq_num } = self;
+        api::ReadSessionRequest {
+            stream: stream.into(),
+            start_seq_num,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ReadSessionResponse {
+    pub output: ReadOutput,
+}
+
+impl TryFrom<api::ReadSessionResponse> for ReadSessionResponse {
+    type Error = ConvertError;
+    fn try_from(value: api::ReadSessionResponse) -> Result<Self, Self::Error> {
+        let api::ReadSessionResponse { output } = value;
+        let output = output.ok_or("missing output in read session response")?;
+        Ok(Self {
+            output: output.try_into()?,
+        })
     }
 }

@@ -1,17 +1,17 @@
 [package]
-name = "s2"
+name = "streamstore"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 backon = "1.2.0"
+futures = "0.3.30"
 http = "1.1.0"
 prost = "0.13.1"
 prost-types = "0.13.1"
 secrecy = "0.8.0"
 thiserror = "1.0.63"
 tonic = "0.12.2"
-typed-builder = "0.20.0"
 serde = { version = "1.0.210", optional = true, features = ["derive"] }
 
 [build-dependencies]

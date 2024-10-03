@@ -1,9 +1,9 @@
 use std::time::Duration;
 
+use backon::{ConstantBuilder, Retryable};
 use http::{uri::Authority, Uri};
 use secrecy::SecretString;
 use tonic::transport::{Channel, Endpoint};
-use typed_builder::TypedBuilder;
 
 use crate::{
     api::{
@@ -24,8 +24,12 @@ use crate::{
             ReconfigureStreamServiceRequest,
         },
         send_request,
-        stream::{GetNextSeqNumError, GetNextSeqNumServiceRequest},
-        ServiceError, ServiceRequest,
+        stream::{
+            AppendError, AppendServiceRequest, AppendSessionError, AppendSessionServiceRequest,
+            GetNextSeqNumError, GetNextSeqNumServiceRequest, ReadError, ReadServiceRequest,
+            ReadSessionError, ReadSessionServiceRequest,
+        },
+        RetryableRequest, ServiceError, ServiceRequest, Streaming,
     },
     types,
 };
@@ -33,17 +37,15 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HostCloud {
     /// Localhost (to be used for testing).
-    #[cfg(debug_assertions)]
+    #[default]
     Local,
     /// S2 hosted on AWS.
-    #[default]
     Aws,
 }
 
 impl From<HostCloud> for HostUri {
     fn from(value: HostCloud) -> Self {
         match value {
-            #[cfg(debug_assertions)]
             HostCloud::Local => HostUri {
                 global: "http://localhost:4243".try_into().unwrap(),
                 cell: None,
@@ -54,13 +56,10 @@ impl From<HostCloud> for HostUri {
     }
 }
 
-#[derive(Debug, Clone, TypedBuilder)]
+#[derive(Debug, Clone)]
 pub struct HostUri {
-    #[builder]
     pub global: Uri,
-    #[builder(default)]
     pub cell: Option<Uri>,
-    #[builder(default)]
     pub prefix_host_with_basin: bool,
 }
 
@@ -70,18 +69,77 @@ impl Default for HostUri {
     }
 }
 
-#[derive(Debug, Clone, TypedBuilder)]
+impl HostUri {
+    pub fn new(global_uri: impl Into<Uri>) -> Self {
+        Self {
+            global: global_uri.into(),
+            cell: None,
+            prefix_host_with_basin: false,
+        }
+    }
+
+    pub fn with_cell_uri(self, cell_uri: impl Into<Uri>) -> Self {
+        Self {
+            cell: Some(cell_uri.into()),
+            ..self
+        }
+    }
+
+    pub fn with_prefix_host_with_basin(self, prefix_host_with_basin: bool) -> Self {
+        Self {
+            prefix_host_with_basin,
+            ..self
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct ClientConfig {
-    #[builder(default, setter(into))]
-    pub host_uri: HostUri,
-    #[builder(setter(into))]
     pub token: SecretString,
-    #[builder(default)]
-    pub test_connection: bool,
-    #[builder(default = Duration::from_secs(3), setter(into))]
+    pub host_uri: HostUri,
+    pub connect_lazily: bool,
     pub connection_timeout: Duration,
-    #[builder(default = Duration::from_secs(5), setter(into))]
     pub request_timeout: Duration,
+}
+
+impl ClientConfig {
+    pub fn new(token: impl Into<SecretString>) -> Self {
+        Self {
+            token: token.into(),
+            host_uri: HostUri::default(),
+            connect_lazily: true,
+            connection_timeout: Duration::from_secs(3),
+            request_timeout: Duration::from_secs(5),
+        }
+    }
+
+    pub fn with_host_uri(self, host_uri: impl Into<HostUri>) -> Self {
+        Self {
+            host_uri: host_uri.into(),
+            ..self
+        }
+    }
+
+    pub fn with_connect_lazily(self, connect_lazily: bool) -> Self {
+        Self {
+            connect_lazily,
+            ..self
+        }
+    }
+
+    pub fn with_connection_timeout(self, connection_timeout: impl Into<Duration>) -> Self {
+        Self {
+            connection_timeout: connection_timeout.into(),
+            ..self
+        }
+    }
+
+    pub fn with_request_timeout(self, request_timeout: impl Into<Duration>) -> Self {
+        Self {
+            request_timeout: request_timeout.into(),
+            ..self
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -108,10 +166,10 @@ impl Client {
         req: types::ListBasinsRequest,
     ) -> Result<types::ListBasinsResponse, ServiceError<ListBasinsError>> {
         self.inner
-            .send(
-                ListBasinsServiceRequest::new(self.inner.account_service_client()),
+            .send_retryable(ListBasinsServiceRequest::new(
+                self.inner.account_service_client(),
                 req,
-            )
+            ))
             .await
     }
 
@@ -119,12 +177,12 @@ impl Client {
     pub async fn create_basin(
         &self,
         req: types::CreateBasinRequest,
-    ) -> Result<types::CreateBasinResponse, ServiceError<CreateBasinError>> {
+    ) -> Result<types::BasinMetadata, ServiceError<CreateBasinError>> {
         self.inner
-            .send(
-                CreateBasinServiceRequest::new(self.inner.account_service_client()),
+            .send(CreateBasinServiceRequest::new(
+                self.inner.account_service_client(),
                 req,
-            )
+            ))
             .await
     }
 
@@ -133,30 +191,23 @@ impl Client {
         &self,
         req: types::DeleteBasinRequest,
     ) -> Result<(), ServiceError<DeleteBasinError>> {
-        let if_exists = req.if_exists;
-
-        match self
-            .inner
-            .send(
-                DeleteBasinServiceRequest::new(self.inner.account_service_client()),
+        self.inner
+            .send_retryable(DeleteBasinServiceRequest::new(
+                self.inner.account_service_client(),
                 req,
-            )
+            ))
             .await
-        {
-            Err(ServiceError::Remote(DeleteBasinError::NotFound(_))) if if_exists => Ok(()),
-            res => res,
-        }
     }
 
     pub async fn get_basin_config(
         &self,
-        req: types::GetBasinConfigRequest,
-    ) -> Result<types::GetBasinConfigResponse, ServiceError<GetBasinConfigError>> {
+        basin: impl Into<String>,
+    ) -> Result<types::BasinConfig, ServiceError<GetBasinConfigError>> {
         self.inner
-            .send(
-                GetBasinConfigServiceRequest::new(self.inner.account_service_client()),
-                req,
-            )
+            .send_retryable(GetBasinConfigServiceRequest::new(
+                self.inner.account_service_client(),
+                basin,
+            ))
             .await
     }
 
@@ -165,10 +216,10 @@ impl Client {
         req: types::ReconfigureBasinRequest,
     ) -> Result<(), ServiceError<ReconfigureBasinError>> {
         self.inner
-            .send(
-                ReconfigureBasinServiceRequest::new(self.inner.account_service_client()),
+            .send_retryable(ReconfigureBasinServiceRequest::new(
+                self.inner.account_service_client(),
                 req,
-            )
+            ))
             .await
     }
 }
@@ -179,6 +230,16 @@ pub struct BasinClient {
 }
 
 impl BasinClient {
+    pub async fn connect(
+        config: ClientConfig,
+        basin: impl Into<String>,
+    ) -> Result<Self, ClientError> {
+        // TODO: If `connect_lazily` is set to false, this will create two
+        // connections. We can directly connect to basin client.
+        let client = Client::connect(config).await?;
+        client.basin_client(basin).await
+    }
+
     pub fn stream_client(&self, stream: impl Into<String>) -> StreamClient {
         StreamClient {
             inner: self.inner.clone(),
@@ -191,10 +252,10 @@ impl BasinClient {
         req: types::CreateStreamRequest,
     ) -> Result<(), ServiceError<CreateStreamError>> {
         self.inner
-            .send(
-                CreateStreamServiceRequest::new(self.inner.basin_service_client()),
+            .send(CreateStreamServiceRequest::new(
+                self.inner.basin_service_client(),
                 req,
-            )
+            ))
             .await
     }
 
@@ -203,22 +264,22 @@ impl BasinClient {
         req: types::ListStreamsRequest,
     ) -> Result<types::ListStreamsResponse, ServiceError<ListStreamsError>> {
         self.inner
-            .send(
-                ListStreamsServiceRequest::new(self.inner.basin_service_client()),
+            .send_retryable(ListStreamsServiceRequest::new(
+                self.inner.basin_service_client(),
                 req,
-            )
+            ))
             .await
     }
 
     pub async fn get_stream_config(
         &self,
-        req: types::GetStreamConfigRequest,
-    ) -> Result<types::GetStreamConfigResponse, ServiceError<GetStreamConfigError>> {
+        stream: impl Into<String>,
+    ) -> Result<types::StreamConfig, ServiceError<GetStreamConfigError>> {
         self.inner
-            .send(
-                GetStreamConfigServiceRequest::new(self.inner.basin_service_client()),
-                req,
-            )
+            .send_retryable(GetStreamConfigServiceRequest::new(
+                self.inner.basin_service_client(),
+                stream,
+            ))
             .await
     }
 
@@ -227,10 +288,10 @@ impl BasinClient {
         req: types::ReconfigureStreamRequest,
     ) -> Result<(), ServiceError<ReconfigureStreamError>> {
         self.inner
-            .send(
-                ReconfigureStreamServiceRequest::new(self.inner.basin_service_client()),
+            .send(ReconfigureStreamServiceRequest::new(
+                self.inner.basin_service_client(),
                 req,
-            )
+            ))
             .await
     }
 
@@ -238,19 +299,12 @@ impl BasinClient {
         &self,
         req: types::DeleteStreamRequest,
     ) -> Result<(), ServiceError<DeleteStreamError>> {
-        let if_exists = req.if_exists;
-
-        match self
-            .inner
-            .send(
-                DeleteStreamServiceRequest::new(self.inner.basin_service_client()),
+        self.inner
+            .send_retryable(DeleteStreamServiceRequest::new(
+                self.inner.basin_service_client(),
                 req,
-            )
+            ))
             .await
-        {
-            Err(ServiceError::Remote(DeleteStreamError::NotFound(_))) if if_exists => Ok(()),
-            res => res,
-        }
     }
 }
 
@@ -261,15 +315,83 @@ pub struct StreamClient {
 }
 
 impl StreamClient {
-    pub async fn get_next_seq_num(
-        &self,
-    ) -> Result<types::GetNextSeqNumResponse, ServiceError<GetNextSeqNumError>> {
-        self.inner
-            .send(
-                GetNextSeqNumServiceRequest::new(self.inner.stream_service_client()),
-                self.stream.clone(),
-            )
+    pub async fn connect(
+        config: ClientConfig,
+        basin: impl Into<String>,
+        stream: impl Into<String>,
+    ) -> Result<Self, ClientError> {
+        BasinClient::connect(config, basin)
             .await
+            .map(|client| client.stream_client(stream))
+    }
+
+    pub async fn get_next_seq_num(&self) -> Result<u64, ServiceError<GetNextSeqNumError>> {
+        self.inner
+            .send_retryable(GetNextSeqNumServiceRequest::new(
+                self.inner.stream_service_client(),
+                &self.stream,
+            ))
+            .await
+    }
+
+    pub async fn read(
+        &self,
+        req: types::ReadRequest,
+    ) -> Result<types::ReadOutput, ServiceError<ReadError>> {
+        self.inner
+            .send_retryable(ReadServiceRequest::new(
+                self.inner.stream_service_client(),
+                &self.stream,
+                req,
+            ))
+            .await
+    }
+
+    pub async fn read_session(
+        &self,
+        req: types::ReadSessionRequest,
+    ) -> Result<
+        Streaming<types::ReadSessionResponse, ReadSessionError>,
+        ServiceError<ReadSessionError>,
+    > {
+        self.inner
+            .send_retryable(ReadSessionServiceRequest::new(
+                self.inner.stream_service_client(),
+                &self.stream,
+                req,
+            ))
+            .await
+            .map(Streaming::new)
+    }
+
+    pub async fn append(
+        &self,
+        req: types::AppendInput,
+    ) -> Result<types::AppendOutput, ServiceError<AppendError>> {
+        self.inner
+            .send(AppendServiceRequest::new(
+                self.inner.stream_service_client(),
+                &self.stream,
+                req,
+            ))
+            .await
+    }
+
+    pub async fn append_session<S>(
+        &self,
+        req: S,
+    ) -> Result<Streaming<types::AppendOutput, AppendSessionError>, ServiceError<AppendSessionError>>
+    where
+        S: 'static + Send + futures::Stream<Item = types::AppendInput> + Unpin,
+    {
+        self.inner
+            .send(AppendSessionServiceRequest::new(
+                self.inner.stream_service_client(),
+                &self.stream,
+                req,
+            ))
+            .await
+            .map(Streaming::new)
     }
 }
 
@@ -317,10 +439,10 @@ impl ClientInner {
         let endpoint = endpoint
             .connect_timeout(config.connection_timeout)
             .timeout(config.request_timeout);
-        let channel = if config.test_connection {
-            endpoint.connect().await?
-        } else {
+        let channel = if config.connect_lazily {
             endpoint.connect_lazy()
+        } else {
+            endpoint.connect().await?
         };
         Ok(Self {
             channel,
@@ -331,10 +453,21 @@ impl ClientInner {
 
     pub async fn send<T: ServiceRequest>(
         &self,
-        service: T,
-        req: T::Request,
+        service_req: T,
     ) -> Result<T::Response, ServiceError<T::Error>> {
-        send_request(service, req, &self.config.token, self.basin.as_deref()).await
+        send_request(service_req, &self.config.token, self.basin.as_deref()).await
+    }
+
+    pub async fn send_retryable<T: RetryableRequest>(
+        &self,
+        service_req: T,
+    ) -> Result<T::Response, ServiceError<T::Error>> {
+        let retry_fn = || async { self.send(service_req.clone()).await };
+
+        retry_fn
+            .retry(ConstantBuilder::default()) // TODO: Configure retry.
+            .when(|e| service_req.should_retry(e))
+            .await
     }
 
     pub fn account_service_client(&self) -> AccountServiceClient<Channel> {
