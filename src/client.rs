@@ -37,17 +37,15 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HostCloud {
     /// Localhost (to be used for testing).
-    #[cfg(debug_assertions)]
+    #[default]
     Local,
     /// S2 hosted on AWS.
-    #[default]
     Aws,
 }
 
 impl From<HostCloud> for HostUri {
     fn from(value: HostCloud) -> Self {
         match value {
-            #[cfg(debug_assertions)]
             HostCloud::Local => HostUri {
                 global: "http://localhost:4243".try_into().unwrap(),
                 cell: None,
