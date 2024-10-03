@@ -36,10 +36,7 @@ pub async fn send_request<T: ServiceRequest>(
     token: &SecretString,
     basin: Option<&str>,
 ) -> Result<T::Response, ServiceError<T::Error>> {
-    let mut req = service.prepare_request().map_err(ServiceError::Convert)?;
-
-    add_authorization_header(req.metadata_mut(), token);
-    add_basin_header(req.metadata_mut(), basin);
+    let req = prepare_request(&mut service, token, basin).map_err(ServiceError::Convert)?;
 
     match service.send(req).await {
         Ok(resp) => service.parse_response(resp).map_err(ServiceError::Convert),
@@ -63,18 +60,39 @@ pub async fn send_request<T: ServiceRequest>(
     }
 }
 
-fn add_authorization_header(meta: &mut MetadataMap, token: &SecretString) {
-    let mut val: AsciiMetadataValue = format!("Bearer {}", token.expose_secret())
-        .try_into()
-        .unwrap();
-    val.set_sensitive(true);
-    meta.insert("authorization", val);
+fn prepare_request<T: ServiceRequest>(
+    service: &mut T,
+    token: &SecretString,
+    basin: Option<&str>,
+) -> Result<tonic::Request<T::ApiRequest>, ConvertError> {
+    let mut req = service.prepare_request()?;
+    add_authorization_header(req.metadata_mut(), token)?;
+    add_basin_header(req.metadata_mut(), basin)?;
+    Ok(req)
 }
 
-fn add_basin_header(meta: &mut MetadataMap, basin: Option<&str>) {
+fn add_authorization_header(
+    meta: &mut MetadataMap,
+    token: &SecretString,
+) -> Result<(), ConvertError> {
+    let mut val: AsciiMetadataValue = format!("Bearer {}", token.expose_secret())
+        .try_into()
+        .map_err(|_| "failed to parse token as metadata value")?;
+    val.set_sensitive(true);
+    meta.insert("authorization", val);
+    Ok(())
+}
+
+fn add_basin_header(meta: &mut MetadataMap, basin: Option<&str>) -> Result<(), ConvertError> {
     if let Some(basin) = basin {
-        meta.insert("s2-basin", basin.parse().unwrap());
+        meta.insert(
+            "s2-basin",
+            basin
+                .parse()
+                .map_err(|_| "failed to parse basin name as metadata value")?,
+        );
     }
+    Ok(())
 }
 
 pub trait ServiceRequest {
