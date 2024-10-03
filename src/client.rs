@@ -236,6 +236,8 @@ impl BasinClient {
         config: ClientConfig,
         basin: impl Into<String>,
     ) -> Result<Self, ClientError> {
+        // TODO: If `connect_lazily` is set to false, this will create two
+        // connections. We can directly connect to basin client.
         let client = Client::connect(config).await?;
         client.basin_client(basin).await
     }

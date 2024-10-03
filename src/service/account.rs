@@ -1,6 +1,6 @@
 use tonic::{transport::Channel, IntoRequest};
 
-use super::{IdempodentRequest, ServiceRequest};
+use super::{IdempotentRequest, ServiceRequest};
 use crate::{
     api::{self, account_service_client::AccountServiceClient},
     types::{self, ConvertError},
@@ -111,7 +111,7 @@ impl ServiceRequest for ListBasinsServiceRequest {
     }
 }
 
-impl IdempodentRequest for ListBasinsServiceRequest {
+impl IdempotentRequest for ListBasinsServiceRequest {
     const NO_SIDE_EFFECTS: bool = true;
 }
 
@@ -172,7 +172,7 @@ impl ServiceRequest for DeleteBasinServiceRequest {
     }
 }
 
-impl IdempodentRequest for DeleteBasinServiceRequest {
+impl IdempotentRequest for DeleteBasinServiceRequest {
     const NO_SIDE_EFFECTS: bool = false;
 }
 
@@ -236,7 +236,7 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
     }
 }
 
-impl IdempodentRequest for GetBasinConfigServiceRequest {
+impl IdempotentRequest for GetBasinConfigServiceRequest {
     const NO_SIDE_EFFECTS: bool = true;
 }
 
@@ -296,7 +296,7 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
     }
 }
 
-impl IdempodentRequest for ReconfigureBasinServiceRequest {
+impl IdempotentRequest for ReconfigureBasinServiceRequest {
     const NO_SIDE_EFFECTS: bool = false;
 }
 

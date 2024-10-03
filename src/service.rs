@@ -113,12 +113,12 @@ pub trait RetryableRequest: ServiceRequest + Clone {
     fn should_retry(&self, err: &ServiceError<Self::Error>) -> bool;
 }
 
-pub trait IdempodentRequest: ServiceRequest + Clone {
+pub trait IdempotentRequest: ServiceRequest + Clone {
     /// The request does not have any side effects (for sure).
     const NO_SIDE_EFFECTS: bool;
 }
 
-impl<T: IdempodentRequest> RetryableRequest for T {
+impl<T: IdempotentRequest> RetryableRequest for T {
     fn should_retry(&self, err: &ServiceError<Self::Error>) -> bool {
         match err {
             // Always retry on unavailable (if the request doesn't have any
