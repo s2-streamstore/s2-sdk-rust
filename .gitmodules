@@ -1,4 +1,4 @@
 [submodule "proto"]
 	path = proto
-	url = git@github.com:s2-streamstore/s2-proto.git
+	url = https://github.com/s2-streamstore/s2-proto.git
 	branch = main
