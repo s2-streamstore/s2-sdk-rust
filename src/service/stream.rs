@@ -1,7 +1,7 @@
 use tonic::{transport::Channel, IntoRequest};
 
 use super::{
-    IdempodentRequest, ServiceRequest, ServiceStreamingRequest, ServiceStreamingResponse,
+    IdempotentRequest, ServiceRequest, ServiceStreamingRequest, ServiceStreamingResponse,
     StreamingRequest, StreamingResponse,
 };
 use crate::{
@@ -64,7 +64,7 @@ impl ServiceRequest for GetNextSeqNumServiceRequest {
     }
 }
 
-impl IdempodentRequest for GetNextSeqNumServiceRequest {
+impl IdempotentRequest for GetNextSeqNumServiceRequest {
     const NO_SIDE_EFFECTS: bool = true;
 }
 
@@ -133,7 +133,7 @@ impl ServiceRequest for ReadServiceRequest {
     }
 }
 
-impl IdempodentRequest for ReadServiceRequest {
+impl IdempotentRequest for ReadServiceRequest {
     const NO_SIDE_EFFECTS: bool = true;
 }
 
@@ -205,7 +205,7 @@ impl ServiceRequest for ReadSessionServiceRequest {
     }
 }
 
-impl IdempodentRequest for ReadSessionServiceRequest {
+impl IdempotentRequest for ReadSessionServiceRequest {
     const NO_SIDE_EFFECTS: bool = true;
 }
 

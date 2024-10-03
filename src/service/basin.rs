@@ -1,6 +1,6 @@
 use tonic::{transport::Channel, IntoRequest};
 
-use super::{IdempodentRequest, ServiceRequest};
+use super::{IdempotentRequest, ServiceRequest};
 use crate::{
     api::{self, basin_service_client::BasinServiceClient},
     types,
@@ -54,7 +54,7 @@ impl ServiceRequest for ListStreamsServiceRequest {
     }
 }
 
-impl IdempodentRequest for ListStreamsServiceRequest {
+impl IdempotentRequest for ListStreamsServiceRequest {
     const NO_SIDE_EFFECTS: bool = true;
 }
 
@@ -121,7 +121,7 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
     }
 }
 
-impl IdempodentRequest for GetStreamConfigServiceRequest {
+impl IdempotentRequest for GetStreamConfigServiceRequest {
     const NO_SIDE_EFFECTS: bool = true;
 }
 
@@ -247,7 +247,7 @@ impl ServiceRequest for DeleteStreamServiceRequest {
     }
 }
 
-impl IdempodentRequest for DeleteStreamServiceRequest {
+impl IdempotentRequest for DeleteStreamServiceRequest {
     const NO_SIDE_EFFECTS: bool = false;
 }
 
