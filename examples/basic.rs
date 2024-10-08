@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use futures::StreamExt;
-use s2::{
+use streamstore::{
     client::{Client, ClientConfig, HostCloud},
     service_error::{CreateBasinError, CreateStreamError, ServiceError},
     types::{

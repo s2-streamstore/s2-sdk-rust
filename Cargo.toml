@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 backon = "1.2.0"
+bytesize = "1.3.0"
 futures = "0.3.30"
 http = "1.1.0"
 prost = "0.13.1"

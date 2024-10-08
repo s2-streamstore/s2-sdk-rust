@@ -2,6 +2,7 @@ mod api;
 mod service;
 
 pub mod client;
+pub mod streams;
 pub mod types;
 
 pub use futures;

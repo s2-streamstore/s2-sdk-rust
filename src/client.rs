@@ -34,6 +34,15 @@ use crate::{
     types,
 };
 
+/// Cloud deployment to be used to connect the client with.
+///
+/// Can be used to create the client with default hosted URIs:
+///
+/// ```
+/// # use streamstore::client::{ClientConfig, HostCloud};
+/// let client_config = ClientConfig::new("<token>")
+///     .with_host_uri(HostCloud::Aws);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HostCloud {
     /// Localhost (to be used for testing).
@@ -56,10 +65,19 @@ impl From<HostCloud> for HostUri {
     }
 }
 
+/// URIs for the hosted S2 environment.
 #[derive(Debug, Clone)]
 pub struct HostUri {
+    /// Global URI to connect to.
     pub global: Uri,
+    /// Cell specific URI (for basin and stream service requests).
+    ///
+    /// Client uses the same URI as the global URI if cell URI is absent.
     pub cell: Option<Uri>,
+    /// Whether the cell URI host should be prefixed with the basin name or not.
+    ///
+    /// If set to true, the cell URI `cell.aws.s2.dev` would be prefixed with
+    /// the basin name and set to `<basin>.cell.aws.s2.dev`.
     pub prefix_host_with_basin: bool,
 }
 
@@ -70,6 +88,7 @@ impl Default for HostUri {
 }
 
 impl HostUri {
+    /// Construct a new host URI with the given global URI.
     pub fn new(global_uri: impl Into<Uri>) -> Self {
         Self {
             global: global_uri.into(),
@@ -78,6 +97,7 @@ impl HostUri {
         }
     }
 
+    /// Construct from an existing host URI with the given cell URI.
     pub fn with_cell_uri(self, cell_uri: impl Into<Uri>) -> Self {
         Self {
             cell: Some(cell_uri.into()),
@@ -85,6 +105,8 @@ impl HostUri {
         }
     }
 
+    /// Construct from an existing host URI with the new
+    /// `prefix_host_with_basin` configuration.
     pub fn with_prefix_host_with_basin(self, prefix_host_with_basin: bool) -> Self {
         Self {
             prefix_host_with_basin,
@@ -93,19 +115,28 @@ impl HostUri {
     }
 }
 
+/// Client configuration to be used to connect with the host.
 #[derive(Debug, Clone)]
 pub struct ClientConfig {
+    /// Auth token for the client.
     pub token: SecretString,
+    /// Host URI to connect with.
     pub host_uri: HostUri,
+    /// Should the connection be lazy, i.e., only be made when making the very
+    /// first request.
     pub connect_lazily: bool,
+    /// Timeout for connecting/reconnecting.
     pub connection_timeout: Duration,
+    /// Timeout for a particular request.
     pub request_timeout: Duration,
 }
 
 impl ClientConfig {
-    pub fn new(token: impl Into<SecretString>) -> Self {
+    /// Construct a new client configuration with given auth token and other
+    /// defaults.
+    pub fn new(token: impl Into<String>) -> Self {
         Self {
-            token: token.into(),
+            token: token.into().into(),
             host_uri: HostUri::default(),
             connect_lazily: true,
             connection_timeout: Duration::from_secs(3),
@@ -113,6 +144,7 @@ impl ClientConfig {
         }
     }
 
+    /// Construct from an existing configuration with the new host URIs.
     pub fn with_host_uri(self, host_uri: impl Into<HostUri>) -> Self {
         Self {
             host_uri: host_uri.into(),
@@ -120,6 +152,8 @@ impl ClientConfig {
         }
     }
 
+    /// Construct from an existing configuration with the new `connect_lazily`
+    /// configuration.
     pub fn with_connect_lazily(self, connect_lazily: bool) -> Self {
         Self {
             connect_lazily,
@@ -127,6 +161,8 @@ impl ClientConfig {
         }
     }
 
+    /// Construct from an existing configuration with the new connection
+    /// timeout.
     pub fn with_connection_timeout(self, connection_timeout: impl Into<Duration>) -> Self {
         Self {
             connection_timeout: connection_timeout.into(),
@@ -134,6 +170,7 @@ impl ClientConfig {
         }
     }
 
+    /// Construct from an existing configuration with the new request timeout.
     pub fn with_request_timeout(self, request_timeout: impl Into<Duration>) -> Self {
         Self {
             request_timeout: request_timeout.into(),
@@ -142,21 +179,34 @@ impl ClientConfig {
     }
 }
 
+/// The S2 client to interact with the API.
 #[derive(Debug, Clone)]
 pub struct Client {
     inner: ClientInner,
 }
 
 impl Client {
-    pub async fn connect(config: ClientConfig) -> Result<Self, ClientError> {
+    async fn connect_inner(
+        config: ClientConfig,
+        force_lazy_connection: bool,
+    ) -> Result<Self, ClientError> {
         Ok(Self {
-            inner: ClientInner::connect_global(config).await?,
+            inner: ClientInner::connect_global(config, force_lazy_connection).await?,
         })
     }
 
+    /// Connect the client with the S2 API.
+    pub async fn connect(config: ClientConfig) -> Result<Self, ClientError> {
+        Self::connect_inner(config, /* force_lazy_connection = */ false).await
+    }
+
+    /// Get the client to interact with the S2 basin service API.
     pub async fn basin_client(&self, basin: impl Into<String>) -> Result<BasinClient, ClientError> {
         Ok(BasinClient {
-            inner: self.inner.connect_cell(basin).await?,
+            inner: self
+                .inner
+                .connect_cell(basin, /* force_lazy_connection = */ false)
+                .await?,
         })
     }
 
@@ -199,6 +249,7 @@ impl Client {
             .await
     }
 
+    /// Get a basin's configuration.
     pub async fn get_basin_config(
         &self,
         basin: impl Into<String>,
@@ -211,6 +262,7 @@ impl Client {
             .await
     }
 
+    /// Reconfigura a basin.
     pub async fn reconfigure_basin(
         &self,
         req: types::ReconfigureBasinRequest,
@@ -224,22 +276,28 @@ impl Client {
     }
 }
 
+/// Client to interact with the S2 basin service API.
 #[derive(Debug, Clone)]
 pub struct BasinClient {
     inner: ClientInner,
 }
 
 impl BasinClient {
+    /// Connect the client with the S2 basin service API.
     pub async fn connect(
         config: ClientConfig,
         basin: impl Into<String>,
     ) -> Result<Self, ClientError> {
-        // TODO: If `connect_lazily` is set to false, this will create two
-        // connections. We can directly connect to basin client.
-        let client = Client::connect(config).await?;
+        // Since we're directly trying to connect to the basin, force lazy
+        // connection with the global client so we don't end up making 2
+        // connections for connecting with the basin client directly (given the
+        // cell URI and global URIs are different).
+        let force_lazy_connection = config.host_uri.cell.is_some();
+        let client = Client::connect_inner(config, force_lazy_connection).await?;
         client.basin_client(basin).await
     }
 
+    /// Get the client to interact with the S2 stream service API.
     pub fn stream_client(&self, stream: impl Into<String>) -> StreamClient {
         StreamClient {
             inner: self.inner.clone(),
@@ -247,6 +305,7 @@ impl BasinClient {
         }
     }
 
+    /// Create a new stream in the basin.
     pub async fn create_stream(
         &self,
         req: types::CreateStreamRequest,
@@ -259,6 +318,7 @@ impl BasinClient {
             .await
     }
 
+    /// List streams in a basin.
     pub async fn list_streams(
         &self,
         req: types::ListStreamsRequest,
@@ -271,6 +331,7 @@ impl BasinClient {
             .await
     }
 
+    /// Get a stream's configuration in the basin.
     pub async fn get_stream_config(
         &self,
         stream: impl Into<String>,
@@ -283,6 +344,7 @@ impl BasinClient {
             .await
     }
 
+    /// Reconfigure a stream in the basin.
     pub async fn reconfigure_stream(
         &self,
         req: types::ReconfigureStreamRequest,
@@ -295,6 +357,7 @@ impl BasinClient {
             .await
     }
 
+    /// Delete a stream in the basin.
     pub async fn delete_stream(
         &self,
         req: types::DeleteStreamRequest,
@@ -308,6 +371,7 @@ impl BasinClient {
     }
 }
 
+/// Client to interact with the S2 stream service API.
 #[derive(Debug, Clone)]
 pub struct StreamClient {
     inner: ClientInner,
@@ -315,6 +379,7 @@ pub struct StreamClient {
 }
 
 impl StreamClient {
+    /// Connect the client with the S2 stream service API.
     pub async fn connect(
         config: ClientConfig,
         basin: impl Into<String>,
@@ -325,6 +390,7 @@ impl StreamClient {
             .map(|client| client.stream_client(stream))
     }
 
+    /// Get the next sequence number of the stream.
     pub async fn get_next_seq_num(&self) -> Result<u64, ServiceError<GetNextSeqNumError>> {
         self.inner
             .send_retryable(GetNextSeqNumServiceRequest::new(
@@ -334,6 +400,7 @@ impl StreamClient {
             .await
     }
 
+    /// Read a batch of records from the stream.
     pub async fn read(
         &self,
         req: types::ReadRequest,
@@ -347,6 +414,7 @@ impl StreamClient {
             .await
     }
 
+    /// Read batches of records from the stream continuously.
     pub async fn read_session(
         &self,
         req: types::ReadSessionRequest,
@@ -364,6 +432,7 @@ impl StreamClient {
             .map(Streaming::new)
     }
 
+    /// Append a batch of records to the stream.
     pub async fn append(
         &self,
         req: types::AppendInput,
@@ -377,6 +446,7 @@ impl StreamClient {
             .await
     }
 
+    /// Append batches of records to the stream continuously.
     pub async fn append_session<S>(
         &self,
         req: S,
@@ -403,12 +473,19 @@ struct ClientInner {
 }
 
 impl ClientInner {
-    pub async fn connect_global(config: ClientConfig) -> Result<Self, ClientError> {
+    async fn connect_global(
+        config: ClientConfig,
+        force_lazy_connection: bool,
+    ) -> Result<Self, ClientError> {
         let uri = config.host_uri.global.clone();
-        Self::connect(config, uri).await
+        Self::connect(config, uri, force_lazy_connection).await
     }
 
-    pub async fn connect_cell(&self, basin: impl Into<String>) -> Result<Self, ClientError> {
+    async fn connect_cell(
+        &self,
+        basin: impl Into<String>,
+        force_lazy_connection: bool,
+    ) -> Result<Self, ClientError> {
         let basin = basin.into();
 
         match self.config.host_uri.cell.clone() {
@@ -422,10 +499,13 @@ impl ClientInner {
                 ClientInner::connect(
                     self.config.clone(),
                     Uri::from_parts(uri_parts).expect("invalid uri"),
+                    force_lazy_connection,
                 )
                 .await
             }
-            Some(uri) => ClientInner::connect(self.config.clone(), uri).await,
+            Some(uri) => {
+                ClientInner::connect(self.config.clone(), uri, force_lazy_connection).await
+            }
             None => Ok(Self {
                 basin: Some(basin),
                 ..self.clone()
@@ -433,13 +513,16 @@ impl ClientInner {
         }
     }
 
-    async fn connect(config: ClientConfig, uri: Uri) -> Result<Self, ClientError> {
-        // TODO: Connection pool?
+    async fn connect(
+        config: ClientConfig,
+        uri: Uri,
+        force_lazy_connection: bool,
+    ) -> Result<Self, ClientError> {
         let endpoint: Endpoint = uri.clone().into();
         let endpoint = endpoint
             .connect_timeout(config.connection_timeout)
             .timeout(config.request_timeout);
-        let channel = if config.connect_lazily {
+        let channel = if config.connect_lazily || force_lazy_connection {
             endpoint.connect_lazy()
         } else {
             endpoint.connect().await?
@@ -451,14 +534,14 @@ impl ClientInner {
         })
     }
 
-    pub async fn send<T: ServiceRequest>(
+    async fn send<T: ServiceRequest>(
         &self,
         service_req: T,
     ) -> Result<T::Response, ServiceError<T::Error>> {
         send_request(service_req, &self.config.token, self.basin.as_deref()).await
     }
 
-    pub async fn send_retryable<T: RetryableRequest>(
+    async fn send_retryable<T: RetryableRequest>(
         &self,
         service_req: T,
     ) -> Result<T::Response, ServiceError<T::Error>> {
@@ -470,19 +553,20 @@ impl ClientInner {
             .await
     }
 
-    pub fn account_service_client(&self) -> AccountServiceClient<Channel> {
+    fn account_service_client(&self) -> AccountServiceClient<Channel> {
         AccountServiceClient::new(self.channel.clone())
     }
 
-    pub fn basin_service_client(&self) -> BasinServiceClient<Channel> {
+    fn basin_service_client(&self) -> BasinServiceClient<Channel> {
         BasinServiceClient::new(self.channel.clone())
     }
 
-    pub fn stream_service_client(&self) -> StreamServiceClient<Channel> {
+    fn stream_service_client(&self) -> StreamServiceClient<Channel> {
         StreamServiceClient::new(self.channel.clone())
     }
 }
 
+/// Error returned while connecting to the client.
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
     #[error(transparent)]
