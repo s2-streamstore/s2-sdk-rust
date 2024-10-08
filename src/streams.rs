@@ -161,9 +161,14 @@ where
                 cx.waker().wake_by_ref();
             }
 
+            let match_seq_num = self.opts.match_seq_num;
+            if let Some(m) = self.opts.match_seq_num.as_mut() {
+                *m += batch.len() as u64
+            }
+
             Poll::Ready(Some(types::AppendInput {
                 records: batch,
-                match_seq_num: self.opts.match_seq_num,
+                match_seq_num,
                 fencing_token: self.opts.fencing_token.clone(),
             }))
         }
