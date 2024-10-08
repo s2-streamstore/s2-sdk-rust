@@ -9,16 +9,55 @@ use futures::{Stream, StreamExt};
 use crate::types;
 
 #[derive(Debug, Clone)]
-pub struct AppendRecordBatchingScheme {
+pub struct AppendRecordStreamOpts {
     pub max_batch_records: usize,
     pub max_batch_size: ByteSize,
+    // AppendInput params:
+    pub match_seq_num: Option<u64>,
+    pub fencing_token: Option<Vec<u8>>,
 }
 
-impl Default for AppendRecordBatchingScheme {
+impl Default for AppendRecordStreamOpts {
     fn default() -> Self {
         Self {
             max_batch_records: 1000,
             max_batch_size: ByteSize::mib(1),
+            match_seq_num: None,
+            fencing_token: None,
+        }
+    }
+}
+
+impl AppendRecordStreamOpts {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_max_batch_records(self, max_batch_records: impl Into<usize>) -> Self {
+        Self {
+            max_batch_records: max_batch_records.into(),
+            ..self
+        }
+    }
+
+    pub fn with_max_batch_size(self, max_batch_size: impl Into<ByteSize>) -> Self {
+        Self {
+            max_batch_size: max_batch_size.into(),
+            ..self
+        }
+    }
+
+    pub fn with_match_seq_num(self, match_seq_num: impl Into<u64>) -> Self {
+        Self {
+            match_seq_num: Some(match_seq_num.into()),
+            ..self
+        }
+    }
+
+    pub fn with_fencing_token(self, fencing_token: impl Into<Vec<u8>>) -> Self {
+        Self {
+            fencing_token: Some(fencing_token.into()),
+            ..self
         }
     }
 }
@@ -30,19 +69,19 @@ where
     stream: S,
     peeked: Option<types::AppendRecord>,
     terminated: bool,
-    scheme: AppendRecordBatchingScheme,
+    opts: AppendRecordStreamOpts,
 }
 
 impl<S> AppendRecordStream<S>
 where
     S: 'static + Send + Stream<Item = types::AppendRecord> + Unpin,
 {
-    pub fn new(stream: S, scheme: AppendRecordBatchingScheme) -> Self {
+    pub fn new(stream: S, opts: AppendRecordStreamOpts) -> Self {
         Self {
             stream,
             peeked: None,
             terminated: false,
-            scheme,
+            opts,
         }
     }
 
@@ -60,7 +99,7 @@ where
                     .map(|h| h.name.len() + h.value.len())
                     .sum::<usize>()) as u64,
         );
-        if *batch_size + record_size > self.scheme.max_batch_size {
+        if *batch_size + record_size > self.opts.max_batch_size {
             Some(record)
         } else {
             *batch_size += record_size;
@@ -81,7 +120,7 @@ where
             return Poll::Ready(None);
         }
 
-        let mut batch = Vec::with_capacity(self.scheme.max_batch_records);
+        let mut batch = Vec::with_capacity(self.opts.max_batch_records);
         let mut batch_size = ByteSize::b(0);
 
         if let Some(peeked) = self.peeked.take() {
@@ -92,7 +131,7 @@ where
             );
         }
 
-        while batch.len() < self.scheme.max_batch_records && self.peeked.is_none() {
+        while batch.len() < self.opts.max_batch_records && self.peeked.is_none() {
             match self.stream.poll_next_unpin(cx) {
                 Poll::Pending => break,
                 Poll::Ready(None) => {
@@ -122,7 +161,11 @@ where
                 cx.waker().wake_by_ref();
             }
 
-            Poll::Ready(Some(types::AppendInput::new(batch)))
+            Poll::Ready(Some(types::AppendInput {
+                records: batch,
+                match_seq_num: self.opts.match_seq_num,
+                fencing_token: self.opts.fencing_token.clone(),
+            }))
         }
     }
 }

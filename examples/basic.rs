@@ -4,6 +4,7 @@ use futures::StreamExt;
 use streamstore::{
     client::{Client, ClientConfig, HostCloud},
     service_error::{CreateBasinError, CreateStreamError, ServiceError},
+    streams::AppendRecordStream,
     types::{
         AppendInput, AppendRecord, CreateBasinRequest, CreateStreamRequest, DeleteBasinRequest,
         DeleteStreamRequest, ListBasinsRequest, ListStreamsRequest, ReadSessionRequest,
@@ -102,10 +103,12 @@ async fn main() {
 
     let stream_client = basin_client.stream_client(stream);
 
-    let append_input = AppendInput::new([
+    let records = [
         AppendRecord::new(b"hello world"),
         AppendRecord::new(b"bye world"),
-    ]);
+    ];
+
+    let append_input = AppendInput::new(records.clone());
 
     match stream_client.append(append_input.clone()).await {
         Ok(resp) => {
@@ -114,7 +117,8 @@ async fn main() {
         Err(err) => exit_with_err(err),
     };
 
-    let append_session_req = futures::stream::iter([append_input]);
+    let append_session_req =
+        AppendRecordStream::new(futures::stream::iter(records), Default::default());
 
     match stream_client.append_session(append_session_req).await {
         Ok(mut stream) => {
