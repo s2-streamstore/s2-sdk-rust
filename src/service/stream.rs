@@ -314,7 +314,7 @@ pub enum AppendError {
 
 pub struct AppendSessionServiceRequest<S>
 where
-    S: 'static + Send + futures::Stream<Item = types::AppendInput> + Unpin,
+    S: Send + futures::Stream<Item = types::AppendInput> + Unpin,
 {
     client: StreamServiceClient<Channel>,
     stream: String,
@@ -323,7 +323,7 @@ where
 
 impl<S> AppendSessionServiceRequest<S>
 where
-    S: 'static + Send + futures::Stream<Item = types::AppendInput> + Unpin,
+    S: Send + futures::Stream<Item = types::AppendInput> + Unpin,
 {
     pub fn new(client: StreamServiceClient<Channel>, stream: impl Into<String>, req: S) -> Self {
         Self {

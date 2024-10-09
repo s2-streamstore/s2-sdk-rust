@@ -118,7 +118,7 @@ async fn main() {
     };
 
     let append_session_req =
-        AppendRecordStream::new(futures::stream::iter(records), Default::default());
+        AppendRecordStream::new(futures::stream::iter(records), Default::default()).unwrap();
 
     match stream_client.append_session(append_session_req).await {
         Ok(mut stream) => {

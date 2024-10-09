@@ -1,5 +1,6 @@
 use std::{str::FromStr, time::Duration};
 
+use bytesize::ByteSize;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -795,6 +796,18 @@ impl AppendRecord {
             headers: headers.into(),
             ..self
         }
+    }
+
+    pub fn metered_size(&self) -> ByteSize {
+        let bytes = 8
+            + (2 * self.headers.len())
+            + self
+                .headers
+                .iter()
+                .map(|h| h.name.len() + h.value.len())
+                .sum::<usize>()
+            + self.body.len();
+        ByteSize::b(bytes as u64)
     }
 }
 
