@@ -3,7 +3,7 @@ use std::time::Duration;
 use backon::{ConstantBuilder, Retryable};
 use http::{uri::Authority, Uri};
 use secrecy::SecretString;
-use tonic::transport::{Channel, Endpoint};
+use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
 
 use crate::{
     api::{
@@ -56,7 +56,10 @@ impl From<HostCloud> for HostUri {
     fn from(value: HostCloud) -> Self {
         match value {
             HostCloud::Local => HostUri {
-                global: "http://localhost:4243".try_into().unwrap(),
+                global: std::env::var("S2_FRONTEND_AUTHORITY")
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
                 cell: None,
                 prefix_host_with_basin: false,
             },
@@ -520,6 +523,11 @@ impl ClientInner {
     ) -> Result<Self, ClientError> {
         let endpoint: Endpoint = uri.clone().into();
         let endpoint = endpoint
+            .tls_config(
+                ClientTlsConfig::default()
+                    .with_webpki_roots()
+                    .assume_http2(true),
+            )?
             .connect_timeout(config.connection_timeout)
             .timeout(config.request_timeout);
         let channel = if config.connect_lazily || force_lazy_connection {
