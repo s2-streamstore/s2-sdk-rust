@@ -57,7 +57,7 @@ impl From<HostCloud> for HostUri {
         match value {
             HostCloud::Local => HostUri {
                 global: std::env::var("S2_FRONTEND_AUTHORITY")
-                    .unwrap()
+                    .expect("S2_FRONTEND_AUTHORITY required")
                     .try_into()
                     .unwrap(),
                 cell: None,
