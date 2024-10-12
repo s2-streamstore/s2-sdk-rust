@@ -10,12 +10,12 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct GetNextSeqNumServiceRequest {
+pub struct CheckTailServiceRequest {
     client: StreamServiceClient<Channel>,
     stream: String,
 }
 
-impl GetNextSeqNumServiceRequest {
+impl CheckTailServiceRequest {
     pub fn new(client: StreamServiceClient<Channel>, stream: impl Into<String>) -> Self {
         Self {
             client,
@@ -24,14 +24,14 @@ impl GetNextSeqNumServiceRequest {
     }
 }
 
-impl ServiceRequest for GetNextSeqNumServiceRequest {
-    type ApiRequest = api::GetNextSeqNumRequest;
+impl ServiceRequest for CheckTailServiceRequest {
+    type ApiRequest = api::CheckTailRequest;
     type Response = u64;
-    type ApiResponse = api::GetNextSeqNumResponse;
-    type Error = GetNextSeqNumError;
+    type ApiResponse = api::CheckTailResponse;
+    type Error = CheckTailError;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
-        let req = api::GetNextSeqNumRequest {
+        let req = api::CheckTailRequest {
             stream: self.stream.clone(),
         };
         Ok(req.into_request())
@@ -46,10 +46,8 @@ impl ServiceRequest for GetNextSeqNumServiceRequest {
 
     fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
         Err(match status.code() {
-            tonic::Code::NotFound => {
-                Some(GetNextSeqNumError::NotFound(status.message().to_string()))
-            }
-            tonic::Code::InvalidArgument => Some(GetNextSeqNumError::InvalidArgument(
+            tonic::Code::NotFound => Some(CheckTailError::NotFound(status.message().to_string())),
+            tonic::Code::InvalidArgument => Some(CheckTailError::InvalidArgument(
                 status.message().to_string(),
             )),
             _ => None,
@@ -60,16 +58,16 @@ impl ServiceRequest for GetNextSeqNumServiceRequest {
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
-        self.client.get_next_seq_num(req).await
+        self.client.check_tail(req).await
     }
 }
 
-impl IdempotentRequest for GetNextSeqNumServiceRequest {
+impl IdempotentRequest for CheckTailServiceRequest {
     const NO_SIDE_EFFECTS: bool = true;
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum GetNextSeqNumError {
+pub enum CheckTailError {
     #[error("Not found: {0}")]
     NotFound(String),
     #[error("Invalid argument: {0}")]

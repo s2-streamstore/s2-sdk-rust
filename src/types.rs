@@ -705,9 +705,9 @@ impl TryFrom<ReconfigureStreamRequest> for api::ReconfigureStreamRequest {
     }
 }
 
-impl From<api::GetNextSeqNumResponse> for u64 {
-    fn from(value: api::GetNextSeqNumResponse) -> Self {
-        let api::GetNextSeqNumResponse { next_seq_num } = value;
+impl From<api::CheckTailResponse> for u64 {
+    fn from(value: api::CheckTailResponse) -> Self {
+        let api::CheckTailResponse { next_seq_num } = value;
         next_seq_num
     }
 }
@@ -929,14 +929,27 @@ impl TryFrom<api::AppendSessionResponse> for AppendOutput {
     }
 }
 
+/// Limit on records to read. If both count and bytes are non-zero, either limit may be hit.
+#[derive(Debug, Clone, Default)]
+pub struct ReadLimit {
+    /// A value of zero signifies no count limit.
+    count: u64,
+    /// A value of zero signifies no bytes limit.
+    /// Bytes are calculated using the "metered bytes" formula:
+    /// ```python
+    /// metered_bytes = lambda record: 8 + 2 * len(record.headers) + sum((len(h.key) + len(h.value)) for h in record.headers) + len(record.body)
+    /// ```
+    bytes: u64,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ReadRequest {
     /// Starting sequence number (inclusive). If not specified, the latest
     /// record.
     pub start_seq_num: Option<u64>,
-    /// Limit on how many records can be returned upto a maximum of 1000, which
-    /// is the default.
-    pub limit: usize,
+
+    /// Limit on how many records can be returned upto a maximum of 1000, or 1MiB of metered bytes.
+    pub limit: Option<ReadLimit>,
 }
 
 impl ReadRequest {
@@ -951,9 +964,9 @@ impl ReadRequest {
         }
     }
 
-    pub fn with_limit(self, limit: impl Into<usize>) -> Self {
+    pub fn with_limit(self, limit: ReadLimit) -> Self {
         Self {
-            limit: limit.into(),
+            limit: Some(limit),
             ..self
         }
     }
@@ -968,12 +981,27 @@ impl ReadRequest {
             start_seq_num,
             limit,
         } = self;
+
+        let limit: Option<api::ReadLimit> = match limit {
+            None => None,
+            Some(limit) => Some({
+                if limit.count > 1000 {
+                    Err("read limit: count must not exceed 1000 for unary request")
+                } else if limit.bytes > (1024 * 1024) {
+                    Err("read limit: bytes must not exceed 1MiB for unary request")
+                } else {
+                    Ok(api::ReadLimit {
+                        count: limit.count,
+                        bytes: limit.bytes,
+                    })
+                }
+            }?),
+        };
+
         Ok(api::ReadRequest {
             stream: stream.into(),
             start_seq_num,
-            limit: limit
-                .try_into()
-                .map_err(|_| "request limit does not fit into u32 bounds")?,
+            limit,
         })
     }
 }
@@ -1056,6 +1084,12 @@ pub struct ReadSessionRequest {
     /// Starting sequence number (inclusive). If not specified, the latest
     /// record.
     pub start_seq_num: Option<u64>,
+
+    /// Limit on how many records can be returned. When a limit is specified, the session will be terminated as soon as
+    /// the limit is met, or when the current tail of the stream is reached -- whichever occurs first.
+    /// If no limit is specified, the session will remain open after catching up to the tail, and continue tailing as
+    /// new messages are written to the stream.
+    pub limit: Option<ReadLimit>,
 }
 
 impl ReadSessionRequest {
@@ -1066,14 +1100,29 @@ impl ReadSessionRequest {
     pub fn with_start_seq_num(self, start_seq_num: impl Into<u64>) -> Self {
         Self {
             start_seq_num: Some(start_seq_num.into()),
+            ..self
+        }
+    }
+
+    pub fn with_limit(self, limit: ReadLimit) -> Self {
+        Self {
+            limit: Some(limit),
+            ..self
         }
     }
 
     pub fn into_api_type(self, stream: impl Into<String>) -> api::ReadSessionRequest {
-        let Self { start_seq_num } = self;
+        let Self {
+            start_seq_num,
+            limit,
+        } = self;
         api::ReadSessionRequest {
             stream: stream.into(),
             start_seq_num,
+            limit: limit.map(|limit| api::ReadLimit {
+                count: limit.count,
+                bytes: limit.bytes,
+            }),
         }
     }
 }
