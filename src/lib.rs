@@ -21,9 +21,7 @@ pub mod service_error {
             CreateStreamError, DeleteStreamError, GetStreamConfigError, ListStreamsError,
             ReconfigureStreamError,
         },
-        stream::{
-            AppendError, AppendSessionError, GetNextSeqNumError, ReadError, ReadSessionError,
-        },
+        stream::{AppendError, AppendSessionError, CheckTailError, ReadError, ReadSessionError},
         ServiceError,
     };
 }

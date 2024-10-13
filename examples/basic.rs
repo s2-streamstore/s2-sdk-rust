@@ -127,7 +127,7 @@ async fn main() {
         Err(err) => exit_with_err(err),
     };
 
-    match stream_client.get_next_seq_num().await {
+    match stream_client.check_tail().await {
         Ok(next_seq_num) => {
             println!("Next seq num: {next_seq_num:#?}");
         }

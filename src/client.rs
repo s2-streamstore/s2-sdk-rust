@@ -26,7 +26,7 @@ use crate::{
         send_request,
         stream::{
             AppendError, AppendServiceRequest, AppendSessionError, AppendSessionServiceRequest,
-            GetNextSeqNumError, GetNextSeqNumServiceRequest, ReadError, ReadServiceRequest,
+            CheckTailError, CheckTailServiceRequest, ReadError, ReadServiceRequest,
             ReadSessionError, ReadSessionServiceRequest,
         },
         RetryableRequest, ServiceError, ServiceRequest, Streaming,
@@ -393,10 +393,10 @@ impl StreamClient {
             .map(|client| client.stream_client(stream))
     }
 
-    /// Get the next sequence number of the stream.
-    pub async fn get_next_seq_num(&self) -> Result<u64, ServiceError<GetNextSeqNumError>> {
+    /// Check the sequence number that will be assigned to the next record on a stream.
+    pub async fn check_tail(&self) -> Result<u64, ServiceError<CheckTailError>> {
         self.inner
-            .send_retryable(GetNextSeqNumServiceRequest::new(
+            .send_retryable(CheckTailServiceRequest::new(
                 self.inner.stream_service_client(),
                 &self.stream,
             ))
