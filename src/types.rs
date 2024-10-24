@@ -1,6 +1,7 @@
 use std::{str::FromStr, time::Duration};
 
 use bytesize::ByteSize;
+use macros::sync_docs;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +17,7 @@ impl<T: Into<String>> From<T> for ConvertError {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct CreateBasinRequest {
@@ -52,6 +54,7 @@ impl TryFrom<CreateBasinRequest> for api::CreateBasinRequest {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Default)]
 pub struct BasinConfig {
@@ -94,6 +97,7 @@ impl TryFrom<api::BasinConfig> for BasinConfig {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Default)]
 pub struct StreamConfig {
@@ -205,6 +209,7 @@ impl TryFrom<i32> for StorageClass {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub enum RetentionPolicy {
@@ -237,6 +242,7 @@ impl From<api::stream_config::RetentionPolicy> for RetentionPolicy {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[sync_docs]
 pub enum BasinState {
     Unspecified,
     Active,
@@ -294,6 +300,7 @@ impl std::fmt::Display for BasinState {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub struct BasinMetadata {
     pub name: String,
     pub scope: String,
@@ -347,6 +354,7 @@ impl TryFrom<api::CreateBasinResponse> for BasinMetadata {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Default)]
+#[sync_docs]
 pub struct ListStreamsRequest {
     pub prefix: String,
     pub start_after: String,
@@ -400,6 +408,7 @@ impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub struct ListStreamsResponse {
     pub streams: Vec<String>,
     pub has_more: bool,
@@ -432,6 +441,7 @@ impl TryFrom<api::GetStreamConfigResponse> for StreamConfig {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub struct CreateStreamRequest {
     pub stream: String,
     pub config: Option<StreamConfig>,
@@ -466,14 +476,10 @@ impl TryFrom<CreateStreamRequest> for api::CreateStreamRequest {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Default)]
+#[sync_docs]
 pub struct ListBasinsRequest {
-    /// List basin names that begin with this prefix.  
     pub prefix: String,
-    /// Only return basins names that lexicographically start after this name.
-    /// This can be the last basin name seen in a previous listing, to continue from there.
-    /// It must be greater than or equal to the prefix if specified.
     pub start_after: String,
-    /// Number of results, upto a maximum of 1000.    
     pub limit: usize,
 }
 
@@ -524,10 +530,9 @@ impl TryFrom<ListBasinsRequest> for api::ListBasinsRequest {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub struct ListBasinsResponse {
-    /// Matching basins.
     pub basins: Vec<BasinMetadata>,
-    /// If set, indicates there are more results that can be listed with `start_after`.
     pub has_more: bool,
 }
 
@@ -547,10 +552,9 @@ impl TryFrom<api::ListBasinsResponse> for ListBasinsResponse {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub struct DeleteBasinRequest {
-    /// Name of the basin to delete.
     pub basin: String,
-    /// Only delete if basin exists.
     pub if_exists: bool,
 }
 
@@ -576,10 +580,9 @@ impl From<DeleteBasinRequest> for api::DeleteBasinRequest {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub struct DeleteStreamRequest {
-    /// Name of the stream to delete.
     pub stream: String,
-    /// Only delete if stream exists.
     pub if_exists: bool,
 }
 
@@ -605,12 +608,10 @@ impl From<DeleteStreamRequest> for api::DeleteStreamRequest {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub struct ReconfigureBasinRequest {
-    /// Name of the basin.
     pub basin: String,
-    /// Updated configuration.
     pub config: Option<BasinConfig>,
-    /// Fieldmask to indicate which fields to update.
     pub mask: Option<Vec<String>>,
 }
 
@@ -656,12 +657,10 @@ impl TryFrom<ReconfigureBasinRequest> for api::ReconfigureBasinRequest {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub struct ReconfigureStreamRequest {
-    /// Name of the stream to reconfigure.
     pub stream: String,
-    /// Updated configuration.
     pub config: Option<StreamConfig>,
-    /// Fieldmask to indicate which fields to update.
     pub mask: Option<Vec<String>>,
 }
 
@@ -713,6 +712,7 @@ impl From<api::CheckTailResponse> for u64 {
 }
 
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub struct Header {
     pub name: Vec<u8>,
     pub value: Vec<u8>,
@@ -756,6 +756,7 @@ impl From<api::Header> for Header {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub enum CommandRecord {
     Fence { fencing_token: Vec<u8> },
     Trim { seq_num: u64 },
@@ -776,10 +777,9 @@ impl CommandRecord {
 }
 
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub struct AppendRecord {
-    /// Series of name-value pairs for this record.
     pub headers: Vec<Header>,
-    /// Body of the record.
     pub body: Vec<u8>,
 }
 
@@ -835,14 +835,10 @@ impl From<CommandRecord> for AppendRecord {
 }
 
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub struct AppendInput {
-    /// Batch of records to append atomically, which must contain at least one
-    /// record, and no more than 1000. The total size of a batch of records may
-    /// not exceed 1MiB.
     pub records: Vec<AppendRecord>,
-    /// Enforce that the sequence number issued to the first record matches.
     pub match_seq_num: Option<u64>,
-    /// Enforce a fencing token which must have been previously set by a `fence` command record.
     pub fencing_token: Option<Vec<u8>>,
 }
 
@@ -885,14 +881,10 @@ impl AppendInput {
 }
 
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub struct AppendOutput {
-    /// Sequence number of first record appended.
     pub start_seq_num: u64,
-    /// Sequence number of last record appended + 1.
-    /// `end_seq_num - start_seq_num` will be the number of records in the batch.
     pub end_seq_num: u64,
-    /// Sequence number of last durable record on the stream + 1.
-    /// This can be greater than `end_seq_num` in case of concurrent appends.
     pub next_seq_num: u64,
 }
 
@@ -929,26 +921,17 @@ impl TryFrom<api::AppendSessionResponse> for AppendOutput {
     }
 }
 
-/// Limit on records to read. If both count and bytes are non-zero, either limit may be hit.
 #[derive(Debug, Clone, Default)]
+#[sync_docs]
 pub struct ReadLimit {
-    /// A value of zero signifies no count limit.
     count: u64,
-    /// A value of zero signifies no bytes limit.
-    /// Bytes are calculated using the "metered bytes" formula:
-    /// ```python
-    /// metered_bytes = lambda record: 8 + 2 * len(record.headers) + sum((len(h.key) + len(h.value)) for h in record.headers) + len(record.body)
-    /// ```
     bytes: u64,
 }
 
 #[derive(Debug, Clone, Default)]
+#[sync_docs]
 pub struct ReadRequest {
-    /// Starting sequence number (inclusive). If not specified, the latest
-    /// record.
     pub start_seq_num: Option<u64>,
-
-    /// Limit on how many records can be returned upto a maximum of 1000, or 1MiB of metered bytes.
     pub limit: Option<ReadLimit>,
 }
 
@@ -1007,6 +990,7 @@ impl ReadRequest {
 }
 
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub struct SequencedRecord {
     pub seq_num: u64,
     pub headers: Vec<Header>,
@@ -1043,6 +1027,7 @@ impl From<api::SequencedRecordBatch> for SequencedRecordBatch {
 }
 
 #[derive(Debug, Clone)]
+#[sync_docs(Output)]
 pub enum ReadOutput {
     Batch(SequencedRecordBatch),
     FirstSeqNum(u64),
@@ -1080,15 +1065,9 @@ impl TryFrom<api::ReadResponse> for ReadOutput {
 }
 
 #[derive(Debug, Clone, Default)]
+#[sync_docs]
 pub struct ReadSessionRequest {
-    /// Starting sequence number (inclusive). If not specified, the latest
-    /// record.
     pub start_seq_num: Option<u64>,
-
-    /// Limit on how many records can be returned. When a limit is specified, the session will be terminated as soon as
-    /// the limit is met, or when the current tail of the stream is reached -- whichever occurs first.
-    /// If no limit is specified, the session will remain open after catching up to the tail, and continue tailing as
-    /// new messages are written to the stream.
     pub limit: Option<ReadLimit>,
 }
 
@@ -1128,6 +1107,7 @@ impl ReadSessionRequest {
 }
 
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub struct ReadSessionResponse {
     pub output: ReadOutput,
 }
