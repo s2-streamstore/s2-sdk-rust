@@ -4,15 +4,20 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
     parse::{Parse, ParseStream, Result},
-    parse_macro_input, Attribute, Data, DeriveInput, Expr, Fields, FieldsNamed, File, Ident, Item,
+    parse_macro_input,
+    punctuated::Punctuated,
+    token::Comma,
+    Attribute, DataEnum, DeriveInput, Expr, Field, Fields, FieldsNamed, File, Ident, Item,
     ItemEnum, ItemStruct, Lit, Meta,
 };
+
+type CollectedDocs = (Vec<String>, HashMap<String, Vec<String>>);
 
 fn find_type_docs(
     source_code: &str,
     target_name: &str,
-) -> Option<(Vec<String>, HashMap<String, Vec<String>>)> {
-    let syntax: File = syn::parse_file(&source_code).expect("Failed to parse source file");
+) -> Option<CollectedDocs> {
+    let syntax: File = syn::parse_file(source_code).expect("Failed to parse source file");
 
     for item in syntax.items {
         if let Some(docs) = match item {
@@ -34,7 +39,7 @@ fn find_type_docs(
 fn find_enum_docs(
     ast_enum: ItemEnum,
     target_enum_name: String,
-) -> Option<(Vec<String>, HashMap<String, Vec<String>>)> {
+) -> Option<CollectedDocs> {
     if ast_enum.ident == target_enum_name {
         let enum_docs = extract_doc_strings(&ast_enum.attrs);
         let mut variant_docs = HashMap::new();
@@ -61,7 +66,7 @@ fn find_enum_docs(
 fn find_struct_docs(
     ast_struct: ItemStruct,
     target_struct_name: String,
-) -> Option<(Vec<String>, HashMap<String, Vec<String>>)> {
+) -> Option<CollectedDocs> {
     if ast_struct.ident == target_struct_name {
         let struct_docs = extract_doc_strings(&ast_struct.attrs);
 
@@ -85,7 +90,7 @@ fn find_struct_docs(
 fn find_mod_docs(
     items: Vec<Item>,
     target_name: &str,
-) -> Option<(Vec<String>, HashMap<String, Vec<String>>)> {
+) -> Option<CollectedDocs> {
     for item in items {
         if let Item::Struct(s) = item.clone() {
             if s.ident == target_name {
@@ -197,55 +202,29 @@ pub fn sync_docs(args: TokenStream, input: TokenStream) -> TokenStream {
         input_ast.ident.to_string()
     };
 
-    // this is to ignore all dervies/cfg etc.
-    match &input_ast.data {
-        Data::Struct(_) | Data::Enum(_) => {}
-        _ => return TokenStream::from(quote! { #input_ast }),
-    };
-
     let source_path =
         Path::new(&std::env::var("OUT_DIR").expect("OUT_DIR is required")).join("s2.v1alpha.rs");
 
     let raw_source_content = fs::read_to_string(source_path).expect("Failed to read source file");
 
-    if let Some(docs) = find_type_docs(&raw_source_content, &struct_name) {
-        for doc in docs.0 {
+    if let Some((type_docs, field_or_variant_docs)) =
+        find_type_docs(&raw_source_content, &struct_name)
+    {
+        for doc in type_docs {
             input_ast.attrs.push(syn::parse_quote!(#[doc = #doc]));
         }
 
-        if let syn::Data::Struct(ref mut struct_data) = input_ast.data {
-            if let Fields::Named(FieldsNamed {
-                named: ref mut fields,
-                ..
-            }) = struct_data.fields
-            {
-                for field in fields.iter_mut() {
-                    let field_name = field.ident.as_ref().unwrap().to_string();
-                    if let Some(field_docs) = docs.1.get(&field_name) {
-                        for doc in field_docs {
-                            field.attrs.push(syn::parse_quote!(#[doc = #doc]));
-                        }
-                    }
+        match &mut input_ast.data {
+            syn::Data::Struct(data) => {
+                if let Fields::Named(FieldsNamed { named: fields, .. }) = &mut data.fields {
+                    update_field_docs(fields, &field_or_variant_docs);
                 }
             }
-        } else if let syn::Data::Enum(ref mut enum_data) = input_ast.data {
-            for variant in &mut enum_data.variants {
-                if let Some(variant_docs) = docs.1.get(&variant.ident.to_string()) {
-                    for doc in variant_docs {
-                        variant.attrs.push(syn::parse_quote!(#[doc = #doc]));
-                    }
-                }
-                for field in variant.fields.iter_mut() {
-                    if let Some(field_name) = field.ident.as_ref().map(|i| i.to_string()) {
-                        if let Some(field_docs) = docs.1.get(&field_name) {
-                            for doc in field_docs {
-                                field.attrs.push(syn::parse_quote!(#[doc = #doc]));
-                            }
-                        }
-                    }
-                }
+            syn::Data::Enum(data) => {
+                update_enum_docs(data, &field_or_variant_docs);
             }
-        }
+            _ => {}
+        };
     }
 
     let expanded = quote! {
@@ -253,4 +232,47 @@ pub fn sync_docs(args: TokenStream, input: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(expanded)
+}
+
+fn update_field_docs(
+    fields: &mut Punctuated<Field, Comma>,
+    field_docs: &HashMap<String, Vec<String>>,
+) {
+    for field in fields {
+        let field_name = field
+            .ident
+            .as_ref()
+            .map(|i| i.to_string())
+            .expect("Named fields should have identifiers");
+
+        if let Some(docs) = field_docs.get(&field_name) {
+            field
+                .attrs
+                .extend(docs.iter().map(|doc| syn::parse_quote!(#[doc = #doc])));
+        }
+    }
+}
+
+fn update_enum_docs(enum_data: &mut DataEnum, field_docs: &HashMap<String, Vec<String>>) {
+    for variant in &mut enum_data.variants {    
+        if let Some(variant_docs) = field_docs.get(&variant.ident.to_string()) {
+            variant.attrs.extend(
+                variant_docs
+                    .iter()
+                    .map(|doc| syn::parse_quote!(#[doc = #doc])),
+            );
+        }
+
+        for field in &mut variant.fields {
+            if let Some(field_name) = field.ident.as_ref().map(|i| i.to_string()) {
+                if let Some(field_docs) = field_docs.get(&field_name) {
+                    field.attrs.extend(
+                        field_docs
+                            .iter()
+                            .map(|doc| syn::parse_quote!(#[doc = #doc])),
+                    );
+                }
+            }
+        }
+    }
 }
