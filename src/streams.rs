@@ -80,7 +80,7 @@ pub enum AppendRecordStreamError {
 }
 
 /// Wrapper over a stream of append records that can be sent over to
-/// [`StreamClient::append_session`].
+/// [`crate::client::StreamClient::append_session`].
 pub struct AppendRecordStream<R, S>
 where
     R: Into<types::AppendRecord>,

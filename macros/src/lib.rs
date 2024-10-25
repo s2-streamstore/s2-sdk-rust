@@ -8,15 +8,12 @@ use syn::{
     punctuated::Punctuated,
     token::Comma,
     Attribute, DataEnum, DeriveInput, Expr, Field, Fields, FieldsNamed, File, Ident, Item,
-    ItemEnum, ItemStruct, Lit, Meta,
+    ItemEnum, ItemStruct, Lit, LitStr, Meta, Token,
 };
 
 type CollectedDocs = (Vec<String>, HashMap<String, Vec<String>>);
 
-fn find_type_docs(
-    source_code: &str,
-    target_name: &str,
-) -> Option<CollectedDocs> {
+fn find_type_docs(source_code: &str, target_name: &str) -> Option<CollectedDocs> {
     let syntax: File = syn::parse_file(source_code).expect("Failed to parse source file");
 
     for item in syntax.items {
@@ -36,10 +33,7 @@ fn find_type_docs(
     None
 }
 
-fn find_enum_docs(
-    ast_enum: ItemEnum,
-    target_enum_name: String,
-) -> Option<CollectedDocs> {
+fn find_enum_docs(ast_enum: ItemEnum, target_enum_name: String) -> Option<CollectedDocs> {
     if ast_enum.ident == target_enum_name {
         let enum_docs = extract_doc_strings(&ast_enum.attrs);
         let mut variant_docs = HashMap::new();
@@ -63,10 +57,7 @@ fn find_enum_docs(
     None
 }
 
-fn find_struct_docs(
-    ast_struct: ItemStruct,
-    target_struct_name: String,
-) -> Option<CollectedDocs> {
+fn find_struct_docs(ast_struct: ItemStruct, target_struct_name: String) -> Option<CollectedDocs> {
     if ast_struct.ident == target_struct_name {
         let struct_docs = extract_doc_strings(&ast_struct.attrs);
 
@@ -87,10 +78,7 @@ fn find_struct_docs(
     None
 }
 
-fn find_mod_docs(
-    items: Vec<Item>,
-    target_name: &str,
-) -> Option<CollectedDocs> {
+fn find_mod_docs(items: Vec<Item>, target_name: &str) -> Option<CollectedDocs> {
     for item in items {
         if let Item::Struct(s) = item.clone() {
             if s.ident == target_name {
@@ -174,32 +162,55 @@ fn extract_doc_strings(attrs: &[Attribute]) -> Vec<String> {
         .collect()
 }
 
-struct SyncDocsArgs {
-    value: Option<String>,
+#[derive(Debug)]
+struct KeyValue {
+    key: Ident,
+    _eq: Token![=],
+    value: LitStr,
 }
 
-impl Parse for SyncDocsArgs {
+impl Parse for KeyValue {
     fn parse(input: ParseStream) -> Result<Self> {
-        if input.is_empty() {
-            return Ok(SyncDocsArgs { value: None });
+        Ok(KeyValue {
+            key: input.parse()?,
+            _eq: input.parse()?,
+            value: input.parse()?,
+        })
+    }
+}
+
+#[derive(Debug)]
+struct RenameArgs {
+    mapping: HashMap<String, String>,
+}
+
+impl Parse for RenameArgs {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let mut mapping = HashMap::new();
+
+        while !input.is_empty() {
+            let pair = input.parse::<KeyValue>()?;
+            mapping.insert(pair.key.to_string(), pair.value.value());
+            if !input.is_empty() {
+                input.parse::<Token![,]>()?;
+            }
         }
 
-        let ident: Ident = input.parse()?;
-        Ok(SyncDocsArgs {
-            value: Some(ident.to_string()),
-        })
+        Ok(RenameArgs { mapping })
     }
 }
 
 #[proc_macro_attribute]
 pub fn sync_docs(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as SyncDocsArgs);
+    let args = parse_macro_input!(args as RenameArgs);
     let mut input_ast = parse_macro_input!(input as DeriveInput);
 
-    let struct_name = if let Some(value) = args.value {
+    let type_name = input_ast.ident.to_string();
+
+    let type_name = if let Some(value) = args.mapping.get(&type_name) {
         value
     } else {
-        input_ast.ident.to_string()
+        &type_name
     };
 
     let source_path =
@@ -207,8 +218,7 @@ pub fn sync_docs(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let raw_source_content = fs::read_to_string(source_path).expect("Failed to read source file");
 
-    if let Some((type_docs, field_or_variant_docs)) =
-        find_type_docs(&raw_source_content, &struct_name)
+    if let Some((type_docs, field_or_variant_docs)) = find_type_docs(&raw_source_content, type_name)
     {
         for doc in type_docs {
             input_ast.attrs.push(syn::parse_quote!(#[doc = #doc]));
@@ -217,11 +227,11 @@ pub fn sync_docs(args: TokenStream, input: TokenStream) -> TokenStream {
         match &mut input_ast.data {
             syn::Data::Struct(data) => {
                 if let Fields::Named(FieldsNamed { named: fields, .. }) = &mut data.fields {
-                    update_field_docs(fields, &field_or_variant_docs);
+                    update_field_docs(fields, &field_or_variant_docs, &args.mapping);
                 }
             }
             syn::Data::Enum(data) => {
-                update_enum_docs(data, &field_or_variant_docs);
+                update_enum_docs(data, &field_or_variant_docs, &args.mapping);
             }
             _ => {}
         };
@@ -237,6 +247,7 @@ pub fn sync_docs(args: TokenStream, input: TokenStream) -> TokenStream {
 fn update_field_docs(
     fields: &mut Punctuated<Field, Comma>,
     field_docs: &HashMap<String, Vec<String>>,
+    field_mapping: &HashMap<String, String>,
 ) {
     for field in fields {
         let field_name = field
@@ -245,7 +256,9 @@ fn update_field_docs(
             .map(|i| i.to_string())
             .expect("Named fields should have identifiers");
 
-        if let Some(docs) = field_docs.get(&field_name) {
+        let field_name = field_mapping.get(&field_name).unwrap_or(&field_name);
+
+        if let Some(docs) = field_docs.get(field_name) {
             field
                 .attrs
                 .extend(docs.iter().map(|doc| syn::parse_quote!(#[doc = #doc])));
@@ -253,9 +266,15 @@ fn update_field_docs(
     }
 }
 
-fn update_enum_docs(enum_data: &mut DataEnum, field_docs: &HashMap<String, Vec<String>>) {
-    for variant in &mut enum_data.variants {    
-        if let Some(variant_docs) = field_docs.get(&variant.ident.to_string()) {
+fn update_enum_docs(
+    enum_data: &mut DataEnum,
+    field_docs: &HashMap<String, Vec<String>>,
+    variant_mapping: &HashMap<String, String>,
+) {
+    for variant in &mut enum_data.variants {
+        let variant_name = variant.ident.to_string();
+        let variant_name = variant_mapping.get(&variant_name).unwrap_or(&variant_name);
+        if let Some(variant_docs) = field_docs.get(variant_name) {
             variant.attrs.extend(
                 variant_docs
                     .iter()

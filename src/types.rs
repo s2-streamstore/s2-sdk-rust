@@ -17,11 +17,12 @@ impl<T: Into<String>> From<T> for ConvertError {
     }
 }
 
-#[sync_docs]
+
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
+#[sync_docs]
 pub struct CreateBasinRequest {
-    pub basin: String,
+    pub basin: String,    
     pub config: Option<BasinConfig>,
     // TODO: Add assignment (when it's supported).
 }
@@ -209,7 +210,7 @@ impl TryFrom<i32> for StorageClass {
     }
 }
 
-#[sync_docs]
+#[sync_docs(Age = "AgeMillis")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub enum RetentionPolicy {
@@ -1027,7 +1028,7 @@ impl From<api::SequencedRecordBatch> for SequencedRecordBatch {
 }
 
 #[derive(Debug, Clone)]
-#[sync_docs(Output)]
+#[sync_docs(ReadOutput = "Output")]
 pub enum ReadOutput {
     Batch(SequencedRecordBatch),
     FirstSeqNum(u64),
