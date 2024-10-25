@@ -11,6 +11,7 @@ use syn::{
     LitStr, Token, Variant,
 };
 
+/// First value refers to the type docs, second value (hashmap) refers to the field or variant docs.
 type CollectedDocs = (Vec<String>, HashMap<String, Vec<String>>);
 
 fn find_type_docs(parsed_file: File, target_name: &str) -> Option<CollectedDocs> {
@@ -190,6 +191,7 @@ impl Parse for RenameArgs {
     }
 }
 
+/// Synchronize the docs from the compiled prost file to the target type.
 #[proc_macro_attribute]
 pub fn sync_docs(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as RenameArgs);

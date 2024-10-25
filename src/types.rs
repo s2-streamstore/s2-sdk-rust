@@ -1,9 +1,9 @@
 use std::{str::FromStr, time::Duration};
 
 use bytesize::ByteSize;
-use macros::sync_docs;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use sync_docs::sync_docs;
 
 use crate::api;
 
@@ -17,9 +17,9 @@ impl<T: Into<String>> From<T> for ConvertError {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
-#[sync_docs]
 pub struct CreateBasinRequest {
     pub basin: String,
     pub config: Option<BasinConfig>,
@@ -153,6 +153,7 @@ impl TryFrom<api::StreamConfig> for StreamConfig {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StorageClass {
@@ -240,9 +241,9 @@ impl From<api::stream_config::RetentionPolicy> for RetentionPolicy {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[sync_docs]
 pub enum BasinState {
     Unspecified,
     Active,
@@ -298,9 +299,9 @@ impl std::fmt::Display for BasinState {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
-#[sync_docs]
 pub struct BasinMetadata {
     pub name: String,
     pub scope: String,
@@ -352,9 +353,9 @@ impl TryFrom<api::CreateBasinResponse> for BasinMetadata {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Default)]
-#[sync_docs]
 pub struct ListStreamsRequest {
     pub prefix: String,
     pub start_after: String,
@@ -406,9 +407,9 @@ impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
-#[sync_docs]
 pub struct ListStreamsResponse {
     pub streams: Vec<String>,
     pub has_more: bool,
@@ -439,9 +440,9 @@ impl TryFrom<api::GetStreamConfigResponse> for StreamConfig {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
-#[sync_docs]
 pub struct CreateStreamRequest {
     pub stream: String,
     pub config: Option<StreamConfig>,
@@ -474,9 +475,9 @@ impl TryFrom<CreateStreamRequest> for api::CreateStreamRequest {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Default)]
-#[sync_docs]
 pub struct ListBasinsRequest {
     pub prefix: String,
     pub start_after: String,
@@ -528,9 +529,9 @@ impl TryFrom<ListBasinsRequest> for api::ListBasinsRequest {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
-#[sync_docs]
 pub struct ListBasinsResponse {
     pub basins: Vec<BasinMetadata>,
     pub has_more: bool,
@@ -550,9 +551,9 @@ impl TryFrom<api::ListBasinsResponse> for ListBasinsResponse {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
-#[sync_docs]
 pub struct DeleteBasinRequest {
     pub basin: String,
     pub if_exists: bool,
@@ -578,9 +579,9 @@ impl From<DeleteBasinRequest> for api::DeleteBasinRequest {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
-#[sync_docs]
 pub struct DeleteStreamRequest {
     pub stream: String,
     pub if_exists: bool,
@@ -606,9 +607,9 @@ impl From<DeleteStreamRequest> for api::DeleteStreamRequest {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
-#[sync_docs]
 pub struct ReconfigureBasinRequest {
     pub basin: String,
     pub config: Option<BasinConfig>,
@@ -655,9 +656,9 @@ impl TryFrom<ReconfigureBasinRequest> for api::ReconfigureBasinRequest {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
-#[sync_docs]
 pub struct ReconfigureStreamRequest {
     pub stream: String,
     pub config: Option<StreamConfig>,
@@ -711,8 +712,8 @@ impl From<api::CheckTailResponse> for u64 {
     }
 }
 
-#[derive(Debug, Clone)]
 #[sync_docs]
+#[derive(Debug, Clone)]
 pub struct Header {
     pub name: Vec<u8>,
     pub value: Vec<u8>,
@@ -754,9 +755,9 @@ impl From<api::Header> for Header {
     }
 }
 
+#[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
-#[sync_docs]
 pub enum CommandRecord {
     Fence { fencing_token: Vec<u8> },
     Trim { seq_num: u64 },
@@ -776,8 +777,8 @@ impl CommandRecord {
     }
 }
 
-#[derive(Debug, Clone)]
 #[sync_docs]
+#[derive(Debug, Clone)]
 pub struct AppendRecord {
     pub headers: Vec<Header>,
     pub body: Vec<u8>,
@@ -834,8 +835,8 @@ impl From<CommandRecord> for AppendRecord {
     }
 }
 
-#[derive(Debug, Clone)]
 #[sync_docs]
+#[derive(Debug, Clone)]
 pub struct AppendInput {
     pub records: Vec<AppendRecord>,
     pub match_seq_num: Option<u64>,
@@ -880,8 +881,8 @@ impl AppendInput {
     }
 }
 
-#[derive(Debug, Clone)]
 #[sync_docs]
+#[derive(Debug, Clone)]
 pub struct AppendOutput {
     pub start_seq_num: u64,
     pub end_seq_num: u64,
@@ -921,15 +922,15 @@ impl TryFrom<api::AppendSessionResponse> for AppendOutput {
     }
 }
 
-#[derive(Debug, Clone, Default)]
 #[sync_docs]
+#[derive(Debug, Clone, Default)]
 pub struct ReadLimit {
     count: u64,
     bytes: u64,
 }
 
-#[derive(Debug, Clone, Default)]
 #[sync_docs]
+#[derive(Debug, Clone, Default)]
 pub struct ReadRequest {
     pub start_seq_num: Option<u64>,
     pub limit: Option<ReadLimit>,
@@ -989,8 +990,8 @@ impl ReadRequest {
     }
 }
 
-#[derive(Debug, Clone)]
 #[sync_docs]
+#[derive(Debug, Clone)]
 pub struct SequencedRecord {
     pub seq_num: u64,
     pub headers: Vec<Header>,
@@ -1026,8 +1027,8 @@ impl From<api::SequencedRecordBatch> for SequencedRecordBatch {
     }
 }
 
-#[derive(Debug, Clone)]
 #[sync_docs(ReadOutput = "Output")]
+#[derive(Debug, Clone)]
 pub enum ReadOutput {
     Batch(SequencedRecordBatch),
     FirstSeqNum(u64),
@@ -1064,8 +1065,8 @@ impl TryFrom<api::ReadResponse> for ReadOutput {
     }
 }
 
-#[derive(Debug, Clone, Default)]
 #[sync_docs]
+#[derive(Debug, Clone, Default)]
 pub struct ReadSessionRequest {
     pub start_seq_num: Option<u64>,
     pub limit: Option<ReadLimit>,
@@ -1106,8 +1107,8 @@ impl ReadSessionRequest {
     }
 }
 
-#[derive(Debug, Clone)]
 #[sync_docs]
+#[derive(Debug, Clone)]
 pub struct ReadSessionResponse {
     pub output: ReadOutput,
 }

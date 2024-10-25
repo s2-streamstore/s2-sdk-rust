@@ -1,7 +1,6 @@
 [workspace]
-
 members = [
-    "macros"
+    "sync_docs"
 ]
 
 [package]
@@ -20,7 +19,7 @@ secrecy = "0.8.0"
 thiserror = "1.0.63"
 tonic = { version = "0.12.3", features = ["tls", "tls-webpki-roots"] }
 serde = { version = "1.0.210", optional = true, features = ["derive"] }
-macros = { path = "macros" }
+sync_docs = { path = "sync_docs" }
 
 [build-dependencies]
 tonic-build = { version = "0.12.2", features = ["prost"] }
