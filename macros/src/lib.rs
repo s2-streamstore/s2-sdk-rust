@@ -7,16 +7,14 @@ use syn::{
     parse_macro_input,
     punctuated::Punctuated,
     token::Comma,
-    Attribute, DataEnum, DeriveInput, Expr, Field, Fields, FieldsNamed, File, Ident, Item,
-    ItemEnum, ItemStruct, Lit, LitStr, Meta, Token,
+    DeriveInput, Expr, Field, Fields, FieldsNamed, File, Ident, Item, ItemEnum,
+    ItemStruct, Lit, LitStr, Token, Variant,
 };
 
 type CollectedDocs = (Vec<String>, HashMap<String, Vec<String>>);
 
-fn find_type_docs(source_code: &str, target_name: &str) -> Option<CollectedDocs> {
-    let syntax: File = syn::parse_file(source_code).expect("Failed to parse source file");
-
-    for item in syntax.items {
+fn find_type_docs(parsed_file: File, target_name: &str) -> Option<CollectedDocs> {
+    for item in parsed_file.items {
         if let Some(docs) = match item {
             Item::Mod(m) => match m.content {
                 Some((_, items)) => find_mod_docs(items, target_name),
@@ -130,34 +128,25 @@ fn find_mod_docs(items: Vec<Item>, target_name: &str) -> Option<CollectedDocs> {
     None
 }
 
-fn extract_doc_strings(attrs: &[Attribute]) -> Vec<String> {
+fn extract_doc_strings(attrs: &[syn::Attribute]) -> Vec<String> {
     attrs
         .iter()
-        .filter_map(|attr| match &attr.meta {
-            Meta::NameValue(meta_doc) => {
-                let is_doc = meta_doc
-                    .path
-                    .segments
-                    .first()
-                    .map(|seg| seg.ident == Ident::new("doc", seg.ident.span()))
-                    .unwrap_or(false);
-
-                if is_doc {
-                    match &meta_doc.value {
-                        Expr::Lit(doc_expr) => {
-                            if let Lit::Str(doc_lit) = &doc_expr.lit {
-                                Some(doc_lit.value())
-                            } else {
-                                None
-                            }
-                        }
+        .filter_map(|attr| {
+            if attr.path().is_ident("doc") {
+                if let syn::Meta::NameValue(name_value) = &attr.meta {
+                    match &name_value.value {
+                        Expr::Lit(doc_expr) => match &doc_expr.lit {
+                            Lit::Str(doc_lit) => Some(doc_lit.value()),
+                            _ => None,
+                        },
                         _ => None,
                     }
                 } else {
                     None
                 }
+            } else {
+                None
             }
-            _ => None,
         })
         .collect()
 }
@@ -206,20 +195,58 @@ pub fn sync_docs(args: TokenStream, input: TokenStream) -> TokenStream {
     let mut input_ast = parse_macro_input!(input as DeriveInput);
 
     let type_name = input_ast.ident.to_string();
+    let type_name = args.mapping.get(&type_name).unwrap_or(&type_name);
 
-    let type_name = if let Some(value) = args.mapping.get(&type_name) {
-        value
-    } else {
-        &type_name
+    let source_path = {
+        let out_dir = match std::env::var("OUT_DIR") {
+            Ok(dir) => dir,
+            Err(_) => {
+                return syn::Error::new(proc_macro2::Span::call_site(), "OUT_DIR is required")
+                    .to_compile_error()
+                    .into();
+            }
+        };
+
+        let prost_file = match std::env::var("COMPILED_PROST_FILE") {
+            Ok(file) => file,
+            Err(_) => {
+                return syn::Error::new(
+                    proc_macro2::Span::call_site(),
+                    "COMPILED_PROST_FILE is required",
+                )
+                .to_compile_error()
+                .into();
+            }
+        };
+
+        Path::new(&out_dir).join(prost_file)
     };
 
-    let source_path =
-        Path::new(&std::env::var("OUT_DIR").expect("OUT_DIR is required")).join("s2.v1alpha.rs");
+    let raw_file_content = match fs::read_to_string(source_path) {
+        Ok(content) => content,
+        Err(_) => {
+            return syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "Failed to read the compiled prost file",
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
 
-    let raw_source_content = fs::read_to_string(source_path).expect("Failed to read source file");
+    let parsed_file = match syn::parse_file(&raw_file_content) {
+        Ok(file) => file,
+        Err(_) => {
+            return syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "Failed to parse the compiled prost file",
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
 
-    if let Some((type_docs, field_or_variant_docs)) = find_type_docs(&raw_source_content, type_name)
-    {
+    if let Some((type_docs, field_or_variant_docs)) = find_type_docs(parsed_file, type_name) {
         for doc in type_docs {
             input_ast.attrs.push(syn::parse_quote!(#[doc = #doc]));
         }
@@ -227,11 +254,11 @@ pub fn sync_docs(args: TokenStream, input: TokenStream) -> TokenStream {
         match &mut input_ast.data {
             syn::Data::Struct(data) => {
                 if let Fields::Named(FieldsNamed { named: fields, .. }) = &mut data.fields {
-                    update_field_docs(fields, &field_or_variant_docs, &args.mapping);
+                    update_struct_field_docs(fields, &field_or_variant_docs, &args.mapping);
                 }
             }
             syn::Data::Enum(data) => {
-                update_enum_docs(data, &field_or_variant_docs, &args.mapping);
+                update_enum_variant_docs(&mut data.variants, &field_or_variant_docs, &args.mapping);
             }
             _ => {}
         };
@@ -244,37 +271,32 @@ pub fn sync_docs(args: TokenStream, input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-fn update_field_docs(
+fn update_struct_field_docs(
     fields: &mut Punctuated<Field, Comma>,
     field_docs: &HashMap<String, Vec<String>>,
     field_mapping: &HashMap<String, String>,
 ) {
     for field in fields {
-        let field_name = field
-            .ident
-            .as_ref()
-            .map(|i| i.to_string())
-            .expect("Named fields should have identifiers");
-
-        let field_name = field_mapping.get(&field_name).unwrap_or(&field_name);
-
-        if let Some(docs) = field_docs.get(field_name) {
-            field
-                .attrs
-                .extend(docs.iter().map(|doc| syn::parse_quote!(#[doc = #doc])));
+        if let Some(field_name) = field.ident.as_ref().map(|i| i.to_string()) {
+            let field_name = field_mapping.get(&field_name).unwrap_or(&field_name);
+            if let Some(docs) = field_docs.get(field_name) {
+                field
+                    .attrs
+                    .extend(docs.iter().map(|doc| syn::parse_quote!(#[doc = #doc])));
+            }
         }
     }
 }
 
-fn update_enum_docs(
-    enum_data: &mut DataEnum,
-    field_docs: &HashMap<String, Vec<String>>,
+fn update_enum_variant_docs(
+    variants: &mut Punctuated<Variant, Comma>,
+    variant_docs: &HashMap<String, Vec<String>>,
     variant_mapping: &HashMap<String, String>,
 ) {
-    for variant in &mut enum_data.variants {
+    for variant in variants {
         let variant_name = variant.ident.to_string();
         let variant_name = variant_mapping.get(&variant_name).unwrap_or(&variant_name);
-        if let Some(variant_docs) = field_docs.get(variant_name) {
+        if let Some(variant_docs) = variant_docs.get(variant_name) {
             variant.attrs.extend(
                 variant_docs
                     .iter()
@@ -284,7 +306,8 @@ fn update_enum_docs(
 
         for field in &mut variant.fields {
             if let Some(field_name) = field.ident.as_ref().map(|i| i.to_string()) {
-                if let Some(field_docs) = field_docs.get(&field_name) {
+                let field_name = variant_mapping.get(&field_name).unwrap_or(&field_name);
+                if let Some(field_docs) = variant_docs.get(field_name) {
                     field.attrs.extend(
                         field_docs
                             .iter()

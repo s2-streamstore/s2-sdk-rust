@@ -17,12 +17,11 @@ impl<T: Into<String>> From<T> for ConvertError {
     }
 }
 
-
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 #[sync_docs]
 pub struct CreateBasinRequest {
-    pub basin: String,    
+    pub basin: String,
     pub config: Option<BasinConfig>,
     // TODO: Add assignment (when it's supported).
 }
