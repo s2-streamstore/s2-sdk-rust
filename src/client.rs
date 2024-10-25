@@ -133,7 +133,7 @@ pub struct ClientConfig {
     /// Timeout for a particular request.
     pub request_timeout: Duration,
     /// User agent to be used for the client.
-    pub user_agent: Option<String>,
+    pub user_agent: String,
 }
 
 impl ClientConfig {
@@ -146,7 +146,7 @@ impl ClientConfig {
             connect_lazily: true,
             connection_timeout: Duration::from_secs(3),
             request_timeout: Duration::from_secs(5),
-            user_agent: Some("s2-sdk-rust".to_string()),
+            user_agent: "s2-sdk-rust".to_string(),
         }
     }
 
@@ -187,7 +187,7 @@ impl ClientConfig {
     /// Construct from an existing configuration with the new user agent.
     pub fn with_user_agent(self, user_agent: impl Into<String>) -> Self {
         Self {
-            user_agent: Some(user_agent.into()),
+            user_agent: user_agent.into(),
             ..self
         }
     }
@@ -534,12 +534,7 @@ impl ClientInner {
     ) -> Result<Self, ClientError> {
         let endpoint: Endpoint = uri.clone().into();
         let endpoint = endpoint
-            .user_agent(
-                config
-                    .user_agent
-                    .clone()
-                    .unwrap_or_else(|| "s2-sdk-rust".to_string()),
-            )?
+            .user_agent(config.user_agent.clone())?
             .tls_config(
                 ClientTlsConfig::default()
                     .with_webpki_roots()
