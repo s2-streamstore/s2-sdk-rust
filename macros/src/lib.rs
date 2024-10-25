@@ -7,8 +7,8 @@ use syn::{
     parse_macro_input,
     punctuated::Punctuated,
     token::Comma,
-    DeriveInput, Expr, Field, Fields, FieldsNamed, File, Ident, Item, ItemEnum,
-    ItemStruct, Lit, LitStr, Token, Variant,
+    DeriveInput, Expr, Field, Fields, FieldsNamed, File, Ident, Item, ItemEnum, ItemStruct, Lit,
+    LitStr, Token, Variant,
 };
 
 type CollectedDocs = (Vec<String>, HashMap<String, Vec<String>>);
@@ -76,6 +76,7 @@ fn find_struct_docs(ast_struct: ItemStruct, target_struct_name: String) -> Optio
     None
 }
 
+/// Recursively search for the target module or type in the given items.
 fn find_mod_docs(items: Vec<Item>, target_name: &str) -> Option<CollectedDocs> {
     for item in items {
         if let Item::Struct(s) = item.clone() {
