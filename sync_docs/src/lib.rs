@@ -17,10 +17,7 @@ type CollectedDocs = (Vec<String>, HashMap<String, Vec<String>>);
 fn find_type_docs(parsed_file: File, target_name: &str) -> Option<CollectedDocs> {
     for item in parsed_file.items {
         if let Some(docs) = match item {
-            Item::Mod(m) => match m.content {
-                Some((_, items)) => find_mod_docs(items, target_name),
-                None => None,
-            },
+            Item::Mod(m) => find_mod_docs(m, target_name),
             Item::Struct(s) => find_struct_docs(s, target_name.to_string()),
             Item::Enum(e) => find_enum_docs(e, target_name.to_string()),
             Item::Impl(i) => find_impl_fn_docs(i, target_name),
@@ -101,8 +98,8 @@ fn find_impl_fn_docs(impl_block: syn::ItemImpl, target_name: &str) -> Option<Col
 }
 
 /// Recursively search for the target module or type in the given items.
-fn find_mod_docs(items: Vec<Item>, target_name: &str) -> Option<CollectedDocs> {
-    for item in items {
+fn find_mod_docs(mod_ast: syn::ItemMod, target_name: &str) -> Option<CollectedDocs> {
+    for item in mod_ast.content?.1 {
         match item {
             Item::Struct(s) => {
                 if s.ident == target_name {
@@ -146,10 +143,8 @@ fn find_mod_docs(items: Vec<Item>, target_name: &str) -> Option<CollectedDocs> {
                 }
             }
             Item::Mod(m) => {
-                if let Some((_, items)) = m.content {
-                    if let Some(docs) = find_mod_docs(items, target_name) {
-                        return Some(docs);
-                    }
+                if let Some(docs) = find_mod_docs(m, target_name) {
+                    return Some(docs);
                 }
             }
             _ => {}
@@ -251,21 +246,6 @@ pub fn sync_docs(args: TokenStream, input: TokenStream) -> TokenStream {
         Path::new(&out_dir).join(prost_file)
     };
 
-    let type_name = match &input_item {
-        Item::Struct(s) => s.ident.to_string(),
-        Item::Enum(e) => e.ident.to_string(),
-        Item::Fn(f) => f.sig.ident.to_string(),
-        _ => {
-            return syn::Error::new(
-                proc_macro2::Span::call_site(),
-                "Only structs and enums are supported",
-            )
-            .to_compile_error()
-            .into();
-        }
-    };
-    let type_name = args.mapping.get(&type_name).unwrap_or(&type_name);
-
     let raw_file_content = match fs::read_to_string(source_path) {
         Ok(content) => content,
         Err(_) => {
@@ -290,19 +270,20 @@ pub fn sync_docs(args: TokenStream, input: TokenStream) -> TokenStream {
         }
     };
 
-    let attrs = match &mut input_item {
-        Item::Struct(s) => &mut s.attrs,
-        Item::Enum(e) => &mut e.attrs,
-        Item::Fn(f) => &mut f.attrs,
+    let (type_name, attrs) = match &mut input_item {
+        Item::Struct(s) => (s.ident.to_string(), &mut s.attrs),
+        Item::Enum(e) => (e.ident.to_string(), &mut e.attrs),
+        Item::Fn(f) => (f.sig.ident.to_string(), &mut f.attrs),
         _ => {
             return syn::Error::new(
                 proc_macro2::Span::call_site(),
-                "Only structs and enums are supported",
+                "Only structs, enums, and functions are supported",
             )
             .to_compile_error()
             .into();
         }
     };
+    let type_name = args.mapping.get(&type_name).unwrap_or(&type_name);
 
     if let Some((type_docs, field_or_variant_docs)) = find_type_docs(parsed_file, type_name) {
         for doc in type_docs {
