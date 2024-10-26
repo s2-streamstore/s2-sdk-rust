@@ -3,6 +3,7 @@ use std::time::Duration;
 use backon::{ConstantBuilder, Retryable};
 use http::{uri::Authority, Uri};
 use secrecy::SecretString;
+use sync_docs::sync_docs;
 use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
 
 use crate::{
@@ -224,7 +225,7 @@ impl Client {
         })
     }
 
-    /// List basins.
+    #[sync_docs]
     pub async fn list_basins(
         &self,
         req: types::ListBasinsRequest,
@@ -237,7 +238,7 @@ impl Client {
             .await
     }
 
-    /// Create a new basin.
+    #[sync_docs]
     pub async fn create_basin(
         &self,
         req: types::CreateBasinRequest,
@@ -250,7 +251,7 @@ impl Client {
             .await
     }
 
-    /// Delete a basin.
+    #[sync_docs]
     pub async fn delete_basin(
         &self,
         req: types::DeleteBasinRequest,
@@ -263,7 +264,7 @@ impl Client {
             .await
     }
 
-    /// Get a basin's configuration.
+    #[sync_docs]
     pub async fn get_basin_config(
         &self,
         basin: impl Into<String>,
@@ -276,7 +277,7 @@ impl Client {
             .await
     }
 
-    /// Reconfigura a basin.
+    #[sync_docs]
     pub async fn reconfigure_basin(
         &self,
         req: types::ReconfigureBasinRequest,
@@ -319,7 +320,7 @@ impl BasinClient {
         }
     }
 
-    /// Create a new stream in the basin.
+    #[sync_docs]
     pub async fn create_stream(
         &self,
         req: types::CreateStreamRequest,
@@ -332,7 +333,7 @@ impl BasinClient {
             .await
     }
 
-    /// List streams in a basin.
+    #[sync_docs]
     pub async fn list_streams(
         &self,
         req: types::ListStreamsRequest,
@@ -345,7 +346,7 @@ impl BasinClient {
             .await
     }
 
-    /// Get a stream's configuration in the basin.
+    #[sync_docs]
     pub async fn get_stream_config(
         &self,
         stream: impl Into<String>,
@@ -358,7 +359,7 @@ impl BasinClient {
             .await
     }
 
-    /// Reconfigure a stream in the basin.
+    #[sync_docs]
     pub async fn reconfigure_stream(
         &self,
         req: types::ReconfigureStreamRequest,
@@ -371,7 +372,7 @@ impl BasinClient {
             .await
     }
 
-    /// Delete a stream in the basin.
+    #[sync_docs]
     pub async fn delete_stream(
         &self,
         req: types::DeleteStreamRequest,
@@ -404,7 +405,7 @@ impl StreamClient {
             .map(|client| client.stream_client(stream))
     }
 
-    /// Check the sequence number that will be assigned to the next record on a stream.
+    #[sync_docs]
     pub async fn check_tail(&self) -> Result<u64, ServiceError<CheckTailError>> {
         self.inner
             .send_retryable(CheckTailServiceRequest::new(
@@ -414,7 +415,7 @@ impl StreamClient {
             .await
     }
 
-    /// Read a batch of records from the stream.
+    #[sync_docs]
     pub async fn read(
         &self,
         req: types::ReadRequest,
@@ -428,7 +429,7 @@ impl StreamClient {
             .await
     }
 
-    /// Read batches of records from the stream continuously.
+    #[sync_docs]
     pub async fn read_session(
         &self,
         req: types::ReadSessionRequest,
@@ -446,7 +447,7 @@ impl StreamClient {
             .map(Streaming::new)
     }
 
-    /// Append a batch of records to the stream.
+    #[sync_docs]
     pub async fn append(
         &self,
         req: types::AppendInput,
@@ -460,7 +461,7 @@ impl StreamClient {
             .await
     }
 
-    /// Append batches of records to the stream continuously.
+    #[sync_docs]
     pub async fn append_session<S>(
         &self,
         req: S,

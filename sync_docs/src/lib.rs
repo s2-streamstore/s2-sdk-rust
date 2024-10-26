@@ -7,8 +7,8 @@ use syn::{
     parse_macro_input,
     punctuated::Punctuated,
     token::Comma,
-    DeriveInput, Expr, Field, Fields, FieldsNamed, File, Ident, Item, ItemEnum, ItemStruct, Lit,
-    LitStr, Token, Variant,
+    Expr, Field, Fields, FieldsNamed, File, Ident, Item, ItemEnum, ItemStruct, Lit, LitStr, Token,
+    Variant,
 };
 
 /// First value refers to the type docs, second value (hashmap) refers to the field or variant docs.
@@ -17,12 +17,11 @@ type CollectedDocs = (Vec<String>, HashMap<String, Vec<String>>);
 fn find_type_docs(parsed_file: File, target_name: &str) -> Option<CollectedDocs> {
     for item in parsed_file.items {
         if let Some(docs) = match item {
-            Item::Mod(m) => match m.content {
-                Some((_, items)) => find_mod_docs(items, target_name),
-                None => None,
-            },
+            Item::Mod(m) => find_mod_docs(m, target_name),
             Item::Struct(s) => find_struct_docs(s, target_name.to_string()),
             Item::Enum(e) => find_enum_docs(e, target_name.to_string()),
+            Item::Impl(i) => find_impl_fn_docs(i, target_name),
+            Item::Fn(f) => find_fn_docs(f, target_name.to_string()),
             _ => None,
         } {
             return Some(docs);
@@ -77,53 +76,78 @@ fn find_struct_docs(ast_struct: ItemStruct, target_struct_name: String) -> Optio
     None
 }
 
-/// Recursively search for the target module or type in the given items.
-fn find_mod_docs(items: Vec<Item>, target_name: &str) -> Option<CollectedDocs> {
-    for item in items {
-        if let Item::Struct(s) = item.clone() {
-            if s.ident == target_name {
-                let docs_iter = extract_doc_strings(&s.attrs);
+fn find_fn_docs(ast_fn: syn::ItemFn, target_fn_name: String) -> Option<CollectedDocs> {
+    if ast_fn.sig.ident == target_fn_name {
+        let fn_docs = extract_doc_strings(&ast_fn.attrs);
+        return Some((fn_docs, HashMap::new()));
+    }
 
-                let field_docs = s
-                    .fields
-                    .iter()
-                    .filter_map(|field| {
-                        Some((
-                            field.ident.as_ref()?.to_string(),
-                            extract_doc_strings(&field.attrs),
-                        ))
-                    })
-                    .collect();
+    None
+}
 
-                return Some((docs_iter, field_docs));
+fn find_impl_fn_docs(impl_block: syn::ItemImpl, target_name: &str) -> Option<CollectedDocs> {
+    for item in impl_block.items {
+        if let syn::ImplItem::Fn(method) = item {
+            if method.sig.ident == target_name {
+                let fn_docs = extract_doc_strings(&method.attrs);
+                return Some((fn_docs, HashMap::new()));
             }
         }
+    }
+    None
+}
 
-        if let Item::Enum(e) = item.clone() {
-            if e.ident == target_name {
-                let docs_iter = extract_doc_strings(&e.attrs);
-                let mut docs = HashMap::new();
+/// Recursively search for the target module or type in the given items.
+fn find_mod_docs(mod_ast: syn::ItemMod, target_name: &str) -> Option<CollectedDocs> {
+    for item in mod_ast.content?.1 {
+        match item {
+            Item::Struct(s) => {
+                if s.ident == target_name {
+                    let docs_iter = extract_doc_strings(&s.attrs);
+                    let field_docs = s
+                        .fields
+                        .iter()
+                        .filter_map(|field| {
+                            Some((
+                                field.ident.as_ref()?.to_string(),
+                                extract_doc_strings(&field.attrs),
+                            ))
+                        })
+                        .collect();
+                    return Some((docs_iter, field_docs));
+                }
+            }
+            Item::Enum(e) => {
+                if e.ident == target_name {
+                    let docs_iter = extract_doc_strings(&e.attrs);
+                    let mut docs = HashMap::new();
 
-                for variant in e.variants {
-                    docs.insert(
-                        variant.ident.to_string(),
-                        extract_doc_strings(&variant.attrs),
-                    );
+                    for variant in e.variants {
+                        docs.insert(
+                            variant.ident.to_string(),
+                            extract_doc_strings(&variant.attrs),
+                        );
 
-                    for field in variant.fields {
-                        if let Some(field_name) = field.ident.map(|i| i.to_string()) {
-                            docs.insert(field_name, extract_doc_strings(&field.attrs));
+                        for field in variant.fields {
+                            if let Some(field_name) = field.ident.map(|i| i.to_string()) {
+                                docs.insert(field_name, extract_doc_strings(&field.attrs));
+                            }
                         }
                     }
+                    return Some((docs_iter, docs));
                 }
-                return Some((docs_iter, docs));
             }
-        }
-
-        if let Item::Mod(m) = item {
-            if let Some((_, items)) = m.content {
-                return find_mod_docs(items, target_name);
+            Item::Impl(impl_block) => {
+                if let Some(docs) = find_impl_fn_docs(impl_block, target_name) {
+                    return Some(docs);
+                }
             }
+            Item::Mod(m) => {
+                if let Some(docs) = find_mod_docs(m, target_name) {
+                    return Some(docs);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -195,10 +219,7 @@ impl Parse for RenameArgs {
 #[proc_macro_attribute]
 pub fn sync_docs(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as RenameArgs);
-    let mut input_ast = parse_macro_input!(input as DeriveInput);
-
-    let type_name = input_ast.ident.to_string();
-    let type_name = args.mapping.get(&type_name).unwrap_or(&type_name);
+    let mut input_item = parse_macro_input!(input as Item);
 
     let source_path = {
         let out_dir = match std::env::var("OUT_DIR") {
@@ -249,26 +270,41 @@ pub fn sync_docs(args: TokenStream, input: TokenStream) -> TokenStream {
         }
     };
 
+    let (type_name, attrs) = match &mut input_item {
+        Item::Struct(s) => (s.ident.to_string(), &mut s.attrs),
+        Item::Enum(e) => (e.ident.to_string(), &mut e.attrs),
+        Item::Fn(f) => (f.sig.ident.to_string(), &mut f.attrs),
+        _ => {
+            return syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "Only structs, enums, and functions are supported",
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
+    let type_name = args.mapping.get(&type_name).unwrap_or(&type_name);
+
     if let Some((type_docs, field_or_variant_docs)) = find_type_docs(parsed_file, type_name) {
         for doc in type_docs {
-            input_ast.attrs.push(syn::parse_quote!(#[doc = #doc]));
+            attrs.push(syn::parse_quote!(#[doc = #doc]));
         }
 
-        match &mut input_ast.data {
-            syn::Data::Struct(data) => {
-                if let Fields::Named(FieldsNamed { named: fields, .. }) = &mut data.fields {
+        match &mut input_item {
+            Item::Struct(s) => {
+                if let Fields::Named(FieldsNamed { named: fields, .. }) = &mut s.fields {
                     update_struct_field_docs(fields, &field_or_variant_docs, &args.mapping);
                 }
             }
-            syn::Data::Enum(data) => {
-                update_enum_variant_docs(&mut data.variants, &field_or_variant_docs, &args.mapping);
+            Item::Enum(e) => {
+                update_enum_variant_docs(&mut e.variants, &field_or_variant_docs, &args.mapping);
             }
             _ => {}
         };
     }
 
     let expanded = quote! {
-        #input_ast
+        #input_item
     };
 
     TokenStream::from(expanded)
