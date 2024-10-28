@@ -287,7 +287,7 @@ pub fn sync_docs(args: TokenStream, input: TokenStream) -> TokenStream {
 
     if let Some((type_docs, field_or_variant_docs)) = find_type_docs(parsed_file, type_name) {
         for doc in type_docs {
-            attrs.push(syn::parse_quote!(#[doc = #doc]));
+            attrs.insert(0, syn::parse_quote!(#[doc = #doc]));
         }
 
         match &mut input_item {

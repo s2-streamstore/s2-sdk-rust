@@ -1013,6 +1013,7 @@ impl From<api::SequencedRecord> for SequencedRecord {
     }
 }
 
+#[sync_docs]
 #[derive(Debug, Clone)]
 pub struct SequencedRecordBatch {
     pub records: Vec<SequencedRecord>,
@@ -1103,6 +1104,13 @@ impl ReadSessionRequest {
                 count: limit.count,
                 bytes: limit.bytes,
             }),
+        }
+    }
+
+    pub(crate) fn with_read_point(self, read_point: u64) -> Self {
+        Self {
+            start_seq_num: Some(read_point),
+            ..self
         }
     }
 }

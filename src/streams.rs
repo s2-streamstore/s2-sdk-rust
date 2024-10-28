@@ -1,12 +1,17 @@
 use std::{
     pin::Pin,
+    sync::atomic::{AtomicU64, Ordering},
     task::{Context, Poll},
 };
 
 use bytesize::ByteSize;
 use futures::{Stream, StreamExt};
 
-use crate::types;
+use crate::{
+    service::{stream::ReadSessionStreamingResponse, ServiceError, ServiceStreamingResponse},
+    service_error::ReadSessionError,
+    types::{self, ReadOutput, ReadSessionResponse},
+};
 
 /// Options to configure [`AppendRecordStream`].
 #[derive(Debug, Clone)]
@@ -188,5 +193,73 @@ where
                 fencing_token: self.opts.fencing_token.clone(),
             }))
         }
+    }
+}
+
+static READ_POINT: AtomicU64 = AtomicU64::new(0);
+
+/// Last read point in the stream returned by a [`crate::client::StreamClient::read_session`].
+pub struct ReadPoint;
+
+impl ReadPoint {
+    pub fn get() -> u64 {
+        READ_POINT.load(Ordering::Relaxed)
+    }
+
+    /// Reset the read point to 0.
+    pub fn reset() {
+        READ_POINT.store(0, Ordering::Relaxed);
+    }
+}
+
+/// A resumable stream of `ReadSessionResponse` that updates the read point on each response when
+/// polled. The read point can be accessed using [`ReadPoint::get`] and reset using
+/// [`ReadPoint::reset`].
+pub struct ResumableReadStream {
+    pub stream: Box<
+        dyn Unpin
+            + futures::Stream<Item = Result<ReadSessionResponse, ServiceError<ReadSessionError>>>,
+    >,
+    update_read_point: bool,
+}
+
+impl ResumableReadStream {
+    pub fn new(
+        s: ServiceStreamingResponse<ReadSessionStreamingResponse>,
+        update_read_point: bool,
+    ) -> Self {
+        Self {
+            stream: Box::new(s),
+            update_read_point,
+        }
+    }
+}
+
+impl futures::Stream for ResumableReadStream {
+    type Item = Result<crate::types::ReadSessionResponse, ServiceError<ReadSessionError>>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let polled = self.stream.poll_next_unpin(cx);
+
+        if !self.update_read_point {
+            return polled;
+        }
+
+        if let Poll::Ready(Some(Ok(resp))) = &polled {
+            match &resp.output {
+                ReadOutput::Batch(batch) => {
+                    if let Some(record) = batch.records.last() {
+                        READ_POINT.store(record.seq_num, Ordering::Relaxed);
+                    }
+                }
+                ReadOutput::FirstSeqNum(seq_num) => {
+                    READ_POINT.store(*seq_num, Ordering::Relaxed);
+                }
+                ReadOutput::NextSeqNum(seq_num) => {
+                    READ_POINT.store(*seq_num, Ordering::Relaxed);
+                }
+            }
+        }
+        polled
     }
 }

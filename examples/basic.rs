@@ -136,7 +136,7 @@ async fn main() {
 
     let read_session_req = ReadSessionRequest::default();
 
-    match stream_client.read_session(read_session_req).await {
+    match stream_client.read_session(read_session_req, false).await {
         Ok(mut stream) => {
             println!("Read session: {:#?}", stream.next().await);
         }

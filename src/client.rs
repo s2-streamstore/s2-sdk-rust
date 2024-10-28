@@ -32,6 +32,7 @@ use crate::{
         },
         RetryableRequest, ServiceError, ServiceRequest, Streaming,
     },
+    streams::{ReadPoint, ResumableReadStream},
     types,
 };
 
@@ -430,13 +431,18 @@ impl StreamClient {
     }
 
     #[sync_docs]
+    /// The stream is read from the last read point if `resume_session` is set.
     pub async fn read_session(
         &self,
         req: types::ReadSessionRequest,
-    ) -> Result<
-        Streaming<types::ReadSessionResponse, ReadSessionError>,
-        ServiceError<ReadSessionError>,
-    > {
+        resume_session: bool,
+    ) -> Result<ResumableReadStream, ServiceError<ReadSessionError>> {
+        let req = if resume_session {
+            req.with_read_point(ReadPoint::get())
+        } else {
+            req
+        };
+
         self.inner
             .send_retryable(ReadSessionServiceRequest::new(
                 self.inner.stream_service_client(),
@@ -444,7 +450,7 @@ impl StreamClient {
                 req,
             ))
             .await
-            .map(Streaming::new)
+            .map(|s| ResumableReadStream::new(s, /* update_read_point = */ resume_session))
     }
 
     #[sync_docs]
