@@ -536,6 +536,7 @@ impl ClientInner {
         let endpoint: Endpoint = uri.clone().into();
         let endpoint = endpoint
             .user_agent(config.user_agent.clone())?
+            .http2_adaptive_window(true)
             .tls_config(
                 ClientTlsConfig::default()
                     .with_webpki_roots()
