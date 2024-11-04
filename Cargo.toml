@@ -11,18 +11,18 @@ edition = "2021"
 [dependencies]
 backon = "1.2.0"
 bytesize = "1.3.0"
-futures = "0.3.30"
+futures = "0.3.31"
 http = "1.1.0"
-prost = "0.13.1"
-prost-types = "0.13.1"
+prost = "0.13.3"
+prost-types = "0.13.3"
 secrecy = "0.8.0"
-thiserror = "1.0.63"
+thiserror = "1.0.67"
 tonic = { version = "0.12.3", features = ["tls", "tls-webpki-roots"] }
-serde = { version = "1.0.210", optional = true, features = ["derive"] }
+serde = { version = "1.0.214", optional = true, features = ["derive"] }
 sync_docs = { path = "sync_docs" }
 
 [build-dependencies]
-tonic-build = { version = "0.12.2", features = ["prost"] }
+tonic-build = { version = "0.12.3", features = ["prost"] }
 
 [dev-dependencies]
 tokio = { version = "*", features = ["full"] }
