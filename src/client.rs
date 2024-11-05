@@ -130,8 +130,7 @@ impl HostEndpoints {
         fn parse_authority(v: &str) -> Result<Authority, InvalidHostError> {
             v.parse().map_err(|_| InvalidHostError(v.to_owned()))
         }
-        let cloud =
-            env_var("S2_CLOUD", HostCloud::from_str)?.unwrap_or_else(|| HostCloud::default());
+        let cloud = env_var("S2_CLOUD", HostCloud::from_str)?.unwrap_or(HostCloud::default());
         let cell = env_var("S2_CELL", parse_authority)?;
         let basin_zone = env_var("S2_BASIN_ZONE", parse_authority)?;
         let endpoints = match (cell, basin_zone, cloud) {
