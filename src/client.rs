@@ -64,7 +64,7 @@ impl HostCloud {
         format!("{}.s2.dev", self.as_str()).parse().unwrap()
     }
 
-    pub fn basin_zone(&self) -> Option<Authority> {
+    pub fn basin_endpoint(&self) -> Option<Authority> {
         Some(format!("b.{}.s2.dev", self.as_str()).parse().unwrap())
     }
 }
@@ -91,43 +91,43 @@ impl FromStr for HostCloud {
 #[error("invalid host cloud")]
 pub struct InvalidHostCloudError;
 
-impl From<HostCloud> for HostEndpoint {
+impl From<HostCloud> for HostEndpoints {
     fn from(value: HostCloud) -> Self {
         Self {
-            cell_endpoint: value.cell_endpoint(),
-            basin_zone: value.basin_zone(),
+            cell: value.cell_endpoint(),
+            basin_zone: value.basin_endpoint(),
         }
     }
 }
 
 /// Endpoints for the hosted S2 environment.
 #[derive(Debug, Clone)]
-pub struct HostEndpoint {
-    pub cell_endpoint: Authority,
+pub struct HostEndpoints {
+    pub cell: Authority,
     pub basin_zone: Option<Authority>,
 }
 
-impl Default for HostEndpoint {
+impl Default for HostEndpoints {
     fn default() -> Self {
         HostCloud::default().into()
     }
 }
 
-impl HostEndpoint {
-    /// Construct a new host endpoint with the given cell endpoint..
-    pub fn new(cell_endpoint: impl Into<Authority>) -> Self {
-        Self {
-            cell_endpoint: cell_endpoint.into(),
-            basin_zone: None,
-        }
-    }
+impl HostEndpoints {
+    pub fn from_env() -> Self {
+        let cloud = std::env::var("S2_CLOUD")
+            .ok()
+            .and_then(|c| c.parse::<HostCloud>().ok())
+            .unwrap_or_default();
 
-    /// Construct from an existing host endpoint with the given basin zone.
-    pub fn with_basin_zone(self, basin_zone: impl Into<Authority>) -> Self {
-        Self {
-            basin_zone: Some(basin_zone.into()),
-            ..self
+        fn endpoint_from_env(env: &str) -> Option<Authority> {
+            std::env::var(env).ok().and_then(|e| e.parse().ok())
         }
+
+        let cell = endpoint_from_env("S2_CELL").unwrap_or_else(|| cloud.cell_endpoint());
+        let basin_zone = endpoint_from_env("S2_BASIN_ZONE").or_else(|| cloud.basin_endpoint());
+
+        Self { cell, basin_zone }
     }
 }
 
@@ -137,7 +137,7 @@ pub struct ClientConfig {
     /// Auth token for the client.
     pub token: SecretString,
     /// Host URI to connect with.
-    pub host_endpoint: HostEndpoint,
+    pub host_endpoint: HostEndpoints,
     /// Should the connection be lazy, i.e., only be made when making the very
     /// first request.
     pub connect_lazily: bool,
@@ -155,7 +155,7 @@ impl ClientConfig {
     pub fn new(token: impl Into<String>) -> Self {
         Self {
             token: token.into().into(),
-            host_endpoint: HostEndpoint::default(),
+            host_endpoint: HostEndpoints::default(),
             connect_lazily: true,
             connection_timeout: Duration::from_secs(3),
             request_timeout: Duration::from_secs(5),
@@ -164,7 +164,7 @@ impl ClientConfig {
     }
 
     /// Construct from an existing configuration with the new host URIs.
-    pub fn with_host_endpoint(self, host_endpoint: impl Into<HostEndpoint>) -> Self {
+    pub fn with_host_endpoint(self, host_endpoint: impl Into<HostEndpoints>) -> Self {
         Self {
             host_endpoint: host_endpoint.into(),
             ..self
@@ -504,7 +504,7 @@ impl ClientInner {
         config: ClientConfig,
         force_lazy_connection: bool,
     ) -> Result<Self, ClientError> {
-        let cell_endpoint = config.host_endpoint.cell_endpoint.clone();
+        let cell_endpoint = config.host_endpoint.cell.clone();
         Self::connect(config, cell_endpoint, force_lazy_connection).await
     }
 
@@ -517,13 +517,9 @@ impl ClientInner {
 
         match self.config.host_endpoint.basin_zone.clone() {
             Some(endpoint) => {
-                let basin_zone_endpoint: Authority = format!("{basin}.{endpoint}").parse()?;
-                ClientInner::connect(
-                    self.config.clone(),
-                    basin_zone_endpoint,
-                    force_lazy_connection,
-                )
-                .await
+                let basin_endpoint: Authority = format!("{basin}.{endpoint}").parse()?;
+                ClientInner::connect(self.config.clone(), basin_endpoint, force_lazy_connection)
+                    .await
             }
             None => Ok(Self {
                 basin: Some(basin),

@@ -1,9 +1,8 @@
 use std::time::Duration;
 
 use futures::StreamExt;
-use http::uri::Authority;
 use streamstore::{
-    client::{Client, ClientConfig, HostCloud, HostEndpoint},
+    client::{Client, ClientConfig, HostEndpoints},
     service_error::{CreateBasinError, CreateStreamError, ServiceError},
     streams::AppendRecordStream,
     types::{
@@ -12,29 +11,12 @@ use streamstore::{
     },
 };
 
-fn host_endpoint_from_env() -> HostEndpoint {
-    let cloud = HostCloud::default();
-
-    fn endpoint_from_env(env: &str) -> Option<Authority> {
-        std::env::var(env).ok().and_then(|e| e.parse().ok())
-    }
-
-    let cell_endpoint =
-        endpoint_from_env("S2_CELL_ENDPOINT").unwrap_or_else(|| cloud.cell_endpoint());
-    let basin_zone = endpoint_from_env("S2_BASIN_ZONE").or_else(|| cloud.basin_zone());
-
-    HostEndpoint {
-        cell_endpoint,
-        basin_zone,
-    }
-}
-
 #[tokio::main]
 async fn main() {
     let token = std::env::var("S2_AUTH_TOKEN").unwrap();
 
     let config = ClientConfig::new(token)
-        .with_host_endpoint(host_endpoint_from_env())
+        .with_host_endpoint(HostEndpoints::from_env())
         .with_request_timeout(Duration::from_secs(10));
 
     println!("Connecting with {config:#?}");
