@@ -67,7 +67,9 @@ fn prepare_request<T: ServiceRequest>(
 ) -> Result<tonic::Request<T::ApiRequest>, ConvertError> {
     let mut req = service.prepare_request()?;
     add_authorization_header(req.metadata_mut(), token)?;
-    add_basin_header(req.metadata_mut(), basin)?;
+    if let Some(basin) = basin {
+        add_basin_header(req.metadata_mut(), basin)?;
+    }
     Ok(req)
 }
 
@@ -83,15 +85,13 @@ fn add_authorization_header(
     Ok(())
 }
 
-fn add_basin_header(meta: &mut MetadataMap, basin: Option<&str>) -> Result<(), ConvertError> {
-    if let Some(basin) = basin {
-        meta.insert(
-            "s2-basin",
-            basin
-                .parse()
-                .map_err(|_| "failed to parse basin name as metadata value")?,
-        );
-    }
+fn add_basin_header(meta: &mut MetadataMap, basin: &str) -> Result<(), ConvertError> {
+    meta.insert(
+        "s2-basin",
+        basin
+            .parse()
+            .map_err(|_| "failed to parse basin name as metadata value")?,
+    );
     Ok(())
 }
 
