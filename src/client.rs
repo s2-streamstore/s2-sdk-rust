@@ -114,11 +114,11 @@ impl Default for HostEndpoints {
 }
 
 impl HostEndpoints {
-    pub fn from_env() -> Self {
-        let cloud = std::env::var("S2_CLOUD")
-            .ok()
-            .and_then(|c| c.parse::<HostCloud>().ok())
-            .unwrap_or_default();
+    pub fn from_env() -> Result<Self, InvalidHostCloudError> {
+        let cloud = match std::env::var("S2_CLOUD") {
+            Ok(c) => c.parse()?,
+            Err(_) => HostCloud::default(),
+        };
 
         fn endpoint_from_env(env: &str) -> Option<Authority> {
             std::env::var(env).ok().and_then(|e| e.parse().ok())
@@ -127,7 +127,7 @@ impl HostEndpoints {
         let cell = endpoint_from_env("S2_CELL").unwrap_or_else(|| cloud.cell_endpoint());
         let basin_zone = endpoint_from_env("S2_BASIN_ZONE").or_else(|| cloud.basin_endpoint());
 
-        Self { cell, basin_zone }
+        Ok(Self { cell, basin_zone })
     }
 }
 
