@@ -64,7 +64,7 @@ impl HostCloud {
         format!("{}.s2.dev", self.as_str()).parse().unwrap()
     }
 
-    pub fn basin_endpoint(&self) -> Option<Authority> {
+    pub fn basin_zone(&self) -> Option<Authority> {
         Some(format!("b.{}.s2.dev", self.as_str()).parse().unwrap())
     }
 }
@@ -76,26 +76,26 @@ impl Display for HostCloud {
 }
 
 impl FromStr for HostCloud {
-    type Err = InvalidHostCloudError;
+    type Err = InvalidHostError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.eq_ignore_ascii_case(Self::AWS) {
             Ok(Self::Aws)
         } else {
-            Err(InvalidHostCloudError)
+            Err(InvalidHostError(s.to_string()))
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, thiserror::Error)]
-#[error("invalid host cloud")]
-pub struct InvalidHostCloudError;
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("Invalid host: {0}")]
+pub struct InvalidHostError(pub String);
 
 impl From<HostCloud> for HostEndpoints {
     fn from(value: HostCloud) -> Self {
         Self {
             cell: value.cell_endpoint(),
-            basin_zone: value.basin_endpoint(),
+            basin_zone: value.basin_zone(),
         }
     }
 }
@@ -114,20 +114,35 @@ impl Default for HostEndpoints {
 }
 
 impl HostEndpoints {
-    pub fn from_env() -> Result<Self, InvalidHostCloudError> {
-        let cloud = match std::env::var("S2_CLOUD") {
-            Ok(c) => c.parse()?,
-            Err(_) => HostCloud::default(),
-        };
-
-        fn endpoint_from_env(env: &str) -> Option<Authority> {
-            std::env::var(env).ok().and_then(|e| e.parse().ok())
+    pub fn from_env() -> Result<Self, InvalidHostError> {
+        fn env_var<T>(
+            name: &str,
+            parse: impl FnOnce(&str) -> Result<T, InvalidHostError>,
+        ) -> Result<Option<T>, InvalidHostError> {
+            match std::env::var(name) {
+                Ok(value) => Ok(Some(parse(&value)?)),
+                Err(std::env::VarError::NotPresent) => Ok(None),
+                Err(std::env::VarError::NotUnicode(value)) => {
+                    Err(InvalidHostError(value.to_string_lossy().to_string()))
+                }
+            }
         }
-
-        let cell = endpoint_from_env("S2_CELL").unwrap_or_else(|| cloud.cell_endpoint());
-        let basin_zone = endpoint_from_env("S2_BASIN_ZONE").or_else(|| cloud.basin_endpoint());
-
-        Ok(Self { cell, basin_zone })
+        fn parse_authority(v: &str) -> Result<Authority, InvalidHostError> {
+            v.parse().map_err(|_| InvalidHostError(v.to_owned()))
+        }
+        let cloud =
+            env_var("S2_CLOUD", HostCloud::from_str)?.unwrap_or_else(|| HostCloud::default());
+        let cell = env_var("S2_CELL", parse_authority)?;
+        let basin_zone = env_var("S2_BASIN_ZONE", parse_authority)?;
+        let endpoints = match (cell, basin_zone, cloud) {
+            (None, None, cloud) => cloud.into(),
+            (Some(cell), basin_zone, _) => Self { cell, basin_zone },
+            (None, Some(basin_zone), cloud) => Self {
+                cell: cloud.cell_endpoint(),
+                basin_zone: Some(basin_zone),
+            },
+        };
+        Ok(endpoints)
     }
 }
 
