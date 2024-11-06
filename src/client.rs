@@ -1,7 +1,7 @@
-use std::time::Duration;
+use std::{fmt::Display, str::FromStr, time::Duration};
 
 use backon::{ConstantBuilder, Retryable};
-use http::{uri::Authority, Uri};
+use http::uri::Authority;
 use secrecy::SecretString;
 use sync_docs::sync_docs;
 use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
@@ -46,76 +46,102 @@ use crate::{
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HostCloud {
-    /// Localhost (to be used for testing).
-    #[default]
-    Local,
     /// S2 hosted on AWS.
+    #[default]
     Aws,
 }
 
-impl From<HostCloud> for HostUri {
-    fn from(value: HostCloud) -> Self {
-        match value {
-            HostCloud::Local => HostUri {
-                global: std::env::var("S2_FRONTEND_AUTHORITY")
-                    .expect("S2_FRONTEND_AUTHORITY required")
-                    .try_into()
-                    .unwrap(),
-                cell: None,
-                prefix_host_with_basin: false,
-            },
-            HostCloud::Aws => todo!("prod aws uris"),
+impl HostCloud {
+    const AWS: &str = "aws";
+
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Aws => Self::AWS,
+        }
+    }
+
+    pub fn cell_endpoint(&self) -> Authority {
+        format!("{}.s2.dev", self.as_str()).parse().unwrap()
+    }
+
+    pub fn basin_zone(&self) -> Option<Authority> {
+        Some(format!("b.{}.s2.dev", self.as_str()).parse().unwrap())
+    }
+}
+
+impl Display for HostCloud {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl FromStr for HostCloud {
+    type Err = InvalidHostError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.eq_ignore_ascii_case(Self::AWS) {
+            Ok(Self::Aws)
+        } else {
+            Err(InvalidHostError(s.to_string()))
         }
     }
 }
 
-/// URIs for the hosted S2 environment.
-#[derive(Debug, Clone)]
-pub struct HostUri {
-    /// Global URI to connect to.
-    pub global: Uri,
-    /// Cell specific URI (for basin and stream service requests).
-    ///
-    /// Client uses the same URI as the global URI if cell URI is absent.
-    pub cell: Option<Uri>,
-    /// Whether the cell URI host should be prefixed with the basin name or not.
-    ///
-    /// If set to true, the cell URI `cell.aws.s2.dev` would be prefixed with
-    /// the basin name and set to `<basin>.cell.aws.s2.dev`.
-    pub prefix_host_with_basin: bool,
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("Invalid host: {0}")]
+pub struct InvalidHostError(pub String);
+
+impl From<HostCloud> for HostEndpoints {
+    fn from(value: HostCloud) -> Self {
+        Self {
+            cell: value.cell_endpoint(),
+            basin_zone: value.basin_zone(),
+        }
+    }
 }
 
-impl Default for HostUri {
+/// Endpoints for the hosted S2 environment.
+#[derive(Debug, Clone)]
+pub struct HostEndpoints {
+    pub cell: Authority,
+    pub basin_zone: Option<Authority>,
+}
+
+impl Default for HostEndpoints {
     fn default() -> Self {
         HostCloud::default().into()
     }
 }
 
-impl HostUri {
-    /// Construct a new host URI with the given global URI.
-    pub fn new(global_uri: impl Into<Uri>) -> Self {
-        Self {
-            global: global_uri.into(),
-            cell: None,
-            prefix_host_with_basin: false,
+impl HostEndpoints {
+    pub fn from_env() -> Result<Self, InvalidHostError> {
+        fn env_var<T>(
+            name: &str,
+            parse: impl FnOnce(&str) -> Result<T, InvalidHostError>,
+        ) -> Result<Option<T>, InvalidHostError> {
+            match std::env::var(name) {
+                Ok(value) => Ok(Some(parse(&value)?)),
+                Err(std::env::VarError::NotPresent) => Ok(None),
+                Err(std::env::VarError::NotUnicode(value)) => {
+                    Err(InvalidHostError(value.to_string_lossy().to_string()))
+                }
+            }
         }
-    }
-
-    /// Construct from an existing host URI with the given cell URI.
-    pub fn with_cell_uri(self, cell_uri: impl Into<Uri>) -> Self {
-        Self {
-            cell: Some(cell_uri.into()),
-            ..self
+        fn parse_authority(v: &str) -> Result<Authority, InvalidHostError> {
+            v.parse().map_err(|_| InvalidHostError(v.to_owned()))
         }
-    }
-
-    /// Construct from an existing host URI with the new
-    /// `prefix_host_with_basin` configuration.
-    pub fn with_prefix_host_with_basin(self, prefix_host_with_basin: bool) -> Self {
-        Self {
-            prefix_host_with_basin,
-            ..self
-        }
+        let cloud = env_var("S2_CLOUD", HostCloud::from_str)?.unwrap_or(HostCloud::default());
+        let cell = env_var("S2_CELL", parse_authority)?;
+        let basin_zone = env_var("S2_BASIN_ZONE", parse_authority)?;
+        let endpoints = match (cell, basin_zone, cloud) {
+            (None, None, cloud) => cloud.into(),
+            (Some(cell), basin_zone, _) => Self { cell, basin_zone },
+            (None, Some(basin_zone), cloud) => Self {
+                cell: cloud.cell_endpoint(),
+                basin_zone: Some(basin_zone),
+            },
+        };
+        Ok(endpoints)
     }
 }
 
@@ -125,7 +151,7 @@ pub struct ClientConfig {
     /// Auth token for the client.
     pub token: SecretString,
     /// Host URI to connect with.
-    pub host_uri: HostUri,
+    pub host_endpoint: HostEndpoints,
     /// Should the connection be lazy, i.e., only be made when making the very
     /// first request.
     pub connect_lazily: bool,
@@ -143,7 +169,7 @@ impl ClientConfig {
     pub fn new(token: impl Into<String>) -> Self {
         Self {
             token: token.into().into(),
-            host_uri: HostUri::default(),
+            host_endpoint: HostEndpoints::default(),
             connect_lazily: true,
             connection_timeout: Duration::from_secs(3),
             request_timeout: Duration::from_secs(5),
@@ -152,9 +178,9 @@ impl ClientConfig {
     }
 
     /// Construct from an existing configuration with the new host URIs.
-    pub fn with_host_uri(self, host_uri: impl Into<HostUri>) -> Self {
+    pub fn with_host_endpoint(self, host_endpoint: impl Into<HostEndpoints>) -> Self {
         Self {
-            host_uri: host_uri.into(),
+            host_endpoint: host_endpoint.into(),
             ..self
         }
     }
@@ -206,7 +232,7 @@ impl Client {
         force_lazy_connection: bool,
     ) -> Result<Self, ClientError> {
         Ok(Self {
-            inner: ClientInner::connect_global(config, force_lazy_connection).await?,
+            inner: ClientInner::connect_cell(config, force_lazy_connection).await?,
         })
     }
 
@@ -220,7 +246,7 @@ impl Client {
         Ok(BasinClient {
             inner: self
                 .inner
-                .connect_cell(basin, /* force_lazy_connection = */ false)
+                .connect_basin(basin, /* force_lazy_connection = */ false)
                 .await?,
         })
     }
@@ -307,7 +333,7 @@ impl BasinClient {
         // connection with the global client so we don't end up making 2
         // connections for connecting with the basin client directly (given the
         // cell URI and global URIs are different).
-        let force_lazy_connection = config.host_uri.cell.is_some();
+        let force_lazy_connection = config.host_endpoint.basin_zone.is_some();
         let client = Client::connect_inner(config, force_lazy_connection).await?;
         client.basin_client(basin).await
     }
@@ -488,38 +514,26 @@ struct ClientInner {
 }
 
 impl ClientInner {
-    async fn connect_global(
+    async fn connect_cell(
         config: ClientConfig,
         force_lazy_connection: bool,
     ) -> Result<Self, ClientError> {
-        let uri = config.host_uri.global.clone();
-        Self::connect(config, uri, force_lazy_connection).await
+        let cell_endpoint = config.host_endpoint.cell.clone();
+        Self::connect(config, cell_endpoint, force_lazy_connection).await
     }
 
-    async fn connect_cell(
+    async fn connect_basin(
         &self,
         basin: impl Into<String>,
         force_lazy_connection: bool,
     ) -> Result<Self, ClientError> {
         let basin = basin.into();
 
-        match self.config.host_uri.cell.clone() {
-            Some(uri) if self.config.host_uri.prefix_host_with_basin => {
-                let host = uri.host().ok_or(ClientError::MissingHost)?;
-                let port = uri.port_u16().map_or(String::new(), |p| format!(":{}", p));
-                let authority: Authority = format!("{basin}.{host}{port}").parse()?;
-                let mut uri_parts = uri.into_parts();
-                uri_parts.authority = Some(authority);
-
-                ClientInner::connect(
-                    self.config.clone(),
-                    Uri::from_parts(uri_parts).expect("invalid uri"),
-                    force_lazy_connection,
-                )
-                .await
-            }
-            Some(uri) => {
-                ClientInner::connect(self.config.clone(), uri, force_lazy_connection).await
+        match self.config.host_endpoint.basin_zone.clone() {
+            Some(endpoint) => {
+                let basin_endpoint: Authority = format!("{basin}.{endpoint}").parse()?;
+                ClientInner::connect(self.config.clone(), basin_endpoint, force_lazy_connection)
+                    .await
             }
             None => Ok(Self {
                 basin: Some(basin),
@@ -530,11 +544,11 @@ impl ClientInner {
 
     async fn connect(
         config: ClientConfig,
-        uri: Uri,
+        endpoint: Authority,
         force_lazy_connection: bool,
     ) -> Result<Self, ClientError> {
-        let endpoint: Endpoint = uri.clone().into();
-        let endpoint = endpoint
+        let endpoint = format!("https://{endpoint}")
+            .parse::<Endpoint>()?
             .user_agent(config.user_agent.clone())?
             .http2_adaptive_window(true)
             .tls_config(

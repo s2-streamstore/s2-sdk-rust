@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use streamstore::{
-    client::{Client, ClientConfig, HostCloud},
+    client::{Client, ClientConfig, HostEndpoints},
     service_error::{CreateBasinError, CreateStreamError, ServiceError},
     streams::AppendRecordStream,
     types::{
@@ -15,8 +15,10 @@ use streamstore::{
 async fn main() {
     let token = std::env::var("S2_AUTH_TOKEN").unwrap();
 
+    let host_endpoints = HostEndpoints::from_env().unwrap();
+
     let config = ClientConfig::new(token)
-        .with_host_uri(HostCloud::Local)
+        .with_host_endpoint(host_endpoints)
         .with_request_timeout(Duration::from_secs(10));
 
     println!("Connecting with {config:#?}");
