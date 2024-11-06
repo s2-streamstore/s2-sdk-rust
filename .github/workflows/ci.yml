@@ -30,6 +30,10 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
+      - run: |
+          git config --global --add url."https://${{ secrets.GITHUB_TOKEN }}:x-oauth-basic@github.com/".insteadOf "git@github.com:"
+          git config --global --add url."https://${{ secrets.GITHUB_TOKEN }}:x-oauth-basic@github".insteadOf https://github
+          git config --global --add url."https://${{ secrets.GITHUB_TOKEN }}:x-oauth-basic@github".insteadOf ssh://git@github
       - name: checkout
         uses: actions/checkout@v4
         with:
@@ -41,11 +45,7 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
       - name: install protoc
-        uses: arduino/setup-protoc@v3
-      - run: |
-          git config --global --add url."https://${{ secrets.GITHUB_TOKEN }}:x-oauth-basic@github.com/".insteadOf "git@github.com:"
-          git config --global --add url."https://${{ secrets.GITHUB_TOKEN }}:x-oauth-basic@github".insteadOf https://github
-          git config --global --add url."https://${{ secrets.GITHUB_TOKEN }}:x-oauth-basic@github".insteadOf ssh://git@github
+        uses: arduino/setup-protoc@v3    
       - uses: Swatinem/rust-cache@v2
       - name: Install cargo-sort
         uses: baptiste0928/cargo-install@v3
