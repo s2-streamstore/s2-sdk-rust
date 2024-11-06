@@ -29,16 +29,12 @@ jobs:
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
   lint:
     runs-on: ubuntu-latest
-    steps:
-      - run: |
-          git config --global --add url."https://${{ secrets.GITHUB_TOKEN }}:x-oauth-basic@github.com/".insteadOf "git@github.com:"
-          git config --global --add url."https://${{ secrets.GITHUB_TOKEN }}:x-oauth-basic@github".insteadOf https://github
-          git config --global --add url."https://${{ secrets.GITHUB_TOKEN }}:x-oauth-basic@github".insteadOf ssh://git@github
+    steps:      
       - name: checkout
         uses: actions/checkout@v4
         with:
             submodules: true
-            token: ${{ secrets.GITHUB_TOKEN }}
+            token: ${{ secrets.GH_TOKEN }}
       - name: install rust
         uses: dtolnay/rust-toolchain@stable
         with:
