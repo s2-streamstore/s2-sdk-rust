@@ -48,11 +48,11 @@ jobs:
         with:
           crate: cargo-sort
           version: "^1.0"
-      - name: Check documentation
+      - name: check documentation
         env:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --workspace --all-features --no-deps --document-private-items
-      - name: Check formatting
+      - name: check formatting
         run: cargo fmt --all -- --check
-      - name: Check Cargo.toml sorting
+      - name: check Cargo.toml sorting
         run: cargo sort --workspace --check
