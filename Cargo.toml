@@ -16,10 +16,10 @@ http = "1.1.0"
 prost = "0.13.3"
 prost-types = "0.13.3"
 secrecy = "0.8.0"
-thiserror = "1.0.67"
-tonic = { version = "0.12.3", features = ["tls", "tls-webpki-roots"] }
 serde = { version = "1.0.214", optional = true, features = ["derive"] }
 sync_docs = { path = "sync_docs" }
+thiserror = "1.0.67"
+tonic = { version = "0.12.3", features = ["tls", "tls-webpki-roots"] }
 
 [build-dependencies]
 tonic-build = { version = "0.12.3", features = ["prost"] }
