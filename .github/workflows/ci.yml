@@ -32,6 +32,8 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
+        with:
+            submodules: true
       - name: install rust
         uses: dtolnay/rust-toolchain@stable
         with:
