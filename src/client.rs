@@ -230,19 +230,22 @@ impl Client {
     async fn connect_inner(
         config: ClientConfig,
         force_lazy_connection: bool,
-    ) -> Result<Self, ClientError> {
+    ) -> Result<Self, ConnectError> {
         Ok(Self {
             inner: ClientInner::connect_cell(config, force_lazy_connection).await?,
         })
     }
 
     /// Connect the client with the S2 API.
-    pub async fn connect(config: ClientConfig) -> Result<Self, ClientError> {
+    pub async fn connect(config: ClientConfig) -> Result<Self, ConnectError> {
         Self::connect_inner(config, /* force_lazy_connection = */ false).await
     }
 
     /// Get the client to interact with the S2 basin service API.
-    pub async fn basin_client(&self, basin: impl Into<String>) -> Result<BasinClient, ClientError> {
+    pub async fn basin_client(
+        &self,
+        basin: impl Into<String>,
+    ) -> Result<BasinClient, ConnectError> {
         Ok(BasinClient {
             inner: self
                 .inner
@@ -328,7 +331,7 @@ impl BasinClient {
     pub async fn connect(
         config: ClientConfig,
         basin: impl Into<String>,
-    ) -> Result<Self, ClientError> {
+    ) -> Result<Self, ConnectError> {
         // Since we're directly trying to connect to the basin, force lazy
         // connection with the global client so we don't end up making 2
         // connections for connecting with the basin client directly (given the
@@ -425,7 +428,7 @@ impl StreamClient {
         config: ClientConfig,
         basin: impl Into<String>,
         stream: impl Into<String>,
-    ) -> Result<Self, ClientError> {
+    ) -> Result<Self, ConnectError> {
         BasinClient::connect(config, basin)
             .await
             .map(|client| client.stream_client(stream))
@@ -517,7 +520,7 @@ impl ClientInner {
     async fn connect_cell(
         config: ClientConfig,
         force_lazy_connection: bool,
-    ) -> Result<Self, ClientError> {
+    ) -> Result<Self, ConnectError> {
         let cell_endpoint = config.host_endpoint.cell.clone();
         Self::connect(config, cell_endpoint, force_lazy_connection).await
     }
@@ -526,7 +529,7 @@ impl ClientInner {
         &self,
         basin: impl Into<String>,
         force_lazy_connection: bool,
-    ) -> Result<Self, ClientError> {
+    ) -> Result<Self, ConnectError> {
         let basin = basin.into();
 
         match self.config.host_endpoint.basin_zone.clone() {
@@ -546,7 +549,7 @@ impl ClientInner {
         config: ClientConfig,
         endpoint: Authority,
         force_lazy_connection: bool,
-    ) -> Result<Self, ClientError> {
+    ) -> Result<Self, ConnectError> {
         let endpoint = format!("https://{endpoint}")
             .parse::<Endpoint>()?
             .user_agent(config.user_agent.clone())?
@@ -604,11 +607,9 @@ impl ClientInner {
 
 /// Error returned while connecting to the client.
 #[derive(Debug, thiserror::Error)]
-pub enum ClientError {
+pub enum ConnectError {
     #[error(transparent)]
     TonicTransportError(#[from] tonic::transport::Error),
     #[error(transparent)]
     UriParseError(#[from] http::uri::InvalidUri),
-    #[error("Missing host in URI")]
-    MissingHost,
 }
