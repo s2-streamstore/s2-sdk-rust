@@ -605,7 +605,7 @@ impl ClientInner {
     }
 }
 
-/// Error returned while connecting to the client.
+/// Error connecting to S2 endpoint.
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectError {
     #[error(transparent)]
