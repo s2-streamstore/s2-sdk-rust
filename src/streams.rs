@@ -6,7 +6,7 @@ use std::{
 use bytesize::ByteSize;
 use futures::{Stream, StreamExt};
 
-use crate::types::{self, MeteredSize};
+use crate::types::{self, MeteredSize as _};
 
 /// Options to configure [`AppendRecordStream`].
 #[derive(Debug, Clone)]
