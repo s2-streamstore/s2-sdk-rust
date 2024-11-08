@@ -165,16 +165,19 @@ where
             return Poll::Ready(None);
         }
 
+        // Only poll the interval if it shouldn't be ignored, else reset the
+        // flag and we can decide if we want to ignore later. This works since
+        // the linger interval has `MissedTickBehaviour::Delay`. So the moment
+        // we poll and it's ready, we'll get the next tick after the specified
+        // duration period as `linger_time`.
         if self.ignore_linger {
             self.ignore_linger = false;
-        } else {
-            if self
-                .linger_interval
-                .as_mut()
-                .is_some_and(|int| int.poll_tick(cx).is_pending())
-            {
-                return Poll::Pending;
-            }
+        } else if self
+            .linger_interval
+            .as_mut()
+            .is_some_and(|int| int.poll_tick(cx).is_pending())
+        {
+            return Poll::Pending;
         }
 
         let mut batch = Vec::with_capacity(self.opts.max_batch_records);
