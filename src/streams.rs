@@ -84,6 +84,14 @@ impl AppendRecordStreamOpts {
             ..self
         }
     }
+
+    fn new_linger_interval(&self) -> Option<Interval> {
+        self.linger_time.map(|duration| {
+            let mut int = tokio::time::interval(duration);
+            int.set_missed_tick_behavior(MissedTickBehavior::Delay);
+            int
+        })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -103,6 +111,7 @@ where
     peeked_record: Option<types::AppendRecord>,
     terminated: bool,
     linger_interval: Option<Interval>,
+    ignore_linger: bool,
     opts: AppendRecordStreamOpts,
 }
 
@@ -117,17 +126,12 @@ where
             return Err(AppendRecordStreamError::BatchSizeTooLarge);
         }
 
-        let linger_interval = opts.linger_time.map(|duration| {
-            let mut int = tokio::time::interval(duration);
-            int.set_missed_tick_behavior(MissedTickBehavior::Delay);
-            int
-        });
-
         Ok(Self {
             stream,
             peeked_record: None,
             terminated: false,
-            linger_interval,
+            linger_interval: opts.new_linger_interval(),
+            ignore_linger: false,
             opts,
         })
     }
@@ -161,12 +165,16 @@ where
             return Poll::Ready(None);
         }
 
-        if self
-            .linger_interval
-            .as_mut()
-            .is_some_and(|int| int.poll_tick(cx).is_pending())
-        {
-            return Poll::Pending;
+        if self.ignore_linger {
+            self.ignore_linger = false;
+        } else {
+            if self
+                .linger_interval
+                .as_mut()
+                .is_some_and(|int| int.poll_tick(cx).is_pending())
+            {
+                return Poll::Pending;
+            }
         }
 
         let mut batch = Vec::with_capacity(self.opts.max_batch_records);
@@ -198,9 +206,9 @@ where
             if self.terminated {
                 Poll::Ready(None)
             } else {
-                // Since we don't have any batches to send, reset the linger
-                // interval so it ticks immediately the next time.
-                self.linger_interval.as_mut().map(Interval::reset);
+                // Since we don't have any batches to send, we want to ignore the linger
+                // interval for the next poll.
+                self.ignore_linger = true;
                 Poll::Pending
             }
         } else {
