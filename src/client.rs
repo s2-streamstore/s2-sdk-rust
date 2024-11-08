@@ -145,6 +145,16 @@ impl HostEndpoints {
     }
 }
 
+/// Mode of conneccting - eagerly or lazily.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ConnectionMode {
+    /// Connection made on the very first request.
+    #[default]
+    Lazy,
+    /// Connection made immediately.
+    Eager,
+}
+
 /// Client configuration to be used to connect with the host.
 #[derive(Debug, Clone)]
 pub struct ClientConfig {
@@ -154,7 +164,7 @@ pub struct ClientConfig {
     pub host_endpoint: HostEndpoints,
     /// Should the connection be lazy, i.e., only be made when making the very
     /// first request.
-    pub connect_lazily: bool,
+    pub connection_mode: ConnectionMode,
     /// Timeout for connecting/reconnecting.
     pub connection_timeout: Duration,
     /// Timeout for a particular request.
@@ -170,7 +180,7 @@ impl ClientConfig {
         Self {
             token: token.into().into(),
             host_endpoint: HostEndpoints::default(),
-            connect_lazily: true,
+            connection_mode: ConnectionMode::default(),
             connection_timeout: Duration::from_secs(3),
             request_timeout: Duration::from_secs(5),
             user_agent: "s2-sdk-rust".to_string(),
@@ -185,11 +195,10 @@ impl ClientConfig {
         }
     }
 
-    /// Construct from an existing configuration with the new `connect_lazily`
-    /// configuration.
-    pub fn with_connect_lazily(self, connect_lazily: bool) -> Self {
+    /// Construct from an existing configuration with the new connection mode.
+    pub fn with_connection_mode(self, connection_mode: ConnectionMode) -> Self {
         Self {
-            connect_lazily,
+            connection_mode,
             ..self
         }
     }
@@ -561,7 +570,7 @@ impl ClientInner {
             )?
             .connect_timeout(config.connection_timeout)
             .timeout(config.request_timeout);
-        let channel = if config.connect_lazily || force_lazy_connection {
+        let channel = if config.connection_mode == ConnectionMode::Lazy || force_lazy_connection {
             endpoint.connect_lazy()
         } else {
             endpoint.connect().await?
