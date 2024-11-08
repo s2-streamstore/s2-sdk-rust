@@ -925,8 +925,8 @@ impl TryFrom<api::AppendSessionResponse> for AppendOutput {
 #[sync_docs]
 #[derive(Debug, Clone, Default)]
 pub struct ReadLimit {
-    count: u64,
-    bytes: u64,
+    pub count: u64,
+    pub bytes: u64,
 }
 
 #[sync_docs]
