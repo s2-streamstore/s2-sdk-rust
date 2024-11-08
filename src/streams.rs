@@ -1,10 +1,12 @@
 use std::{
     pin::Pin,
     task::{Context, Poll},
+    time::Duration,
 };
 
 use bytesize::ByteSize;
 use futures::{Stream, StreamExt};
+use tokio::time::{Interval, MissedTickBehavior};
 
 use crate::types::{self, MeteredSize as _};
 
@@ -21,6 +23,8 @@ pub struct AppendRecordStreamOpts {
     pub match_seq_num: Option<u64>,
     /// Enforce a fencing token.
     pub fencing_token: Option<Vec<u8>>,
+    /// Linger time for ready records to send together as a batch.
+    pub linger_time: Option<Duration>,
 }
 
 impl Default for AppendRecordStreamOpts {
@@ -30,6 +34,7 @@ impl Default for AppendRecordStreamOpts {
             max_batch_size: ByteSize::mib(1),
             match_seq_num: None,
             fencing_token: None,
+            linger_time: None,
         }
     }
 }
@@ -71,6 +76,14 @@ impl AppendRecordStreamOpts {
             ..self
         }
     }
+
+    /// Construct from existing options with the linger time.
+    pub fn with_linger_time(self, linger_time: impl Into<Duration>) -> Self {
+        Self {
+            linger_time: Some(linger_time.into()),
+            ..self
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -89,6 +102,7 @@ where
     stream: S,
     peeked_record: Option<types::AppendRecord>,
     terminated: bool,
+    linger_interval: Option<Interval>,
     opts: AppendRecordStreamOpts,
 }
 
@@ -103,10 +117,17 @@ where
             return Err(AppendRecordStreamError::BatchSizeTooLarge);
         }
 
+        let linger_interval = opts.linger_time.map(|duration| {
+            let mut int = tokio::time::interval(duration);
+            int.set_missed_tick_behavior(MissedTickBehavior::Delay);
+            int
+        });
+
         Ok(Self {
             stream,
             peeked_record: None,
             terminated: false,
+            linger_interval,
             opts,
         })
     }
@@ -140,6 +161,14 @@ where
             return Poll::Ready(None);
         }
 
+        if self
+            .linger_interval
+            .as_mut()
+            .is_some_and(|int| int.poll_tick(cx).is_pending())
+        {
+            return Poll::Pending;
+        }
+
         let mut batch = Vec::with_capacity(self.opts.max_batch_records);
         let mut batch_size = ByteSize::b(0);
 
@@ -169,6 +198,9 @@ where
             if self.terminated {
                 Poll::Ready(None)
             } else {
+                // Since we don't have any batches to send, reset the linger
+                // interval so it ticks immediately the next time.
+                self.linger_interval.as_mut().map(Interval::reset);
                 Poll::Pending
             }
         } else {
