@@ -17,6 +17,35 @@ impl<T: Into<String>> From<T> for ConvertError {
     }
 }
 
+pub trait MeteredSize {
+    fn metered_size(&self) -> ByteSize;
+}
+
+impl<T: MeteredSize> MeteredSize for Vec<T> {
+    fn metered_size(&self) -> ByteSize {
+        self.iter()
+            .fold(ByteSize::b(0), |acc, item| acc + item.metered_size())
+    }
+}
+
+macro_rules! metered_impl {
+    ($ty:ty) => {
+        impl MeteredSize for $ty {
+            fn metered_size(&self) -> ByteSize {
+                let bytes = 8
+                    + (2 * self.headers.len())
+                    + self
+                        .headers
+                        .iter()
+                        .map(|h| h.name.len() + h.value.len())
+                        .sum::<usize>()
+                    + self.body.len();
+                ByteSize::b(bytes as u64)
+            }
+        }
+    };
+}
+
 #[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
@@ -784,6 +813,8 @@ pub struct AppendRecord {
     pub body: Vec<u8>,
 }
 
+metered_impl!(AppendRecord);
+
 impl AppendRecord {
     pub fn new(body: impl Into<Vec<u8>>) -> Self {
         Self {
@@ -797,18 +828,6 @@ impl AppendRecord {
             headers: headers.into(),
             ..self
         }
-    }
-
-    pub fn metered_size(&self) -> ByteSize {
-        let bytes = 8
-            + (2 * self.headers.len())
-            + self
-                .headers
-                .iter()
-                .map(|h| h.name.len() + h.value.len())
-                .sum::<usize>()
-            + self.body.len();
-        ByteSize::b(bytes as u64)
     }
 }
 
@@ -841,6 +860,12 @@ pub struct AppendInput {
     pub records: Vec<AppendRecord>,
     pub match_seq_num: Option<u64>,
     pub fencing_token: Option<Vec<u8>>,
+}
+
+impl MeteredSize for AppendInput {
+    fn metered_size(&self) -> ByteSize {
+        self.records.metered_size()
+    }
 }
 
 impl AppendInput {
@@ -998,6 +1023,8 @@ pub struct SequencedRecord {
     pub body: Vec<u8>,
 }
 
+metered_impl!(SequencedRecord);
+
 impl From<api::SequencedRecord> for SequencedRecord {
     fn from(value: api::SequencedRecord) -> Self {
         let api::SequencedRecord {
@@ -1016,6 +1043,12 @@ impl From<api::SequencedRecord> for SequencedRecord {
 #[derive(Debug, Clone)]
 pub struct SequencedRecordBatch {
     pub records: Vec<SequencedRecord>,
+}
+
+impl MeteredSize for SequencedRecordBatch {
+    fn metered_size(&self) -> ByteSize {
+        self.records.metered_size()
+    }
 }
 
 impl From<api::SequencedRecordBatch> for SequencedRecordBatch {
