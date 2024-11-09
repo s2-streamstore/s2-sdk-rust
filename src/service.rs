@@ -17,8 +17,8 @@ use crate::types::ConvertError;
 pub enum ServiceError<T: std::error::Error> {
     #[error("Message conversion: {0}")]
     Convert(ConvertError),
-    #[error("Internal server error")]
-    Internal,
+    #[error("Internal server error: {0}")]
+    Internal(String),
     #[error("{0} currently not supported")]
     NotSupported(String),
     #[error("User not authenticated: {0}")]
@@ -41,7 +41,7 @@ pub async fn send_request<T: ServiceRequest>(
     match service.send(req).await {
         Ok(resp) => service.parse_response(resp).map_err(ServiceError::Convert),
         Err(status) => match status.code() {
-            tonic::Code::Internal => Err(ServiceError::Internal),
+            tonic::Code::Internal => Err(ServiceError::Internal(status.message().to_string())),
             tonic::Code::Unimplemented => {
                 Err(ServiceError::NotSupported(status.message().to_string()))
             }
@@ -142,7 +142,7 @@ impl<T: IdempotentRequest> RetryableRequest for T {
             // Always retry on unavailable (if the request doesn't have any
             // side-effects).
             ServiceError::Unavailable(_) => true,
-            ServiceError::Internal => T::NO_SIDE_EFFECTS,
+            ServiceError::Internal(_) => T::NO_SIDE_EFFECTS,
             _ => false,
         }
     }
@@ -238,7 +238,9 @@ impl<S: StreamingResponse> futures::Stream for ServiceStreamingResponse<S> {
                         .parse_response_item(resp)
                         .map_err(ServiceError::Convert),
                     Err(status) => match status.code() {
-                        tonic::Code::Internal => Err(ServiceError::Internal),
+                        tonic::Code::Internal => {
+                            Err(ServiceError::Internal(status.message().to_string()))
+                        }
                         tonic::Code::Unimplemented => {
                             Err(ServiceError::NotSupported(status.message().to_string()))
                         }
