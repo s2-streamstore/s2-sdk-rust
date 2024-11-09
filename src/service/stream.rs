@@ -290,6 +290,7 @@ impl ServiceRequest for AppendServiceRequest {
             tonic::Code::InvalidArgument => {
                 Some(AppendError::InvalidArgument(status.message().to_string()))
             }
+            tonic::Code::Aborted => Some(AppendError::Aborted(status.message().to_string())),
             _ => None,
         })
     }
@@ -308,6 +309,8 @@ pub enum AppendError {
     NotFound(String),
     #[error("Invalid argument: {0}")]
     InvalidArgument(String),
+    #[error("Aborted: {0}")]
+    Aborted(String),
 }
 
 pub struct AppendSessionServiceRequest<S>
