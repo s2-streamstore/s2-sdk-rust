@@ -145,9 +145,25 @@ impl HostEndpoints {
     }
 }
 
+#[cfg(not(feature = "connector"))]
+#[doc(hidden)]
+macro_rules! generic {
+    ($b:tt, $t:ty) => {
+        $b
+    };
+}
+
+#[cfg(feature = "connector")]
+#[doc(hidden)]
+macro_rules! generic {
+    ($b:tt, $t:ty) => {
+        $b<$t>
+    };
+}
+
 /// Client configuration to be used to connect with the host.
 #[derive(Debug, Clone)]
-pub struct ClientConfig {
+pub struct ClientConfig<#[cfg(feature = "connector")] U> {
     /// Auth token for the client.
     pub token: SecretString,
     /// Host URI to connect with.
@@ -161,9 +177,21 @@ pub struct ClientConfig {
     pub request_timeout: Duration,
     /// User agent to be used for the client.
     pub user_agent: String,
+    #[cfg(feature = "connector")]
+    /// Connect with a custom connector.
+    pub connector: Option<U>,
 }
 
-impl ClientConfig {
+impl<
+        #[cfg(feature = "connector")] U: tower_service::Service<
+                http::Uri,
+                Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+                Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+                Future: Send + 'static,
+            > + Send
+            + 'static,
+    > generic!(ClientConfig, U)
+{
     /// Construct a new client configuration with given auth token and other
     /// defaults.
     pub fn new(token: impl Into<String>) -> Self {
@@ -174,6 +202,8 @@ impl ClientConfig {
             connection_timeout: Duration::from_secs(3),
             request_timeout: Duration::from_secs(5),
             user_agent: "s2-sdk-rust".to_string(),
+            #[cfg(feature = "connector")]
+            connector: None,
         }
     }
 
@@ -218,17 +248,29 @@ impl ClientConfig {
             ..self
         }
     }
+
+    #[cfg(feature = "connector")]
+    pub fn with_connector(self, connector: U) -> Self {
+        Self {
+            connector: Some(connector),
+            ..self
+        }
+    }
 }
 
 /// The S2 client to interact with the API.
 #[derive(Debug, Clone)]
-pub struct Client {
+pub struct Client<#[cfg(feature = "connector")] U: Clone> {
+    #[cfg(feature = "connector")]
+    inner: ClientInner<U>,
+    #[cfg(not(feature = "connector"))]
     inner: ClientInner,
 }
 
-impl Client {
+impl<#[cfg(feature = "connector")] U: Clone> generic!(Client, U) {
     async fn connect_inner(
-        config: ClientConfig,
+        #[cfg(feature = "connector")] config: ClientConfig<U>,
+        #[cfg(not(feature = "connector"))] config: ClientConfig,
         force_lazy_connection: bool,
     ) -> Result<Self, ConnectError> {
         Ok(Self {
@@ -237,7 +279,10 @@ impl Client {
     }
 
     /// Connect the client with the S2 API.
-    pub async fn connect(config: ClientConfig) -> Result<Self, ConnectError> {
+    pub async fn connect(
+        #[cfg(feature = "connector")] config: ClientConfig<U>,
+        #[cfg(not(feature = "connector"))] config: ClientConfig,
+    ) -> Result<Self, ConnectError> {
         Self::connect_inner(config, /* force_lazy_connection = */ false).await
     }
 
@@ -245,7 +290,7 @@ impl Client {
     pub async fn basin_client(
         &self,
         basin: impl Into<String>,
-    ) -> Result<BasinClient, ConnectError> {
+    ) -> Result<generic!(BasinClient, U), ConnectError> {
         Ok(BasinClient {
             inner: self
                 .inner
@@ -322,14 +367,18 @@ impl Client {
 
 /// Client to interact with the S2 basin service API.
 #[derive(Debug, Clone)]
-pub struct BasinClient {
+pub struct BasinClient<#[cfg(feature = "connector")] U: Clone> {
+    #[cfg(feature = "connector")]
+    inner: ClientInner<U>,
+    #[cfg(not(feature = "connector"))]
     inner: ClientInner,
 }
 
-impl BasinClient {
+impl<#[cfg(feature = "connector")] U: Clone> generic!(BasinClient, U) {
     /// Connect the client with the S2 basin service API.
     pub async fn connect(
-        config: ClientConfig,
+        #[cfg(feature = "connector")] config: ClientConfig<U>,
+        #[cfg(not(feature = "connector"))] config: ClientConfig,
         basin: impl Into<String>,
     ) -> Result<Self, ConnectError> {
         // Since we're directly trying to connect to the basin, force lazy
@@ -342,7 +391,7 @@ impl BasinClient {
     }
 
     /// Get the client to interact with the S2 stream service API.
-    pub fn stream_client(&self, stream: impl Into<String>) -> StreamClient {
+    pub fn stream_client(&self, stream: impl Into<String>) -> generic!(StreamClient, U) {
         StreamClient {
             inner: self.inner.clone(),
             stream: stream.into(),
@@ -417,15 +466,19 @@ impl BasinClient {
 
 /// Client to interact with the S2 stream service API.
 #[derive(Debug, Clone)]
-pub struct StreamClient {
+pub struct StreamClient<#[cfg(feature = "connector")] U: Clone> {
+    #[cfg(feature = "connector")]
+    inner: ClientInner<U>,
+    #[cfg(not(feature = "connector"))]
     inner: ClientInner,
     stream: String,
 }
 
-impl StreamClient {
+impl<#[cfg(feature = "connector")] U: Clone> generic!(StreamClient, U) {
     /// Connect the client with the S2 stream service API.
     pub async fn connect(
-        config: ClientConfig,
+        #[cfg(feature = "connector")] config: ClientConfig<U>,
+        #[cfg(not(feature = "connector"))] config: ClientConfig,
         basin: impl Into<String>,
         stream: impl Into<String>,
     ) -> Result<Self, ConnectError> {
@@ -510,15 +563,20 @@ impl StreamClient {
 }
 
 #[derive(Debug, Clone)]
-struct ClientInner {
+struct ClientInner<#[cfg(feature = "connector")] U: Clone> {
     channel: Channel,
     basin: Option<String>,
+
+    #[cfg(feature = "connector")]
+    config: ClientConfig<U>,
+    #[cfg(not(feature = "connector"))]
     config: ClientConfig,
 }
 
-impl ClientInner {
+impl<#[cfg(feature = "connector")] U: Clone> generic!(ClientInner, U) {
     async fn connect_cell(
-        config: ClientConfig,
+        #[cfg(feature = "connector")] config: ClientConfig<U>,
+        #[cfg(not(feature = "connector"))] config: ClientConfig,
         force_lazy_connection: bool,
     ) -> Result<Self, ConnectError> {
         let cell_endpoint = config.host_endpoint.cell.clone();
@@ -546,7 +604,8 @@ impl ClientInner {
     }
 
     async fn connect(
-        config: ClientConfig,
+        #[cfg(feature = "connector")] config: ClientConfig<U>,
+        #[cfg(not(feature = "connector"))] config: ClientConfig,
         endpoint: Authority,
         force_lazy_connection: bool,
     ) -> Result<Self, ConnectError> {
