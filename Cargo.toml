@@ -26,7 +26,9 @@ tonic = { version = "0.12.3", features = ["tls", "tls-webpki-roots"] }
 tonic-build = { version = "0.12.3", features = ["prost"] }
 
 [dev-dependencies]
-tokio = { version = "1.41.1", features = ["full"] }
+rstest = "0.23.0"
+tokio = { version = "1.41.1", features = ["full", "test-util"] }
+tokio-stream = "0.1.16"
 
 [features]
 serde = ["dep:serde"]

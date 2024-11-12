@@ -46,7 +46,7 @@ impl AppendRecordStreamOpts {
     }
 
     /// Construct from existing options with the new maximum batch records.
-    pub fn with_max_batch_records(self, max_batch_records: impl Into<usize>) -> Self {
+    pub fn with_max_batch_records(self, max_batch_records: usize) -> Self {
         Self {
             max_batch_records: max_batch_records.into(),
             ..self
@@ -222,5 +222,122 @@ where
                 fencing_token: self.opts.fencing_token.clone(),
             }))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use bytesize::ByteSize;
+    use futures::StreamExt as _;
+    use rstest::rstest;
+    use tokio::sync::mpsc;
+    use tokio_stream::wrappers::UnboundedReceiverStream;
+
+    use crate::{
+        streams::{AppendRecordStream, AppendRecordStreamOpts},
+        types,
+    };
+
+    #[rstest]
+    #[case(Some(2), None)]
+    #[case(None, Some(ByteSize::b(30)))]
+    #[case(Some(2), Some(ByteSize::b(100)))]
+    #[case(Some(10), Some(ByteSize::b(30)))]
+    #[tokio::test]
+    async fn test_append_record_stream_batching(
+        #[case] max_batch_records: Option<usize>,
+        #[case] max_batch_size: Option<ByteSize>,
+    ) {
+        let stream_iter = (0..100).map(|i| types::AppendRecord::new(format!("r_{i}")));
+        let stream = futures::stream::iter(stream_iter);
+
+        let mut opts = AppendRecordStreamOpts::new();
+        if let Some(max_batch_records) = max_batch_records {
+            opts = opts.with_max_batch_records(max_batch_records);
+        }
+        if let Some(max_batch_size) = max_batch_size {
+            opts = opts.with_max_batch_size(max_batch_size);
+        }
+
+        let batch_stream = AppendRecordStream::new(stream, opts).unwrap();
+
+        let batches = batch_stream
+            .map(|batch| batch.records)
+            .collect::<Vec<_>>()
+            .await;
+
+        let mut i = 0;
+        for batch in batches {
+            assert_eq!(batch.len(), 2);
+            for record in batch {
+                assert_eq!(record.body, format!("r_{i}").into_bytes());
+                i += 1;
+            }
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_append_record_stream_linger() {
+        let (stream_tx, stream_rx) = mpsc::unbounded_channel::<types::AppendRecord>();
+        let mut i = 0;
+
+        let collect_batches_handle = tokio::spawn(async move {
+            let batch_stream = AppendRecordStream::new(
+                UnboundedReceiverStream::new(stream_rx),
+                AppendRecordStreamOpts::new().with_linger(Duration::from_secs(2)),
+            )
+            .unwrap();
+
+            batch_stream
+                .map(|batch| {
+                    batch
+                        .records
+                        .into_iter()
+                        .map(|rec| rec.body)
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>()
+                .await
+        });
+
+        let mut send_next = || {
+            stream_tx
+                .send(types::AppendRecord::new(format!("r_{i}")))
+                .unwrap();
+            i += 1;
+        };
+
+        async fn sleep_secs(secs: u64) {
+            let dur = Duration::from_secs(secs) + Duration::from_millis(10);
+            tokio::time::sleep(dur).await;
+        }
+
+        send_next();
+        send_next();
+
+        sleep_secs(2).await;
+
+        send_next();
+
+        sleep_secs(1).await;
+
+        send_next();
+
+        sleep_secs(1).await;
+
+        send_next();
+        std::mem::drop(stream_tx); // Should close the stream
+
+        let batches = collect_batches_handle.await.unwrap();
+
+        let expected_batches = vec![
+            vec![b"r_0".to_owned(), b"r_1".to_owned()],
+            vec![b"r_2".to_owned(), b"r_3".to_owned()],
+            vec![b"r_4".to_owned()],
+        ];
+
+        assert_eq!(batches, expected_batches);
     }
 }
