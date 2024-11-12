@@ -5,8 +5,8 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use futures::{Stream, StreamExt};
-use tokio::time::{Interval, MissedTickBehavior};
+use futures::{FutureExt, Stream, StreamExt};
+use tokio::time::Sleep;
 
 use crate::types::{self, MeteredSize as _};
 
@@ -23,8 +23,8 @@ pub struct AppendRecordStreamOpts {
     pub match_seq_num: Option<u64>,
     /// Enforce a fencing token.
     pub fencing_token: Option<Vec<u8>>,
-    /// Linger time for ready records to send together as a batch.
-    pub linger_time: Option<Duration>,
+    /// Linger duration for ready records to send together as a batch.
+    pub linger: Option<Duration>,
 }
 
 impl Default for AppendRecordStreamOpts {
@@ -34,7 +34,7 @@ impl Default for AppendRecordStreamOpts {
             max_batch_size: ByteSize::mib(1),
             match_seq_num: None,
             fencing_token: None,
-            linger_time: None,
+            linger: None,
         }
     }
 }
@@ -78,19 +78,16 @@ impl AppendRecordStreamOpts {
     }
 
     /// Construct from existing options with the linger time.
-    pub fn with_linger_time(self, linger_time: impl Into<Duration>) -> Self {
+    pub fn with_linger(self, linger_duration: impl Into<Duration>) -> Self {
         Self {
-            linger_time: Some(linger_time.into()),
+            linger: Some(linger_duration.into()),
             ..self
         }
     }
 
-    fn new_linger_interval(&self) -> Option<Interval> {
-        self.linger_time.map(|duration| {
-            let mut int = tokio::time::interval(duration);
-            int.set_missed_tick_behavior(MissedTickBehavior::Delay);
-            int
-        })
+    fn linger_sleep_fut(&self) -> Option<Pin<Box<Sleep>>> {
+        self.linger
+            .map(|duration| Box::pin(tokio::time::sleep(duration)))
     }
 }
 
@@ -110,8 +107,7 @@ where
     stream: S,
     peeked_record: Option<types::AppendRecord>,
     terminated: bool,
-    linger_interval: Option<Interval>,
-    ignore_linger: bool,
+    linger_sleep: Option<Pin<Box<Sleep>>>,
     opts: AppendRecordStreamOpts,
 }
 
@@ -130,8 +126,7 @@ where
             stream,
             peeked_record: None,
             terminated: false,
-            linger_interval: opts.new_linger_interval(),
-            ignore_linger: false,
+            linger_sleep: opts.linger_sleep_fut(),
             opts,
         })
     }
@@ -165,17 +160,10 @@ where
             return Poll::Ready(None);
         }
 
-        // Only poll the interval if it shouldn't be ignored, else reset the
-        // flag and we can decide if we want to ignore later. This works since
-        // the linger interval has `MissedTickBehaviour::Delay`. So the moment
-        // we poll and it's ready, we'll get the next tick after the specified
-        // duration period as `linger_time`.
-        if self.ignore_linger {
-            self.ignore_linger = false;
-        } else if self
-            .linger_interval
+        if self
+            .linger_sleep
             .as_mut()
-            .is_some_and(|int| int.poll_tick(cx).is_pending())
+            .is_some_and(|fut| fut.poll_unpin(cx).is_pending())
         {
             return Poll::Pending;
         }
@@ -211,7 +199,7 @@ where
             } else {
                 // Since we don't have any batches to send, we want to ignore the linger
                 // interval for the next poll.
-                self.ignore_linger = true;
+                self.linger_sleep = None;
                 Poll::Pending
             }
         } else {
@@ -224,6 +212,9 @@ where
             if let Some(m) = self.opts.match_seq_num.as_mut() {
                 *m += batch.len() as u64
             }
+
+            // Reset the linger sleep future since the old one is polled ready.
+            self.linger_sleep = self.opts.linger_sleep_fut();
 
             Poll::Ready(Some(types::AppendInput {
                 records: batch,
