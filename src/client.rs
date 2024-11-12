@@ -242,7 +242,7 @@ impl Client {
     }
 
     #[cfg(feature = "connector")]
-    pub async fn connect_with_connector<U>(
+    pub async fn connect_with_connector<C>(
         config: ClientConfig,
         connector: U,
     ) -> Result<Self, ConnectError>
@@ -358,7 +358,7 @@ impl BasinClient {
     }
 
     #[cfg(feature = "connector")]
-    pub async fn connect_with_connector<U>(
+    pub async fn connect_with_connector<C>(
         config: ClientConfig,
         basin: impl Into<String>,
         connector: U,
@@ -467,7 +467,7 @@ impl StreamClient {
     }
 
     #[cfg(feature = "connector")]
-    pub async fn connect_with_connector<U>(
+    pub async fn connect_with_connector<C>(
         config: ClientConfig,
         basin: impl Into<String>,
         stream: impl Into<String>,
@@ -576,7 +576,7 @@ impl ClientInner {
     }
 
     #[cfg(feature = "connector")]
-    async fn connect_cell_with_connector<U>(
+    async fn connect_cell_with_connector<C>(
         config: ClientConfig,
         connector: U,
     ) -> Result<Self, ConnectError>
@@ -639,7 +639,7 @@ impl ClientInner {
     }
 
     #[cfg(feature = "connector")]
-    async fn connect_with_connector<U>(
+    async fn connect_with_connector<C>(
         config: ClientConfig,
         endpoint: Authority,
         connector: U,
