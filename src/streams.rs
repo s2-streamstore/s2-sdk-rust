@@ -48,7 +48,7 @@ impl AppendRecordStreamOpts {
     /// Construct from existing options with the new maximum batch records.
     pub fn with_max_batch_records(self, max_batch_records: usize) -> Self {
         Self {
-            max_batch_records: max_batch_records.into(),
+            max_batch_records,
             ..self
         }
     }
