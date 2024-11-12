@@ -244,7 +244,7 @@ impl Client {
     #[cfg(feature = "connector")]
     pub async fn connect_with_connector<C>(
         config: ClientConfig,
-        connector: U,
+        connector: C,
     ) -> Result<Self, ConnectError>
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
@@ -361,7 +361,7 @@ impl BasinClient {
     pub async fn connect_with_connector<C>(
         config: ClientConfig,
         basin: impl Into<String>,
-        connector: U,
+        connector: C,
     ) -> Result<Self, ConnectError>
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
@@ -471,7 +471,7 @@ impl StreamClient {
         config: ClientConfig,
         basin: impl Into<String>,
         stream: impl Into<String>,
-        connector: U,
+        connector: C,
     ) -> Result<Self, ConnectError>
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
@@ -578,7 +578,7 @@ impl ClientInner {
     #[cfg(feature = "connector")]
     async fn connect_cell_with_connector<C>(
         config: ClientConfig,
-        connector: U,
+        connector: C,
     ) -> Result<Self, ConnectError>
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
@@ -642,7 +642,7 @@ impl ClientInner {
     async fn connect_with_connector<C>(
         config: ClientConfig,
         endpoint: Authority,
-        connector: U,
+        connector: C,
     ) -> Result<Self, ConnectError>
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
