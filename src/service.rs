@@ -23,7 +23,7 @@ pub enum ServiceError<T: std::error::Error> {
     NotSupported(String),
     #[error("User not authenticated: {0}")]
     Unauthenticated(String),
-    #[error("Deadline exceeded: {0}")]
+    #[error("Unavailable: {0}")]
     Unavailable(String),
     #[error("Aborted: {0}")]
     Aborted(String),
@@ -35,7 +35,7 @@ pub enum ServiceError<T: std::error::Error> {
     Remote(T),
 }
 
-pub async fn send_request<T: ServiceRequest + std::fmt::Debug>(
+pub async fn send_request<T: ServiceRequest>(
     mut service: T,
     token: &SecretString,
     basin: Option<&str>,

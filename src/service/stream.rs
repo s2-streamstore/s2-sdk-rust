@@ -340,17 +340,6 @@ where
     req: Option<S>,
 }
 
-impl<S: Send + futures::Stream<Item = types::AppendInput> + Unpin> std::fmt::Debug
-    for AppendSessionServiceRequest<S>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AppendSessionServiceRequest")
-            .field("client", &self.client)
-            .field("stream", &self.stream)
-            .finish()
-    }
-}
-
 impl<S> AppendSessionServiceRequest<S>
 where
     S: Send + futures::Stream<Item = types::AppendInput> + Unpin,

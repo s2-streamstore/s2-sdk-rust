@@ -667,14 +667,14 @@ impl ClientInner {
         })
     }
 
-    async fn send<T: ServiceRequest + std::fmt::Debug>(
+    async fn send<T: ServiceRequest>(
         &self,
         service_req: T,
     ) -> Result<T::Response, ServiceError<T::Error>> {
         send_request(service_req, &self.config.token, self.basin.as_deref()).await
     }
 
-    async fn send_retryable<T: RetryableRequest + std::fmt::Debug>(
+    async fn send_retryable<T: RetryableRequest>(
         &self,
         service_req: T,
     ) -> Result<T::Response, ServiceError<T::Error>> {
