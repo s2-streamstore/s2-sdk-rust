@@ -23,7 +23,7 @@ async fn main() {
 
     println!("Connecting with {config:#?}");
 
-    let client = Client::connect(config).unwrap();
+    let client = Client::new(config).unwrap();
 
     let basin = "s2-sdk-example-basin";
 

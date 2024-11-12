@@ -214,17 +214,17 @@ pub struct Client {
 }
 
 impl Client {
-    /// Connect the client with the S2 API.
-    pub fn connect(config: ClientConfig) -> Result<Self, ConnectError> {
+    /// Create the client to connect with the S2 API.
+    pub fn new(config: ClientConfig) -> Result<Self, ClientError> {
         Ok(Self {
-            inner: ClientInner::connect_cell(config)?,
+            inner: ClientInner::new_cell(config)?,
         })
     }
 
     /// Get the client to interact with the S2 basin service API.
-    pub fn basin_client(&self, basin: impl Into<String>) -> Result<BasinClient, ConnectError> {
+    pub fn basin_client(&self, basin: impl Into<String>) -> Result<BasinClient, ClientError> {
         Ok(BasinClient {
-            inner: self.inner.connect_basin(basin)?,
+            inner: self.inner.new_basin(basin)?,
         })
     }
 
@@ -301,9 +301,9 @@ pub struct BasinClient {
 }
 
 impl BasinClient {
-    /// Connect the client with the S2 basin service API.
-    pub fn connect(config: ClientConfig, basin: impl Into<String>) -> Result<Self, ConnectError> {
-        let client = Client::connect(config)?;
+    /// Create the client to connect with the S2 basin service API.
+    pub fn new(config: ClientConfig, basin: impl Into<String>) -> Result<Self, ClientError> {
+        let client = Client::new(config)?;
         client.basin_client(basin)
     }
 
@@ -389,13 +389,13 @@ pub struct StreamClient {
 }
 
 impl StreamClient {
-    /// Connect the client with the S2 stream service API.
-    pub async fn connect(
+    /// Create the client to connect with the S2 stream service API.
+    pub async fn new(
         config: ClientConfig,
         basin: impl Into<String>,
         stream: impl Into<String>,
-    ) -> Result<Self, ConnectError> {
-        BasinClient::connect(config, basin).map(|client| client.stream_client(stream))
+    ) -> Result<Self, ClientError> {
+        BasinClient::new(config, basin).map(|client| client.stream_client(stream))
     }
 
     #[sync_docs]
@@ -481,18 +481,18 @@ struct ClientInner {
 }
 
 impl ClientInner {
-    fn connect_cell(config: ClientConfig) -> Result<Self, ConnectError> {
+    fn new_cell(config: ClientConfig) -> Result<Self, ClientError> {
         let cell_endpoint = config.host_endpoint.cell.clone();
-        Self::connect(config, cell_endpoint)
+        Self::new(config, cell_endpoint)
     }
 
-    fn connect_basin(&self, basin: impl Into<String>) -> Result<Self, ConnectError> {
+    fn new_basin(&self, basin: impl Into<String>) -> Result<Self, ClientError> {
         let basin = basin.into();
 
         match self.config.host_endpoint.basin_zone.clone() {
             Some(endpoint) => {
                 let basin_endpoint: Authority = format!("{basin}.{endpoint}").parse()?;
-                ClientInner::connect(self.config.clone(), basin_endpoint)
+                ClientInner::new(self.config.clone(), basin_endpoint)
             }
             None => Ok(Self {
                 basin: Some(basin),
@@ -501,7 +501,7 @@ impl ClientInner {
         }
     }
 
-    fn connect(config: ClientConfig, endpoint: Authority) -> Result<Self, ConnectError> {
+    fn new(config: ClientConfig, endpoint: Authority) -> Result<Self, ClientError> {
         let endpoint = format!("https://{endpoint}")
             .parse::<Endpoint>()?
             .user_agent(config.user_agent.clone())?
@@ -554,7 +554,7 @@ impl ClientInner {
 
 /// Error connecting to S2 endpoint.
 #[derive(Debug, thiserror::Error)]
-pub enum ConnectError {
+pub enum ClientError {
     #[error(transparent)]
     TonicTransportError(#[from] tonic::transport::Error),
     #[error(transparent)]
