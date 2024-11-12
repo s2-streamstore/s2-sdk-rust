@@ -247,10 +247,10 @@ impl Client {
         connector: U,
     ) -> Result<Self, ConnectError>
     where
-        U: tower_service::Service<http::Uri> + Send + 'static,
-        U::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
-        U::Future: Send,
-        U::Error: std::error::Error + Send + Sync + 'static,
+        C: tower_service::Service<http::Uri> + Send + 'static,
+        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        C::Future: Send,
+        C::Error: std::error::Error + Send + Sync + 'static,
     {
         Ok(Self {
             inner: ClientInner::connect_cell_with_connector(config, connector).await?,
@@ -364,10 +364,10 @@ impl BasinClient {
         connector: U,
     ) -> Result<Self, ConnectError>
     where
-        U: tower_service::Service<http::Uri> + Send + 'static,
-        U::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
-        U::Future: Send,
-        U::Error: std::error::Error + Send + Sync + 'static,
+        C: tower_service::Service<http::Uri> + Send + 'static,
+        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        C::Future: Send,
+        C::Error: std::error::Error + Send + Sync + 'static,
     {
         let client = Client::connect_with_connector(config, connector).await?;
         client.basin_client(basin).await
@@ -474,10 +474,10 @@ impl StreamClient {
         connector: U,
     ) -> Result<Self, ConnectError>
     where
-        U: tower_service::Service<http::Uri> + Send + 'static,
-        U::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
-        U::Future: Send,
-        U::Error: std::error::Error + Send + Sync + 'static,
+        C: tower_service::Service<http::Uri> + Send + 'static,
+        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        C::Future: Send,
+        C::Error: std::error::Error + Send + Sync + 'static,
     {
         BasinClient::connect_with_connector(config, basin, connector)
             .await
@@ -581,10 +581,10 @@ impl ClientInner {
         connector: U,
     ) -> Result<Self, ConnectError>
     where
-        U: tower_service::Service<http::Uri> + Send + 'static,
-        U::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
-        U::Future: Send,
-        U::Error: std::error::Error + Send + Sync + 'static,
+        C: tower_service::Service<http::Uri> + Send + 'static,
+        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        C::Future: Send,
+        C::Error: std::error::Error + Send + Sync + 'static,
     {
         let cell_endpoint = config.host_endpoint.cell.clone();
         Self::connect_with_connector(config, cell_endpoint, connector).await
@@ -645,10 +645,10 @@ impl ClientInner {
         connector: U,
     ) -> Result<Self, ConnectError>
     where
-        U: tower_service::Service<http::Uri> + Send + 'static,
-        U::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
-        U::Future: Send,
-        U::Error: std::error::Error + Send + Sync + 'static,
+        C: tower_service::Service<http::Uri> + Send + 'static,
+        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        C::Future: Send,
+        C::Error: std::error::Error + Send + Sync + 'static,
     {
         let endpoint = format!("http://{endpoint}")
             .parse::<Endpoint>()?
