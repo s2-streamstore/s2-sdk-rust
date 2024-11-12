@@ -171,7 +171,7 @@ impl ClientConfig {
             token: token.into().into(),
             host_endpoint: HostEndpoints::default(),
             connect_lazily: true,
-            connection_timeout: Duration::from_secs(10),
+            connection_timeout: Duration::from_secs(3),
             request_timeout: Duration::from_secs(5),
             user_agent: "s2-sdk-rust".to_string(),
         }
@@ -659,7 +659,7 @@ impl ClientInner {
             .connect_timeout(config.connection_timeout)
             .timeout(config.request_timeout);
 
-        let channel = endpoint.connect_with_connector(connector).await.unwrap();
+        let channel = endpoint.connect_with_connector(connector).await?;
         Ok(Self {
             channel,
             basin: None,
