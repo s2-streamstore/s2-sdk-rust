@@ -145,16 +145,6 @@ impl HostEndpoints {
     }
 }
 
-/// Mode of conneccting - eagerly or lazily.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum ConnectionMode {
-    /// Connection made on the very first request.
-    #[default]
-    Lazy,
-    /// Connection made immediately.
-    Eager,
-}
-
 /// Client configuration to be used to connect with the host.
 #[derive(Debug, Clone)]
 pub struct ClientConfig {
@@ -162,9 +152,6 @@ pub struct ClientConfig {
     pub token: SecretString,
     /// Host URI to connect with.
     pub host_endpoint: HostEndpoints,
-    /// Should the connection be lazy, i.e., only be made when making the very
-    /// first request.
-    pub connection_mode: ConnectionMode,
     /// Timeout for connecting/reconnecting.
     pub connection_timeout: Duration,
     /// Timeout for a particular request.
@@ -180,7 +167,6 @@ impl ClientConfig {
         Self {
             token: token.into().into(),
             host_endpoint: HostEndpoints::default(),
-            connection_mode: ConnectionMode::default(),
             connection_timeout: Duration::from_secs(3),
             request_timeout: Duration::from_secs(5),
             user_agent: "s2-sdk-rust".to_string(),
@@ -191,14 +177,6 @@ impl ClientConfig {
     pub fn with_host_endpoint(self, host_endpoint: impl Into<HostEndpoints>) -> Self {
         Self {
             host_endpoint: host_endpoint.into(),
-            ..self
-        }
-    }
-
-    /// Construct from an existing configuration with the new connection mode.
-    pub fn with_connection_mode(self, connection_mode: ConnectionMode) -> Self {
-        Self {
-            connection_mode,
             ..self
         }
     }
@@ -236,30 +214,17 @@ pub struct Client {
 }
 
 impl Client {
-    async fn connect_inner(
-        config: ClientConfig,
-        force_lazy_connection: bool,
-    ) -> Result<Self, ConnectError> {
+    /// Connect the client with the S2 API.
+    pub fn connect(config: ClientConfig) -> Result<Self, ConnectError> {
         Ok(Self {
-            inner: ClientInner::connect_cell(config, force_lazy_connection).await?,
+            inner: ClientInner::connect_cell(config)?,
         })
     }
 
-    /// Connect the client with the S2 API.
-    pub async fn connect(config: ClientConfig) -> Result<Self, ConnectError> {
-        Self::connect_inner(config, /* force_lazy_connection = */ false).await
-    }
-
     /// Get the client to interact with the S2 basin service API.
-    pub async fn basin_client(
-        &self,
-        basin: impl Into<String>,
-    ) -> Result<BasinClient, ConnectError> {
+    pub fn basin_client(&self, basin: impl Into<String>) -> Result<BasinClient, ConnectError> {
         Ok(BasinClient {
-            inner: self
-                .inner
-                .connect_basin(basin, /* force_lazy_connection = */ false)
-                .await?,
+            inner: self.inner.connect_basin(basin)?,
         })
     }
 
@@ -337,17 +302,9 @@ pub struct BasinClient {
 
 impl BasinClient {
     /// Connect the client with the S2 basin service API.
-    pub async fn connect(
-        config: ClientConfig,
-        basin: impl Into<String>,
-    ) -> Result<Self, ConnectError> {
-        // Since we're directly trying to connect to the basin, force lazy
-        // connection with the global client so we don't end up making 2
-        // connections for connecting with the basin client directly (given the
-        // cell URI and global URIs are different).
-        let force_lazy_connection = config.host_endpoint.basin_zone.is_some();
-        let client = Client::connect_inner(config, force_lazy_connection).await?;
-        client.basin_client(basin).await
+    pub fn connect(config: ClientConfig, basin: impl Into<String>) -> Result<Self, ConnectError> {
+        let client = Client::connect(config)?;
+        client.basin_client(basin)
     }
 
     /// Get the client to interact with the S2 stream service API.
@@ -438,9 +395,7 @@ impl StreamClient {
         basin: impl Into<String>,
         stream: impl Into<String>,
     ) -> Result<Self, ConnectError> {
-        BasinClient::connect(config, basin)
-            .await
-            .map(|client| client.stream_client(stream))
+        BasinClient::connect(config, basin).map(|client| client.stream_client(stream))
     }
 
     #[sync_docs]
@@ -526,26 +481,18 @@ struct ClientInner {
 }
 
 impl ClientInner {
-    async fn connect_cell(
-        config: ClientConfig,
-        force_lazy_connection: bool,
-    ) -> Result<Self, ConnectError> {
+    fn connect_cell(config: ClientConfig) -> Result<Self, ConnectError> {
         let cell_endpoint = config.host_endpoint.cell.clone();
-        Self::connect(config, cell_endpoint, force_lazy_connection).await
+        Self::connect(config, cell_endpoint)
     }
 
-    async fn connect_basin(
-        &self,
-        basin: impl Into<String>,
-        force_lazy_connection: bool,
-    ) -> Result<Self, ConnectError> {
+    fn connect_basin(&self, basin: impl Into<String>) -> Result<Self, ConnectError> {
         let basin = basin.into();
 
         match self.config.host_endpoint.basin_zone.clone() {
             Some(endpoint) => {
                 let basin_endpoint: Authority = format!("{basin}.{endpoint}").parse()?;
-                ClientInner::connect(self.config.clone(), basin_endpoint, force_lazy_connection)
-                    .await
+                ClientInner::connect(self.config.clone(), basin_endpoint)
             }
             None => Ok(Self {
                 basin: Some(basin),
@@ -554,11 +501,7 @@ impl ClientInner {
         }
     }
 
-    async fn connect(
-        config: ClientConfig,
-        endpoint: Authority,
-        force_lazy_connection: bool,
-    ) -> Result<Self, ConnectError> {
+    fn connect(config: ClientConfig, endpoint: Authority) -> Result<Self, ConnectError> {
         let endpoint = format!("https://{endpoint}")
             .parse::<Endpoint>()?
             .user_agent(config.user_agent.clone())?
@@ -570,13 +513,8 @@ impl ClientInner {
             )?
             .connect_timeout(config.connection_timeout)
             .timeout(config.request_timeout);
-        let channel = if config.connection_mode == ConnectionMode::Lazy || force_lazy_connection {
-            endpoint.connect_lazy()
-        } else {
-            endpoint.connect().await?
-        };
         Ok(Self {
-            channel,
+            channel: endpoint.connect_lazy(),
             basin: None,
             config,
         })

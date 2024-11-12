@@ -23,7 +23,7 @@ async fn main() {
 
     println!("Connecting with {config:#?}");
 
-    let client = Client::connect(config).await.unwrap();
+    let client = Client::connect(config).unwrap();
 
     let basin = "s2-sdk-example-basin";
 
@@ -67,7 +67,7 @@ async fn main() {
 
     let create_stream_req = CreateStreamRequest::new(stream);
 
-    let basin_client = client.basin_client(basin).await.unwrap();
+    let basin_client = client.basin_client(basin).unwrap();
 
     match basin_client.create_stream(create_stream_req).await {
         Ok(()) => {
