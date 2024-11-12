@@ -145,25 +145,9 @@ impl HostEndpoints {
     }
 }
 
-#[cfg(not(feature = "connector"))]
-#[doc(hidden)]
-macro_rules! generic {
-    ($b:tt, $t:ty) => {
-        $b
-    };
-}
-
-#[cfg(feature = "connector")]
-#[doc(hidden)]
-macro_rules! generic {
-    ($b:tt, $t:ty) => {
-        $b<$t>
-    };
-}
-
 /// Client configuration to be used to connect with the host.
 #[derive(Debug, Clone)]
-pub struct ClientConfig<#[cfg(feature = "connector")] U> {
+pub struct ClientConfig {
     /// Auth token for the client.
     pub token: SecretString,
     /// Host URI to connect with.
@@ -177,21 +161,9 @@ pub struct ClientConfig<#[cfg(feature = "connector")] U> {
     pub request_timeout: Duration,
     /// User agent to be used for the client.
     pub user_agent: String,
-    #[cfg(feature = "connector")]
-    /// Connect with a custom connector.
-    pub connector: Option<U>,
 }
 
-impl<
-        #[cfg(feature = "connector")] U: tower_service::Service<
-                http::Uri,
-                Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
-                Error: Into<Box<dyn std::error::Error + Send + Sync>>,
-                Future: Send + 'static,
-            > + Send
-            + 'static,
-    > generic!(ClientConfig, U)
-{
+impl ClientConfig {
     /// Construct a new client configuration with given auth token and other
     /// defaults.
     pub fn new(token: impl Into<String>) -> Self {
@@ -199,11 +171,9 @@ impl<
             token: token.into().into(),
             host_endpoint: HostEndpoints::default(),
             connect_lazily: true,
-            connection_timeout: Duration::from_secs(3),
+            connection_timeout: Duration::from_secs(10),
             request_timeout: Duration::from_secs(5),
             user_agent: "s2-sdk-rust".to_string(),
-            #[cfg(feature = "connector")]
-            connector: None,
         }
     }
 
@@ -248,29 +218,17 @@ impl<
             ..self
         }
     }
-
-    #[cfg(feature = "connector")]
-    pub fn with_connector(self, connector: U) -> Self {
-        Self {
-            connector: Some(connector),
-            ..self
-        }
-    }
 }
 
 /// The S2 client to interact with the API.
 #[derive(Debug, Clone)]
-pub struct Client<#[cfg(feature = "connector")] U: Clone> {
-    #[cfg(feature = "connector")]
-    inner: ClientInner<U>,
-    #[cfg(not(feature = "connector"))]
+pub struct Client {
     inner: ClientInner,
 }
 
-impl<#[cfg(feature = "connector")] U: Clone> generic!(Client, U) {
+impl Client {
     async fn connect_inner(
-        #[cfg(feature = "connector")] config: ClientConfig<U>,
-        #[cfg(not(feature = "connector"))] config: ClientConfig,
+        config: ClientConfig,
         force_lazy_connection: bool,
     ) -> Result<Self, ConnectError> {
         Ok(Self {
@@ -279,18 +237,31 @@ impl<#[cfg(feature = "connector")] U: Clone> generic!(Client, U) {
     }
 
     /// Connect the client with the S2 API.
-    pub async fn connect(
-        #[cfg(feature = "connector")] config: ClientConfig<U>,
-        #[cfg(not(feature = "connector"))] config: ClientConfig,
-    ) -> Result<Self, ConnectError> {
+    pub async fn connect(config: ClientConfig) -> Result<Self, ConnectError> {
         Self::connect_inner(config, /* force_lazy_connection = */ false).await
+    }
+
+    #[cfg(feature = "connector")]
+    pub async fn connect_with_connector<U>(
+        config: ClientConfig,
+        connector: U,
+    ) -> Result<Self, ConnectError>
+    where
+        U: tower_service::Service<http::Uri> + Send + 'static,
+        U::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        U::Future: Send,
+        U::Error: std::error::Error + Send + Sync + 'static,
+    {
+        Ok(Self {
+            inner: ClientInner::connect_cell_with_connector(config, connector).await?,
+        })
     }
 
     /// Get the client to interact with the S2 basin service API.
     pub async fn basin_client(
         &self,
         basin: impl Into<String>,
-    ) -> Result<generic!(BasinClient, U), ConnectError> {
+    ) -> Result<BasinClient, ConnectError> {
         Ok(BasinClient {
             inner: self
                 .inner
@@ -367,18 +338,14 @@ impl<#[cfg(feature = "connector")] U: Clone> generic!(Client, U) {
 
 /// Client to interact with the S2 basin service API.
 #[derive(Debug, Clone)]
-pub struct BasinClient<#[cfg(feature = "connector")] U: Clone> {
-    #[cfg(feature = "connector")]
-    inner: ClientInner<U>,
-    #[cfg(not(feature = "connector"))]
+pub struct BasinClient {
     inner: ClientInner,
 }
 
-impl<#[cfg(feature = "connector")] U: Clone> generic!(BasinClient, U) {
+impl BasinClient {
     /// Connect the client with the S2 basin service API.
     pub async fn connect(
-        #[cfg(feature = "connector")] config: ClientConfig<U>,
-        #[cfg(not(feature = "connector"))] config: ClientConfig,
+        config: ClientConfig,
         basin: impl Into<String>,
     ) -> Result<Self, ConnectError> {
         // Since we're directly trying to connect to the basin, force lazy
@@ -390,8 +357,24 @@ impl<#[cfg(feature = "connector")] U: Clone> generic!(BasinClient, U) {
         client.basin_client(basin).await
     }
 
+    #[cfg(feature = "connector")]
+    pub async fn connect_with_connector<U>(
+        config: ClientConfig,
+        basin: impl Into<String>,
+        connector: U,
+    ) -> Result<Self, ConnectError>
+    where
+        U: tower_service::Service<http::Uri> + Send + 'static,
+        U::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        U::Future: Send,
+        U::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let client = Client::connect_with_connector(config, connector).await?;
+        client.basin_client(basin).await
+    }
+
     /// Get the client to interact with the S2 stream service API.
-    pub fn stream_client(&self, stream: impl Into<String>) -> generic!(StreamClient, U) {
+    pub fn stream_client(&self, stream: impl Into<String>) -> StreamClient {
         StreamClient {
             inner: self.inner.clone(),
             stream: stream.into(),
@@ -466,23 +449,37 @@ impl<#[cfg(feature = "connector")] U: Clone> generic!(BasinClient, U) {
 
 /// Client to interact with the S2 stream service API.
 #[derive(Debug, Clone)]
-pub struct StreamClient<#[cfg(feature = "connector")] U: Clone> {
-    #[cfg(feature = "connector")]
-    inner: ClientInner<U>,
-    #[cfg(not(feature = "connector"))]
+pub struct StreamClient {
     inner: ClientInner,
     stream: String,
 }
 
-impl<#[cfg(feature = "connector")] U: Clone> generic!(StreamClient, U) {
+impl StreamClient {
     /// Connect the client with the S2 stream service API.
     pub async fn connect(
-        #[cfg(feature = "connector")] config: ClientConfig<U>,
-        #[cfg(not(feature = "connector"))] config: ClientConfig,
+        config: ClientConfig,
         basin: impl Into<String>,
         stream: impl Into<String>,
     ) -> Result<Self, ConnectError> {
         BasinClient::connect(config, basin)
+            .await
+            .map(|client| client.stream_client(stream))
+    }
+
+    #[cfg(feature = "connector")]
+    pub async fn connect_with_connector<U>(
+        config: ClientConfig,
+        basin: impl Into<String>,
+        stream: impl Into<String>,
+        connector: U,
+    ) -> Result<Self, ConnectError>
+    where
+        U: tower_service::Service<http::Uri> + Send + 'static,
+        U::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        U::Future: Send,
+        U::Error: std::error::Error + Send + Sync + 'static,
+    {
+        BasinClient::connect_with_connector(config, basin, connector)
             .await
             .map(|client| client.stream_client(stream))
     }
@@ -563,24 +560,34 @@ impl<#[cfg(feature = "connector")] U: Clone> generic!(StreamClient, U) {
 }
 
 #[derive(Debug, Clone)]
-struct ClientInner<#[cfg(feature = "connector")] U: Clone> {
+struct ClientInner {
     channel: Channel,
     basin: Option<String>,
-
-    #[cfg(feature = "connector")]
-    config: ClientConfig<U>,
-    #[cfg(not(feature = "connector"))]
     config: ClientConfig,
 }
 
-impl<#[cfg(feature = "connector")] U: Clone> generic!(ClientInner, U) {
+impl ClientInner {
     async fn connect_cell(
-        #[cfg(feature = "connector")] config: ClientConfig<U>,
-        #[cfg(not(feature = "connector"))] config: ClientConfig,
+        config: ClientConfig,
         force_lazy_connection: bool,
     ) -> Result<Self, ConnectError> {
         let cell_endpoint = config.host_endpoint.cell.clone();
         Self::connect(config, cell_endpoint, force_lazy_connection).await
+    }
+
+    #[cfg(feature = "connector")]
+    async fn connect_cell_with_connector<U>(
+        config: ClientConfig,
+        connector: U,
+    ) -> Result<Self, ConnectError>
+    where
+        U: tower_service::Service<http::Uri> + Send + 'static,
+        U::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        U::Future: Send,
+        U::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let cell_endpoint = config.host_endpoint.cell.clone();
+        Self::connect_with_connector(config, cell_endpoint, connector).await
     }
 
     async fn connect_basin(
@@ -604,8 +611,7 @@ impl<#[cfg(feature = "connector")] U: Clone> generic!(ClientInner, U) {
     }
 
     async fn connect(
-        #[cfg(feature = "connector")] config: ClientConfig<U>,
-        #[cfg(not(feature = "connector"))] config: ClientConfig,
+        config: ClientConfig,
         endpoint: Authority,
         force_lazy_connection: bool,
     ) -> Result<Self, ConnectError> {
@@ -632,14 +638,43 @@ impl<#[cfg(feature = "connector")] U: Clone> generic!(ClientInner, U) {
         })
     }
 
-    async fn send<T: ServiceRequest>(
+    #[cfg(feature = "connector")]
+    async fn connect_with_connector<U>(
+        config: ClientConfig,
+        endpoint: Authority,
+        connector: U,
+    ) -> Result<Self, ConnectError>
+    where
+        U: tower_service::Service<http::Uri> + Send + 'static,
+        U::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        U::Future: Send,
+        U::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let endpoint = format!("http://{endpoint}")
+            .parse::<Endpoint>()?
+            .user_agent(config.user_agent.clone())?
+            .http2_adaptive_window(true)
+            .keep_alive_timeout(Duration::from_secs(5))
+            .http2_keep_alive_interval(Duration::from_secs(5))
+            .connect_timeout(config.connection_timeout)
+            .timeout(config.request_timeout);
+
+        let channel = endpoint.connect_with_connector(connector).await.unwrap();
+        Ok(Self {
+            channel,
+            basin: None,
+            config,
+        })
+    }
+
+    async fn send<T: ServiceRequest + std::fmt::Debug>(
         &self,
         service_req: T,
     ) -> Result<T::Response, ServiceError<T::Error>> {
         send_request(service_req, &self.config.token, self.basin.as_deref()).await
     }
 
-    async fn send_retryable<T: RetryableRequest>(
+    async fn send_retryable<T: RetryableRequest + std::fmt::Debug>(
         &self,
         service_req: T,
     ) -> Result<T::Response, ServiceError<T::Error>> {

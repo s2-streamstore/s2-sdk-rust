@@ -33,4 +33,3 @@ tokio = { version = "*", features = ["full"] }
 [features]
 serde = ["dep:serde"]
 connector = ["dep:hyper", "dep:hyper-util", "dep:tower-service"]
-

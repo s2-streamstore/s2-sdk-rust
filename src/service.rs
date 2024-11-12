@@ -23,21 +23,24 @@ pub enum ServiceError<T: std::error::Error> {
     NotSupported(String),
     #[error("User not authenticated: {0}")]
     Unauthenticated(String),
-    #[error("Unavailable: {0}")]
+    #[error("Deadline exceeded: {0}")]
     Unavailable(String),
+    #[error("Aborted: {0}")]
+    Aborted(String),
+    #[error("Cancelled: {0}")]
+    Cancelled(String),
     #[error("{0}")]
     Unknown(String),
     #[error(transparent)]
     Remote(T),
 }
 
-pub async fn send_request<T: ServiceRequest>(
+pub async fn send_request<T: ServiceRequest + std::fmt::Debug>(
     mut service: T,
     token: &SecretString,
     basin: Option<&str>,
 ) -> Result<T::Response, ServiceError<T::Error>> {
     let req = prepare_request(&mut service, token, basin).map_err(ServiceError::Convert)?;
-
     match service.send(req).await {
         Ok(resp) => service.parse_response(resp).map_err(ServiceError::Convert),
         Err(status) => match status.code() {
@@ -51,6 +54,8 @@ pub async fn send_request<T: ServiceRequest>(
             tonic::Code::Unavailable => {
                 Err(ServiceError::Unavailable(status.message().to_string()))
             }
+            tonic::Code::Aborted => Err(ServiceError::Aborted(status.message().to_string())),
+            tonic::Code::Cancelled => Err(ServiceError::Cancelled(status.message().to_string())),
             _ => match service.parse_status(&status) {
                 Ok(resp) => Ok(resp),
                 Err(None) => Err(ServiceError::Unknown(status.message().to_string())),
