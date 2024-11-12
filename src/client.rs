@@ -52,7 +52,7 @@ pub enum HostCloud {
 }
 
 impl HostCloud {
-    const AWS: &str = "aws";
+    const AWS: &'static str = "aws";
 
     fn as_str(&self) -> &'static str {
         match self {

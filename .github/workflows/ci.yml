@@ -54,5 +54,7 @@ jobs:
         run: cargo doc --workspace --all-features --no-deps --document-private-items
       - name: check formatting
         run: cargo fmt --all -- --check
+      - name: check clippy
+        run: cargo clippy --workspace --all-features --all-targets -- -D warnings --allow deprecated
       - name: check Cargo.toml sorting
         run: cargo sort --workspace --check
