@@ -241,6 +241,22 @@ impl Client {
         Self::connect_inner(config, /* force_lazy_connection = */ false).await
     }
 
+    #[cfg(feature = "connector")]
+    pub async fn connect_with_connector<C>(
+        config: ClientConfig,
+        connector: C,
+    ) -> Result<Self, ConnectError>
+    where
+        C: tower_service::Service<http::Uri> + Send + 'static,
+        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        C::Future: Send,
+        C::Error: std::error::Error + Send + Sync + 'static,
+    {
+        Ok(Self {
+            inner: ClientInner::connect_cell_with_connector(config, connector).await?,
+        })
+    }
+
     /// Get the client to interact with the S2 basin service API.
     pub async fn basin_client(
         &self,
@@ -341,6 +357,22 @@ impl BasinClient {
         client.basin_client(basin).await
     }
 
+    #[cfg(feature = "connector")]
+    pub async fn connect_with_connector<C>(
+        config: ClientConfig,
+        basin: impl Into<String>,
+        connector: C,
+    ) -> Result<Self, ConnectError>
+    where
+        C: tower_service::Service<http::Uri> + Send + 'static,
+        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        C::Future: Send,
+        C::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let client = Client::connect_with_connector(config, connector).await?;
+        client.basin_client(basin).await
+    }
+
     /// Get the client to interact with the S2 stream service API.
     pub fn stream_client(&self, stream: impl Into<String>) -> StreamClient {
         StreamClient {
@@ -430,6 +462,24 @@ impl StreamClient {
         stream: impl Into<String>,
     ) -> Result<Self, ConnectError> {
         BasinClient::connect(config, basin)
+            .await
+            .map(|client| client.stream_client(stream))
+    }
+
+    #[cfg(feature = "connector")]
+    pub async fn connect_with_connector<C>(
+        config: ClientConfig,
+        basin: impl Into<String>,
+        stream: impl Into<String>,
+        connector: C,
+    ) -> Result<Self, ConnectError>
+    where
+        C: tower_service::Service<http::Uri> + Send + 'static,
+        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        C::Future: Send,
+        C::Error: std::error::Error + Send + Sync + 'static,
+    {
+        BasinClient::connect_with_connector(config, basin, connector)
             .await
             .map(|client| client.stream_client(stream))
     }
@@ -525,6 +575,21 @@ impl ClientInner {
         Self::connect(config, cell_endpoint, force_lazy_connection).await
     }
 
+    #[cfg(feature = "connector")]
+    async fn connect_cell_with_connector<C>(
+        config: ClientConfig,
+        connector: C,
+    ) -> Result<Self, ConnectError>
+    where
+        C: tower_service::Service<http::Uri> + Send + 'static,
+        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        C::Future: Send,
+        C::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let cell_endpoint = config.host_endpoint.cell.clone();
+        Self::connect_with_connector(config, cell_endpoint, connector).await
+    }
+
     async fn connect_basin(
         &self,
         basin: impl Into<String>,
@@ -566,6 +631,35 @@ impl ClientInner {
         } else {
             endpoint.connect().await?
         };
+        Ok(Self {
+            channel,
+            basin: None,
+            config,
+        })
+    }
+
+    #[cfg(feature = "connector")]
+    async fn connect_with_connector<C>(
+        config: ClientConfig,
+        endpoint: Authority,
+        connector: C,
+    ) -> Result<Self, ConnectError>
+    where
+        C: tower_service::Service<http::Uri> + Send + 'static,
+        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        C::Future: Send,
+        C::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let endpoint = format!("http://{endpoint}")
+            .parse::<Endpoint>()?
+            .user_agent(config.user_agent.clone())?
+            .http2_adaptive_window(true)
+            .keep_alive_timeout(Duration::from_secs(5))
+            .http2_keep_alive_interval(Duration::from_secs(5))
+            .connect_timeout(config.connection_timeout)
+            .timeout(config.request_timeout);
+
+        let channel = endpoint.connect_with_connector(connector).await?;
         Ok(Self {
             channel,
             basin: None,

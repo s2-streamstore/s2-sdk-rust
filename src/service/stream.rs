@@ -119,6 +119,9 @@ impl ServiceRequest for ReadServiceRequest {
             tonic::Code::InvalidArgument => {
                 Some(ReadError::InvalidArgument(status.message().to_string()))
             }
+            tonic::Code::DeadlineExceeded => {
+                Some(ReadError::DeadlineExceeded(status.message().to_string()))
+            }
             _ => None,
         })
     }
@@ -141,6 +144,8 @@ pub enum ReadError {
     NotFound(String),
     #[error("Invalid argument: {0}")]
     InvalidArgument(String),
+    #[error("Deadline exceeded: {0}")]
+    DeadlineExceeded(String),
 }
 
 #[derive(Debug, Clone)]
@@ -191,6 +196,9 @@ impl ServiceRequest for ReadSessionServiceRequest {
             tonic::Code::InvalidArgument => Some(ReadSessionError::InvalidArgument(
                 status.message().to_string(),
             )),
+            tonic::Code::DeadlineExceeded => Some(ReadSessionError::DeadlineExceeded(
+                status.message().to_string(),
+            )),
             _ => None,
         })
     }
@@ -230,6 +238,9 @@ impl StreamingResponse for ReadSessionStreamingResponse {
             tonic::Code::InvalidArgument => Some(ReadSessionError::InvalidArgument(
                 status.message().to_string(),
             )),
+            tonic::Code::DeadlineExceeded => Some(ReadSessionError::DeadlineExceeded(
+                status.message().to_string(),
+            )),
             _ => None,
         })
     }
@@ -241,6 +252,8 @@ pub enum ReadSessionError {
     NotFound(String),
     #[error("Invalid argument: {0}")]
     InvalidArgument(String),
+    #[error("Deadline exceeded: {0}")]
+    DeadlineExceeded(String),
 }
 
 #[derive(Debug, Clone)]
@@ -291,6 +304,9 @@ impl ServiceRequest for AppendServiceRequest {
                 Some(AppendError::InvalidArgument(status.message().to_string()))
             }
             tonic::Code::Aborted => Some(AppendError::Aborted(status.message().to_string())),
+            tonic::Code::FailedPrecondition => Some(AppendError::FailedPrecondition(
+                status.message().to_string(),
+            )),
             _ => None,
         })
     }
@@ -311,6 +327,8 @@ pub enum AppendError {
     InvalidArgument(String),
     #[error("Aborted: {0}")]
     Aborted(String),
+    #[error("Failed precondition: {0}")]
+    FailedPrecondition(String),
 }
 
 pub struct AppendSessionServiceRequest<S>
@@ -368,6 +386,9 @@ where
                 Some(AppendSessionError::NotFound(status.message().to_string()))
             }
             tonic::Code::InvalidArgument => Some(AppendSessionError::InvalidArgument(
+                status.message().to_string(),
+            )),
+            tonic::Code::DeadlineExceeded => Some(AppendSessionError::DeadlineExceeded(
                 status.message().to_string(),
             )),
             _ => None,
@@ -430,6 +451,9 @@ impl StreamingResponse for AppendSessionStreamingResponse {
             tonic::Code::InvalidArgument => Some(AppendSessionError::InvalidArgument(
                 status.message().to_string(),
             )),
+            tonic::Code::DeadlineExceeded => Some(AppendSessionError::DeadlineExceeded(
+                status.message().to_string(),
+            )),
             _ => None,
         })
     }
@@ -441,4 +465,6 @@ pub enum AppendSessionError {
     NotFound(String),
     #[error("Invalid argument: {0}")]
     InvalidArgument(String),
+    #[error("Deadline exceeded: {0}")]
+    DeadlineExceeded(String),
 }
