@@ -215,7 +215,7 @@ pub trait StreamingResponse: Unpin {
     fn parse_response_item_status(
         &self,
         status: &tonic::Status,
-    ) -> Result<Self::ResponseItem, Option<Self::Error>>;
+    ) -> Result<Option<Self::ResponseItem>, Option<Self::Error>>;
 }
 
 pub struct ServiceStreamingResponse<S: StreamingResponse> {
@@ -236,34 +236,35 @@ impl<S: StreamingResponse> futures::Stream for ServiceStreamingResponse<S> {
         match self.stream.poll_next_unpin(cx) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(None) => Poll::Ready(None),
-            Poll::Ready(Some(item)) => {
-                let item = match item {
-                    Ok(resp) => self
-                        .req
+            Poll::Ready(Some(item)) => match item {
+                Ok(resp) => Poll::Ready(Some(
+                    self.req
                         .parse_response_item(resp)
                         .map_err(ServiceError::Convert),
-                    Err(status) => match status.code() {
-                        tonic::Code::Internal => {
-                            Err(ServiceError::Internal(status.message().to_string()))
-                        }
-                        tonic::Code::Unimplemented => {
-                            Err(ServiceError::NotSupported(status.message().to_string()))
-                        }
-                        tonic::Code::Unauthenticated => {
-                            Err(ServiceError::Unauthenticated(status.message().to_string()))
-                        }
-                        tonic::Code::Unavailable => {
-                            Err(ServiceError::Unavailable(status.message().to_string()))
-                        }
-                        _ => match self.req.parse_response_item_status(&status) {
-                            Ok(resp) => Ok(resp),
-                            Err(None) => Err(ServiceError::Unknown(status.message().to_string())),
-                            Err(Some(e)) => Err(ServiceError::Remote(e)),
-                        },
+                )),
+                Err(status) => match status.code() {
+                    tonic::Code::Internal => Poll::Ready(Some(Err(ServiceError::Internal(
+                        status.message().to_string(),
+                    )))),
+                    tonic::Code::Unimplemented => Poll::Ready(Some(Err(
+                        ServiceError::NotSupported(status.message().to_string()),
+                    ))),
+                    tonic::Code::Unauthenticated => Poll::Ready(Some(Err(
+                        ServiceError::Unauthenticated(status.message().to_string()),
+                    ))),
+                    tonic::Code::Unavailable => Poll::Ready(Some(Err(ServiceError::Unavailable(
+                        status.message().to_string(),
+                    )))),
+                    _ => match self.req.parse_response_item_status(&status) {
+                        Ok(Some(resp)) => Poll::Ready(Some(Ok(resp))),
+                        Ok(None) => Poll::Ready(None),
+                        Err(None) => Poll::Ready(Some(Err(ServiceError::Unknown(
+                            status.message().to_string(),
+                        )))),
+                        Err(Some(e)) => Poll::Ready(Some(Err(ServiceError::Remote(e)))),
                     },
-                };
-                Poll::Ready(Some(item))
-            }
+                },
+            },
         }
     }
 }

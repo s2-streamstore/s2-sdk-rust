@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use tonic::{transport::Channel, IntoRequest};
 
 use super::{
@@ -232,7 +234,7 @@ impl StreamingResponse for ReadSessionStreamingResponse {
     fn parse_response_item_status(
         &self,
         status: &tonic::Status,
-    ) -> Result<Self::ResponseItem, Option<Self::Error>> {
+    ) -> Result<Option<Self::ResponseItem>, Option<Self::Error>> {
         Err(match status.code() {
             tonic::Code::NotFound => Some(ReadSessionError::NotFound(status.message().to_string())),
             tonic::Code::InvalidArgument => Some(ReadSessionError::InvalidArgument(
@@ -443,19 +445,32 @@ impl StreamingResponse for AppendSessionStreamingResponse {
     fn parse_response_item_status(
         &self,
         status: &tonic::Status,
-    ) -> Result<Self::ResponseItem, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::NotFound => {
-                Some(AppendSessionError::NotFound(status.message().to_string()))
+    ) -> Result<Option<Self::ResponseItem>, Option<Self::Error>> {
+        match status.code() {
+            tonic::Code::NotFound => Err(Some(AppendSessionError::NotFound(
+                status.message().to_string(),
+            ))),
+            tonic::Code::InvalidArgument => Err(Some(AppendSessionError::InvalidArgument(
+                status.message().to_string(),
+            ))),
+            tonic::Code::DeadlineExceeded => Err(Some(AppendSessionError::DeadlineExceeded(
+                status.message().to_string(),
+            ))),
+            tonic::Code::Internal => {
+                // refer: https://github.com/hyperium/hyper/issues/2872
+                if status.message().contains("h2 protocol error: http2 error")
+                    && status
+                        .source()
+                        .map(|s| format!("{:?}", s).contains("NO_ERROR"))
+                        .unwrap_or(false)
+                {
+                    Ok(None)
+                } else {
+                    Err(None)
+                }
             }
-            tonic::Code::InvalidArgument => Some(AppendSessionError::InvalidArgument(
-                status.message().to_string(),
-            )),
-            tonic::Code::DeadlineExceeded => Some(AppendSessionError::DeadlineExceeded(
-                status.message().to_string(),
-            )),
-            _ => None,
-        })
+            _ => Err(None),
+        }
     }
 }
 
