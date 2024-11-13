@@ -42,7 +42,7 @@ use crate::{
 /// ```
 /// # use streamstore::client::{ClientConfig, HostCloud};
 /// let client_config = ClientConfig::new("<token>")
-///     .with_host_uri(HostCloud::Aws);
+///     .with_host_endpoint(HostCloud::Aws);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HostCloud {
