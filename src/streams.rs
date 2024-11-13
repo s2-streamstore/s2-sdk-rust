@@ -195,7 +195,7 @@ impl AppendRecordStream {
                     // Next linger duration should be none.
                     Duration::ZERO
                 } else {
-                    let batch_size = batch.len() as u64;
+                    let batch_len = batch.len() as u64;
 
                     yield types::AppendInput {
                         records: batch,
@@ -204,7 +204,7 @@ impl AppendRecordStream {
                     };
 
                     if let Some(m) = next_match_seq_num.as_mut() {
-                        *m += batch_size;
+                        *m += batch_len;
                     }
 
                     // Next linger durationis same as the original.
