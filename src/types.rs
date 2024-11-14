@@ -992,6 +992,7 @@ impl ReadRequest {
         } = self;
 
         let limit: Option<api::ReadLimit> = match limit {
+            None => None,
             Some(limit) => Some({
                 if limit.count > 1000 {
                     Err("read limit: count must not exceed 1000 for unary request")
@@ -1004,7 +1005,6 @@ impl ReadRequest {
                     })
                 }
             }?),
-            None => None,
         };
 
         Ok(api::ReadRequest {
