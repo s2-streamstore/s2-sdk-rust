@@ -1,4 +1,5 @@
 use std::{
+    num::NonZeroUsize,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
@@ -12,7 +13,7 @@ use crate::types::{self, MeteredSize as _};
 /// Options to configure [`AppendRecordStream`].
 #[derive(Debug, Clone)]
 pub struct AppendRecordStreamOpts {
-    max_batch_records: usize,
+    max_batch_records: NonZeroUsize,
     max_batch_size: ByteSize,
     match_seq_num: Option<u64>,
     fencing_token: Option<Vec<u8>>,
@@ -22,7 +23,7 @@ pub struct AppendRecordStreamOpts {
 impl Default for AppendRecordStreamOpts {
     fn default() -> Self {
         Self {
-            max_batch_records: 1000,
+            max_batch_records: 1000.try_into().unwrap(),
             max_batch_size: ByteSize::mib(1),
             match_seq_num: None,
             fencing_token: None,
@@ -38,35 +39,31 @@ impl AppendRecordStreamOpts {
     }
 
     /// Maximum number of records in a batch.
-    pub fn with_max_batch_records(
-        self,
-        max_batch_records: usize,
-    ) -> Result<Self, AppendRecordStreamOptsError> {
-        if max_batch_records > 1000 {
-            return Err(AppendRecordStreamOptsError::BatchRecordsCountTooLarge);
-        }
+    pub fn with_max_batch_records(self, max_batch_records: NonZeroUsize) -> Self {
+        assert!(
+            max_batch_records.get() <= 1000,
+            "max_batch_records should not be more then 1000"
+        );
 
-        Ok(Self {
+        Self {
             max_batch_records,
             ..self
-        })
+        }
     }
 
     /// Maximum size of a batch in bytes.
-    pub fn with_max_batch_size(
-        self,
-        max_batch_size: impl Into<ByteSize>,
-    ) -> Result<Self, AppendRecordStreamOptsError> {
+    pub fn with_max_batch_size(self, max_batch_size: impl Into<ByteSize>) -> Self {
         let max_batch_size = max_batch_size.into();
 
-        if max_batch_size > ByteSize::mib(1) {
-            return Err(AppendRecordStreamOptsError::BatchSizeTooLarge);
-        }
+        assert!(
+            max_batch_size <= ByteSize::mib(1),
+            "max_batch_size should not be more than 1 Mib"
+        );
 
-        Ok(Self {
+        Self {
             max_batch_size,
             ..self
-        })
+        }
     }
 
     /// Enforce that the sequence number issued to the first record matches.
@@ -98,14 +95,6 @@ impl AppendRecordStreamOpts {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum AppendRecordStreamOptsError {
-    #[error("max_batch_records should not be more then 1000")]
-    BatchRecordsCountTooLarge,
-    #[error("max_batch_size should not be more than 1 Mib")]
-    BatchSizeTooLarge,
-}
-
 /// Wrapper over a stream of append records that can be sent over to
 /// [`crate::client::StreamClient::append_session`].
 pub struct AppendRecordStream {
@@ -121,117 +110,61 @@ impl AppendRecordStream {
     {
         let inner = Box::pin(async_stream::stream! {
             let mut terminated = false;
-            let mut peeked_record: Option<types::AppendRecord> = None;
             let mut stream = stream;
-            let mut next_match_seq_num = opts.match_seq_num;
-            let mut next_linger_duration = opts.linger_duration;
+            let mut batch_builder = BatchBuilder::new(&opts);
+
+            let batch_deadline = tokio::time::sleep(Duration::ZERO);
+            tokio::pin!(batch_deadline);
 
             while !terminated {
-                let mut batch = Vec::with_capacity(opts.max_batch_records);
-                let mut batch_size = ByteSize::b(0);
-
-                if let Some(record) = peeked_record.take() {
-                    Self::push_record_to_batch(
-                        &opts,
-                        record,
-                        &mut batch,
-                        &mut batch_size,
-                        &mut peeked_record,
-                    );
-                }
-
-                let linger_timeout = tokio::time::sleep(next_linger_duration);
-                tokio::pin!(linger_timeout);
-
-                while batch.len() < opts.max_batch_records && peeked_record.is_none() {
-                    // Before we go to the select statement, we want to ensure
-                    // that the outer loop does not keep the CPU busy in case
-                    // the next_linger_duration is 0. So we await the first
-                    // record here in case the batch is empty.
-                    if batch.is_empty() {
-                        if let Some(record) = stream.next().await {
-                            Self::push_record_to_batch(
-                                &opts,
-                                record.into(),
-                                &mut batch,
-                                &mut batch_size,
-                                &mut peeked_record,
-                            );
-                        } else {
-                            terminated = true;
-                            break;
-                        }
-                    } else {
-                        tokio::select! {
-                            biased;
-                            next = stream.next() => {
-                                if let Some(record) = next {
-                                    Self::push_record_to_batch(
-                                        &opts,
-                                        record.into(),
-                                        &mut batch,
-                                        &mut batch_size,
-                                        &mut peeked_record,
-                                    );
-                                } else {
-                                    terminated = true;
-                                    break;
+                while !batch_builder.is_full() {
+                    tokio::select! {
+                        biased;
+                        next = stream.next() => {
+                            if let Some(record) = next {
+                                if batch_builder.is_empty() {
+                                    // Start the timer just before the first batch is added.
+                                    batch_deadline
+                                        .as_mut()
+                                        .reset(tokio::time::Instant::now() + opts.linger_duration);
                                 }
-                            },
-                            _ = &mut linger_timeout => {
+                                batch_builder.push(record);
+                            } else {
+                                terminated = true;
                                 break;
                             }
-                        };
-                    }
+                        },
+                        _ = &mut batch_deadline, if !batch_builder.is_empty() => {
+                            break;
+                        }
+                    };
                 }
 
-                // Some kind of limit has reached at this point.
-                next_linger_duration = if batch.is_empty() {
-                    assert!(
-                        peeked_record.is_none(),
-                        "dangling peeked record does not fit into size limits"
-                    );
+                if !batch_builder.is_empty() {
+                    yield batch_builder.flush();
+                }
 
-                    // Next linger duration should be none.
+                // Now that we have flushed (if required), the batch builder should
+                // definitely not be full. It might not be empty since the peeked
+                // record might have been pushed into the batch.
+                assert!(
+                    !batch_builder.is_full(),
+                    "dangling peeked record does not fit into size limits",
+                );
+
+                let next_linger_duration = if batch_builder.is_empty() {
                     Duration::ZERO
                 } else {
-                    let batch_len = batch.len() as u64;
-
-                    yield types::AppendInput {
-                        records: batch,
-                        match_seq_num: next_match_seq_num,
-                        fencing_token: opts.fencing_token.clone(),
-                    };
-
-                    if let Some(m) = next_match_seq_num.as_mut() {
-                        *m += batch_len;
-                    }
-
-                    // Next linger durationis same as the original.
                     opts.linger_duration
                 };
+
+                batch_deadline
+                    .as_mut()
+                    .reset(tokio::time::Instant::now() + next_linger_duration);
             }
         });
 
         Self { inner }
-    }
-
-    fn push_record_to_batch(
-        opts: &AppendRecordStreamOpts,
-        record: types::AppendRecord,
-        batch: &mut Vec<types::AppendRecord>,
-        batch_size: &mut ByteSize,
-        peeked_record: &mut Option<types::AppendRecord>,
-    ) {
-        assert!(peeked_record.is_none());
-        let record_size = record.metered_size();
-        if *batch_size + record_size > opts.max_batch_size {
-            // Set the peeked record and move on.
-            let _ = std::mem::replace(peeked_record, Some(record));
-        } else {
-            *batch_size += record_size;
-            batch.push(record);
-        }
     }
 }
 
@@ -240,6 +173,80 @@ impl Stream for AppendRecordStream {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.inner.poll_next_unpin(cx)
+    }
+}
+
+struct BatchBuilder<'a> {
+    opts: &'a AppendRecordStreamOpts,
+    peeked_record: Option<types::AppendRecord>,
+    next_match_seq_num: Option<u64>,
+    batch: Vec<types::AppendRecord>,
+    batch_size: ByteSize,
+}
+
+impl<'a> BatchBuilder<'a> {
+    pub fn new<'b: 'a>(opts: &'b AppendRecordStreamOpts) -> Self {
+        Self {
+            peeked_record: None,
+            next_match_seq_num: opts.match_seq_num,
+            batch: Vec::with_capacity(opts.max_batch_records.get()),
+            batch_size: ByteSize(0),
+            opts,
+        }
+    }
+
+    pub fn push(&mut self, record: impl Into<types::AppendRecord>) {
+        assert!(!self.is_full());
+        let record = record.into();
+        let record_size = record.metered_size();
+        if self.batch_size + record_size > self.opts.max_batch_size {
+            let ret = self.peeked_record.replace(record);
+            assert!(ret.is_none());
+        } else {
+            self.batch_size += record_size;
+            self.batch.push(record);
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        if self.batch.is_empty() {
+            assert!(self.batch_size == ByteSize(0));
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.batch.len() == self.opts.max_batch_records.get() || self.peeked_record.is_some()
+    }
+
+    pub fn flush(&mut self) -> types::AppendInput {
+        assert!(!self.is_empty());
+
+        let match_seq_num = self.next_match_seq_num;
+        if let Some(next_match_seq_num) = self.next_match_seq_num.as_mut() {
+            *next_match_seq_num += self.batch.len() as u64;
+        }
+
+        // Reset the inner batch, batch_size and push back the peeked record
+        // into the batch.
+        let records = {
+            self.batch_size = ByteSize(0);
+            std::mem::replace(
+                &mut self.batch,
+                Vec::with_capacity(self.opts.max_batch_records.get()),
+            )
+        };
+        if let Some(record) = self.peeked_record.take() {
+            self.push(record);
+        }
+
+        types::AppendInput {
+            records,
+            match_seq_num,
+            fencing_token: self.opts.fencing_token.clone(),
+        }
     }
 }
 
@@ -273,10 +280,10 @@ mod tests {
 
         let mut opts = AppendRecordStreamOpts::new().with_linger(Duration::ZERO);
         if let Some(max_batch_records) = max_batch_records {
-            opts = opts.with_max_batch_records(max_batch_records).unwrap();
+            opts = opts.with_max_batch_records(max_batch_records.try_into().unwrap());
         }
         if let Some(max_batch_size) = max_batch_size {
-            opts = opts.with_max_batch_size(max_batch_size).unwrap();
+            opts = opts.with_max_batch_size(max_batch_size);
         }
 
         let batch_stream = AppendRecordStream::new(stream, opts);
@@ -306,10 +313,8 @@ mod tests {
                 UnboundedReceiverStream::new(stream_rx),
                 AppendRecordStreamOpts::new()
                     .with_linger(Duration::from_secs(2))
-                    .with_max_batch_records(3)
-                    .unwrap()
-                    .with_max_batch_size(ByteSize::b(40))
-                    .unwrap(),
+                    .with_max_batch_records(3.try_into().unwrap())
+                    .with_max_batch_size(ByteSize::b(40)),
             );
 
             batch_stream
@@ -383,5 +388,19 @@ mod tests {
         ];
 
         assert_eq!(batches, expected_batches);
+    }
+
+    #[tokio::test]
+    #[should_panic]
+    async fn test_append_record_stream_panic_size_limits() {
+        let stream =
+            futures::stream::iter([types::AppendRecord::new("too long to fit into size limits")]);
+
+        let mut batch_stream = AppendRecordStream::new(
+            stream,
+            AppendRecordStreamOpts::new().with_max_batch_size(ByteSize::b(1)),
+        );
+
+        let _ = batch_stream.next().await;
     }
 }
