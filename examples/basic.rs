@@ -2,8 +2,7 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use streamstore::{
-    client::{Client, ClientConfig, HostEndpoints},
-    service_error::{CreateBasinError, CreateStreamError, ServiceError},
+    client::{Client, ClientConfig, ClientError, HostEndpoints},
     streams::AppendRecordStream,
     types::{
         AppendInput, AppendRecord, CreateBasinRequest, CreateStreamRequest, DeleteBasinRequest,
@@ -33,8 +32,10 @@ async fn main() {
         Ok(created_basin) => {
             println!("Basin created: {created_basin:#?}");
         }
-        Err(ServiceError::Remote(CreateBasinError::AlreadyExists(e))) => {
-            println!("WARN: {}", e);
+        Err(ClientError::Service(status)) => {
+            if status.code() == tonic::Code::AlreadyExists {
+                println!("WARN: {}", status.message());
+            }
         }
         Err(other) => exit_with_err(other),
     };
@@ -73,8 +74,10 @@ async fn main() {
         Ok(()) => {
             println!("Stream created");
         }
-        Err(ServiceError::Remote(CreateStreamError::AlreadyExists(e))) => {
-            println!("WARN: {}", e);
+        Err(ClientError::Service(status)) => {
+            if status.code() == tonic::Code::AlreadyExists {
+                println!("WARN: {}", status.message());
+            }
         }
         Err(other) => exit_with_err(other),
     };

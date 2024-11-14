@@ -14,24 +14,19 @@ use crate::{
     },
     service::{
         account::{
-            CreateBasinError, CreateBasinServiceRequest, DeleteBasinError,
-            DeleteBasinServiceRequest, GetBasinConfigError, GetBasinConfigServiceRequest,
-            ListBasinsError, ListBasinsServiceRequest, ReconfigureBasinError,
-            ReconfigureBasinServiceRequest,
+            CreateBasinServiceRequest, DeleteBasinServiceRequest, GetBasinConfigServiceRequest,
+            ListBasinsServiceRequest, ReconfigureBasinServiceRequest,
         },
         basin::{
-            CreateStreamError, CreateStreamServiceRequest, DeleteStreamError,
-            DeleteStreamServiceRequest, GetStreamConfigError, GetStreamConfigServiceRequest,
-            ListStreamsError, ListStreamsServiceRequest, ReconfigureStreamError,
-            ReconfigureStreamServiceRequest,
+            CreateStreamServiceRequest, DeleteStreamServiceRequest, GetStreamConfigServiceRequest,
+            ListStreamsServiceRequest, ReconfigureStreamServiceRequest,
         },
         send_request,
         stream::{
-            AppendError, AppendServiceRequest, AppendSessionError, AppendSessionServiceRequest,
-            CheckTailError, CheckTailServiceRequest, ReadError, ReadServiceRequest,
-            ReadSessionError, ReadSessionServiceRequest,
+            AppendServiceRequest, AppendSessionServiceRequest, CheckTailServiceRequest,
+            ReadServiceRequest, ReadSessionServiceRequest,
         },
-        RetryableRequest, ServiceError, ServiceRequest, Streaming,
+        RetryableRequest, ServiceRequest, Streaming,
     },
     types,
 };
@@ -224,6 +219,14 @@ impl ClientConfig {
     }
 }
 
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum ClientError {
+    #[error("{0}")]
+    Conversion(String),
+    #[error(transparent)]
+    Service(#[from] tonic::Status),
+}
+
 /// The S2 client to interact with the API.
 #[derive(Debug, Clone)]
 pub struct Client {
@@ -232,14 +235,17 @@ pub struct Client {
 
 impl Client {
     /// Create the client to connect with the S2 API.
-    pub fn new(config: ClientConfig) -> Result<Self, ClientError> {
+    pub fn new(config: ClientConfig) -> Result<Self, ConnectionError> {
         Ok(Self {
             inner: ClientInner::new_cell(config, DEFAULT_HTTP_CONNECTOR)?,
         })
     }
 
     #[cfg(feature = "connector")]
-    pub fn new_with_connector<C>(config: ClientConfig, connector: C) -> Result<Self, ClientError>
+    pub fn new_with_connector<C>(
+        config: ClientConfig,
+        connector: C,
+    ) -> Result<Self, ConnectionError>
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
         C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
@@ -252,7 +258,7 @@ impl Client {
     }
 
     /// Get the client to interact with the S2 basin service API.
-    pub fn basin_client(&self, basin: impl Into<String>) -> Result<BasinClient, ClientError> {
+    pub fn basin_client(&self, basin: impl Into<String>) -> Result<BasinClient, ConnectionError> {
         Ok(BasinClient {
             inner: self.inner.new_basin(basin)?,
         })
@@ -262,7 +268,7 @@ impl Client {
     pub async fn list_basins(
         &self,
         req: types::ListBasinsRequest,
-    ) -> Result<types::ListBasinsResponse, ServiceError<ListBasinsError>> {
+    ) -> Result<types::ListBasinsResponse, ClientError> {
         self.inner
             .send_retryable(ListBasinsServiceRequest::new(
                 self.inner.account_service_client(),
@@ -275,7 +281,7 @@ impl Client {
     pub async fn create_basin(
         &self,
         req: types::CreateBasinRequest,
-    ) -> Result<types::BasinMetadata, ServiceError<CreateBasinError>> {
+    ) -> Result<types::BasinMetadata, ClientError> {
         self.inner
             .send(CreateBasinServiceRequest::new(
                 self.inner.account_service_client(),
@@ -285,10 +291,7 @@ impl Client {
     }
 
     #[sync_docs]
-    pub async fn delete_basin(
-        &self,
-        req: types::DeleteBasinRequest,
-    ) -> Result<(), ServiceError<DeleteBasinError>> {
+    pub async fn delete_basin(&self, req: types::DeleteBasinRequest) -> Result<(), ClientError> {
         self.inner
             .send_retryable(DeleteBasinServiceRequest::new(
                 self.inner.account_service_client(),
@@ -301,7 +304,7 @@ impl Client {
     pub async fn get_basin_config(
         &self,
         basin: impl Into<String>,
-    ) -> Result<types::BasinConfig, ServiceError<GetBasinConfigError>> {
+    ) -> Result<types::BasinConfig, ClientError> {
         self.inner
             .send_retryable(GetBasinConfigServiceRequest::new(
                 self.inner.account_service_client(),
@@ -314,7 +317,7 @@ impl Client {
     pub async fn reconfigure_basin(
         &self,
         req: types::ReconfigureBasinRequest,
-    ) -> Result<(), ServiceError<ReconfigureBasinError>> {
+    ) -> Result<(), ClientError> {
         self.inner
             .send_retryable(ReconfigureBasinServiceRequest::new(
                 self.inner.account_service_client(),
@@ -332,7 +335,7 @@ pub struct BasinClient {
 
 impl BasinClient {
     /// Create the client to connect with the S2 basin service API.
-    pub fn new(config: ClientConfig, basin: impl Into<String>) -> Result<Self, ClientError> {
+    pub fn new(config: ClientConfig, basin: impl Into<String>) -> Result<Self, ConnectionError> {
         let client = Client::new(config)?;
         client.basin_client(basin)
     }
@@ -342,7 +345,7 @@ impl BasinClient {
         config: ClientConfig,
         basin: impl Into<String>,
         connector: C,
-    ) -> Result<Self, ClientError>
+    ) -> Result<Self, ConnectionError>
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
         C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
@@ -362,10 +365,7 @@ impl BasinClient {
     }
 
     #[sync_docs]
-    pub async fn create_stream(
-        &self,
-        req: types::CreateStreamRequest,
-    ) -> Result<(), ServiceError<CreateStreamError>> {
+    pub async fn create_stream(&self, req: types::CreateStreamRequest) -> Result<(), ClientError> {
         self.inner
             .send(CreateStreamServiceRequest::new(
                 self.inner.basin_service_client(),
@@ -378,7 +378,7 @@ impl BasinClient {
     pub async fn list_streams(
         &self,
         req: types::ListStreamsRequest,
-    ) -> Result<types::ListStreamsResponse, ServiceError<ListStreamsError>> {
+    ) -> Result<types::ListStreamsResponse, ClientError> {
         self.inner
             .send_retryable(ListStreamsServiceRequest::new(
                 self.inner.basin_service_client(),
@@ -391,7 +391,7 @@ impl BasinClient {
     pub async fn get_stream_config(
         &self,
         stream: impl Into<String>,
-    ) -> Result<types::StreamConfig, ServiceError<GetStreamConfigError>> {
+    ) -> Result<types::StreamConfig, ClientError> {
         self.inner
             .send_retryable(GetStreamConfigServiceRequest::new(
                 self.inner.basin_service_client(),
@@ -404,7 +404,7 @@ impl BasinClient {
     pub async fn reconfigure_stream(
         &self,
         req: types::ReconfigureStreamRequest,
-    ) -> Result<(), ServiceError<ReconfigureStreamError>> {
+    ) -> Result<(), ClientError> {
         self.inner
             .send(ReconfigureStreamServiceRequest::new(
                 self.inner.basin_service_client(),
@@ -414,10 +414,7 @@ impl BasinClient {
     }
 
     #[sync_docs]
-    pub async fn delete_stream(
-        &self,
-        req: types::DeleteStreamRequest,
-    ) -> Result<(), ServiceError<DeleteStreamError>> {
+    pub async fn delete_stream(&self, req: types::DeleteStreamRequest) -> Result<(), ClientError> {
         self.inner
             .send_retryable(DeleteStreamServiceRequest::new(
                 self.inner.basin_service_client(),
@@ -440,7 +437,7 @@ impl StreamClient {
         config: ClientConfig,
         basin: impl Into<String>,
         stream: impl Into<String>,
-    ) -> Result<Self, ClientError> {
+    ) -> Result<Self, ConnectionError> {
         BasinClient::new(config, basin).map(|client| client.stream_client(stream))
     }
 
@@ -450,7 +447,7 @@ impl StreamClient {
         basin: impl Into<String>,
         stream: impl Into<String>,
         connector: C,
-    ) -> Result<Self, ClientError>
+    ) -> Result<Self, ConnectionError>
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
         C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
@@ -462,7 +459,7 @@ impl StreamClient {
     }
 
     #[sync_docs]
-    pub async fn check_tail(&self) -> Result<u64, ServiceError<CheckTailError>> {
+    pub async fn check_tail(&self) -> Result<u64, ClientError> {
         self.inner
             .send_retryable(CheckTailServiceRequest::new(
                 self.inner.stream_service_client(),
@@ -472,10 +469,7 @@ impl StreamClient {
     }
 
     #[sync_docs]
-    pub async fn read(
-        &self,
-        req: types::ReadRequest,
-    ) -> Result<types::ReadOutput, ServiceError<ReadError>> {
+    pub async fn read(&self, req: types::ReadRequest) -> Result<types::ReadOutput, ClientError> {
         self.inner
             .send_retryable(ReadServiceRequest::new(
                 self.inner.stream_service_client(),
@@ -489,10 +483,7 @@ impl StreamClient {
     pub async fn read_session(
         &self,
         req: types::ReadSessionRequest,
-    ) -> Result<
-        Streaming<types::ReadSessionResponse, ReadSessionError>,
-        ServiceError<ReadSessionError>,
-    > {
+    ) -> Result<Streaming<types::ReadSessionResponse>, ClientError> {
         self.inner
             .send_retryable(ReadSessionServiceRequest::new(
                 self.inner.stream_service_client(),
@@ -507,7 +498,7 @@ impl StreamClient {
     pub async fn append(
         &self,
         req: types::AppendInput,
-    ) -> Result<types::AppendOutput, ServiceError<AppendError>> {
+    ) -> Result<types::AppendOutput, ClientError> {
         self.inner
             .send(AppendServiceRequest::new(
                 self.inner.stream_service_client(),
@@ -521,7 +512,7 @@ impl StreamClient {
     pub async fn append_session<S>(
         &self,
         req: S,
-    ) -> Result<Streaming<types::AppendOutput, AppendSessionError>, ServiceError<AppendSessionError>>
+    ) -> Result<Streaming<types::AppendOutput>, ClientError>
     where
         S: 'static + Send + futures::Stream<Item = types::AppendInput> + Unpin,
     {
@@ -544,7 +535,7 @@ struct ClientInner {
 }
 
 impl ClientInner {
-    fn new_cell<C>(config: ClientConfig, connector: Option<C>) -> Result<Self, ClientError>
+    fn new_cell<C>(config: ClientConfig, connector: Option<C>) -> Result<Self, ConnectionError>
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
         C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
@@ -555,7 +546,7 @@ impl ClientInner {
         Self::new(config, cell_endpoint, connector)
     }
 
-    fn new_basin(&self, basin: impl Into<String>) -> Result<Self, ClientError> {
+    fn new_basin(&self, basin: impl Into<String>) -> Result<Self, ConnectionError> {
         let basin = basin.into();
 
         match self.config.host_endpoint.basin_zone.clone() {
@@ -574,7 +565,7 @@ impl ClientInner {
         config: ClientConfig,
         endpoint: Authority,
         connector: Option<C>,
-    ) -> Result<Self, ClientError>
+    ) -> Result<Self, ConnectionError>
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
         C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
@@ -615,17 +606,14 @@ impl ClientInner {
         })
     }
 
-    async fn send<T: ServiceRequest>(
-        &self,
-        service_req: T,
-    ) -> Result<T::Response, ServiceError<T::Error>> {
+    async fn send<T: ServiceRequest>(&self, service_req: T) -> Result<T::Response, ClientError> {
         send_request(service_req, &self.config.token, self.basin.as_deref()).await
     }
 
     async fn send_retryable<T: RetryableRequest>(
         &self,
         service_req: T,
-    ) -> Result<T::Response, ServiceError<T::Error>> {
+    ) -> Result<T::Response, ClientError> {
         let retry_fn = || async { self.send(service_req.clone()).await };
 
         retry_fn
@@ -649,7 +637,7 @@ impl ClientInner {
 
 /// Error connecting to S2 endpoint.
 #[derive(Debug, thiserror::Error)]
-pub enum ClientError {
+pub enum ConnectionError {
     #[error(transparent)]
     TonicTransportError(#[from] tonic::transport::Error),
     #[error(transparent)]

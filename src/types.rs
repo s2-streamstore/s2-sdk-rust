@@ -5,17 +5,7 @@ use bytesize::ByteSize;
 use serde::{Deserialize, Serialize};
 use sync_docs::sync_docs;
 
-use crate::api;
-
-#[derive(Debug, Clone, thiserror::Error)]
-#[error("{0}")]
-pub struct ConvertError(String);
-
-impl<T: Into<String>> From<T> for ConvertError {
-    fn from(value: T) -> Self {
-        Self(value.into())
-    }
-}
+use crate::{api, client::ClientError};
 
 pub trait MeteredSize {
     fn metered_size(&self) -> ByteSize;
@@ -72,7 +62,7 @@ impl CreateBasinRequest {
 }
 
 impl TryFrom<CreateBasinRequest> for api::CreateBasinRequest {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: CreateBasinRequest) -> Result<Self, Self::Error> {
         let CreateBasinRequest { basin, config } = value;
         Ok(Self {
@@ -103,7 +93,7 @@ impl BasinConfig {
 }
 
 impl TryFrom<BasinConfig> for api::BasinConfig {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: BasinConfig) -> Result<Self, Self::Error> {
         let BasinConfig {
             default_stream_config,
@@ -115,7 +105,7 @@ impl TryFrom<BasinConfig> for api::BasinConfig {
 }
 
 impl TryFrom<api::BasinConfig> for BasinConfig {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: api::BasinConfig) -> Result<Self, Self::Error> {
         let api::BasinConfig {
             default_stream_config,
@@ -155,7 +145,7 @@ impl StreamConfig {
 }
 
 impl TryFrom<StreamConfig> for api::StreamConfig {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: StreamConfig) -> Result<Self, Self::Error> {
         let StreamConfig {
             storage_class,
@@ -169,7 +159,7 @@ impl TryFrom<StreamConfig> for api::StreamConfig {
 }
 
 impl TryFrom<api::StreamConfig> for StreamConfig {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: api::StreamConfig) -> Result<Self, Self::Error> {
         let api::StreamConfig {
             storage_class,
@@ -213,13 +203,15 @@ impl From<api::StorageClass> for StorageClass {
 }
 
 impl FromStr for StorageClass {
-    type Err = ConvertError;
+    type Err = ClientError;
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "unspecified" => Ok(Self::Unspecified),
             "standard" => Ok(Self::Standard),
             "express" => Ok(Self::Express),
-            _ => Err("invalid storage class value".into()),
+            _ => Err(ClientError::Conversion(
+                "invalid storage class value".into(),
+            )),
         }
     }
 }
@@ -231,11 +223,11 @@ impl From<StorageClass> for i32 {
 }
 
 impl TryFrom<i32> for StorageClass {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         api::StorageClass::try_from(value)
             .map(Into::into)
-            .map_err(|_| "invalid storage class value".into())
+            .map_err(|_| ClientError::Conversion("invalid storage class value".into()))
     }
 }
 
@@ -247,15 +239,14 @@ pub enum RetentionPolicy {
 }
 
 impl TryFrom<RetentionPolicy> for api::stream_config::RetentionPolicy {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: RetentionPolicy) -> Result<Self, Self::Error> {
         match value {
-            RetentionPolicy::Age(duration) => Ok(Self::AgeMillis(
-                duration
-                    .as_millis()
-                    .try_into()
-                    .map_err(|_| "age duration overflow in milliseconds")?,
-            )),
+            RetentionPolicy::Age(duration) => {
+                Ok(Self::AgeMillis(duration.as_millis().try_into().map_err(
+                    |_| ClientError::Conversion("age duration overflow in milliseconds".into()),
+                )?))
+            }
         }
     }
 }
@@ -309,11 +300,11 @@ impl From<BasinState> for i32 {
 }
 
 impl TryFrom<i32> for BasinState {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         api::BasinState::try_from(value)
             .map(Into::into)
-            .map_err(|_| "invalid basin status value".into())
+            .map_err(|_| ClientError::Conversion("invalid basin status value".into()))
     }
 }
 
@@ -356,7 +347,7 @@ impl From<BasinMetadata> for api::BasinMetadata {
 }
 
 impl TryFrom<api::BasinMetadata> for BasinMetadata {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: api::BasinMetadata) -> Result<Self, Self::Error> {
         let api::BasinMetadata {
             name,
@@ -374,10 +365,10 @@ impl TryFrom<api::BasinMetadata> for BasinMetadata {
 }
 
 impl TryFrom<api::CreateBasinResponse> for BasinMetadata {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: api::CreateBasinResponse) -> Result<Self, Self::Error> {
         let api::CreateBasinResponse { basin } = value;
-        let basin = basin.ok_or("missing basin metadata")?;
+        let basin = basin.ok_or(ClientError::Conversion("missing basin metadata".into()))?;
         basin.try_into()
     }
 }
@@ -419,7 +410,7 @@ impl ListStreamsRequest {
 }
 
 impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: ListStreamsRequest) -> Result<Self, Self::Error> {
         let ListStreamsRequest {
             prefix,
@@ -429,9 +420,9 @@ impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
         Ok(Self {
             prefix,
             start_after,
-            limit: limit
-                .try_into()
-                .map_err(|_| "request limit does not fit into u64 bounds")?,
+            limit: limit.try_into().map_err(|_| {
+                ClientError::Conversion("request limit does not fit into u64 bounds".into())
+            })?,
         })
     }
 }
@@ -452,19 +443,19 @@ impl From<api::ListStreamsResponse> for ListStreamsResponse {
 }
 
 impl TryFrom<api::GetBasinConfigResponse> for BasinConfig {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: api::GetBasinConfigResponse) -> Result<Self, Self::Error> {
         let api::GetBasinConfigResponse { config } = value;
-        let config = config.ok_or("missing basin config")?;
+        let config = config.ok_or(ClientError::Conversion("missing basin config".into()))?;
         config.try_into()
     }
 }
 
 impl TryFrom<api::GetStreamConfigResponse> for StreamConfig {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: api::GetStreamConfigResponse) -> Result<Self, Self::Error> {
         let api::GetStreamConfigResponse { config } = value;
-        let config = config.ok_or("missing stream config")?;
+        let config = config.ok_or(ClientError::Conversion("missing stream config".into()))?;
         config.try_into()
     }
 }
@@ -494,7 +485,7 @@ impl CreateStreamRequest {
 }
 
 impl TryFrom<CreateStreamRequest> for api::CreateStreamRequest {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: CreateStreamRequest) -> Result<Self, Self::Error> {
         let CreateStreamRequest { stream, config } = value;
         Ok(Self {
@@ -541,7 +532,7 @@ impl ListBasinsRequest {
 }
 
 impl TryFrom<ListBasinsRequest> for api::ListBasinsRequest {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: ListBasinsRequest) -> Result<Self, Self::Error> {
         let ListBasinsRequest {
             prefix,
@@ -551,9 +542,9 @@ impl TryFrom<ListBasinsRequest> for api::ListBasinsRequest {
         Ok(Self {
             prefix,
             start_after,
-            limit: limit
-                .try_into()
-                .map_err(|_| "request limit does not fit into u64 bounds")?,
+            limit: limit.try_into().map_err(|_| {
+                ClientError::Conversion("request limit does not fit into u64 bounds".into())
+            })?,
         })
     }
 }
@@ -567,14 +558,14 @@ pub struct ListBasinsResponse {
 }
 
 impl TryFrom<api::ListBasinsResponse> for ListBasinsResponse {
-    type Error = ConvertError;
-    fn try_from(value: api::ListBasinsResponse) -> Result<Self, ConvertError> {
+    type Error = ClientError;
+    fn try_from(value: api::ListBasinsResponse) -> Result<Self, ClientError> {
         let api::ListBasinsResponse { basins, has_more } = value;
         Ok(Self {
             basins: basins
                 .into_iter()
                 .map(TryInto::try_into)
-                .collect::<Result<Vec<BasinMetadata>, ConvertError>>()?,
+                .collect::<Result<Vec<BasinMetadata>, ClientError>>()?,
             has_more,
         })
     }
@@ -670,7 +661,7 @@ impl ReconfigureBasinRequest {
 }
 
 impl TryFrom<ReconfigureBasinRequest> for api::ReconfigureBasinRequest {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: ReconfigureBasinRequest) -> Result<Self, Self::Error> {
         let ReconfigureBasinRequest {
             basin,
@@ -719,7 +710,7 @@ impl ReconfigureStreamRequest {
 }
 
 impl TryFrom<ReconfigureStreamRequest> for api::ReconfigureStreamRequest {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: ReconfigureStreamRequest) -> Result<Self, Self::Error> {
         let ReconfigureStreamRequest {
             stream,
@@ -930,19 +921,19 @@ impl From<api::AppendOutput> for AppendOutput {
 }
 
 impl TryFrom<api::AppendResponse> for AppendOutput {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: api::AppendResponse) -> Result<Self, Self::Error> {
         let api::AppendResponse { output } = value;
-        let output = output.ok_or("missing append output")?;
+        let output = output.ok_or(ClientError::Conversion("missing append output".into()))?;
         Ok(output.into())
     }
 }
 
 impl TryFrom<api::AppendSessionResponse> for AppendOutput {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: api::AppendSessionResponse) -> Result<Self, Self::Error> {
         let api::AppendSessionResponse { output } = value;
-        let output = output.ok_or("missing append output")?;
+        let output = output.ok_or(ClientError::Conversion("missing append output".into()))?;
         Ok(output.into())
     }
 }
@@ -985,19 +976,22 @@ impl ReadRequest {
     pub fn try_into_api_type(
         self,
         stream: impl Into<String>,
-    ) -> Result<api::ReadRequest, ConvertError> {
+    ) -> Result<api::ReadRequest, ClientError> {
         let Self {
             start_seq_num,
             limit,
         } = self;
 
         let limit: Option<api::ReadLimit> = match limit {
-            None => None,
             Some(limit) => Some({
                 if limit.count > 1000 {
-                    Err("read limit: count must not exceed 1000 for unary request")
+                    Err(ClientError::Conversion(
+                        "read limit: count must not exceed 1000 for unary request".into(),
+                    ))
                 } else if limit.bytes > (1024 * 1024) {
-                    Err("read limit: bytes must not exceed 1MiB for unary request")
+                    Err(ClientError::Conversion(
+                        "read limit: bytes must not exceed 1MiB for unary request".into(),
+                    ))
                 } else {
                     Ok(api::ReadLimit {
                         count: limit.count,
@@ -1005,6 +999,7 @@ impl ReadRequest {
                     })
                 }
             }?),
+            None => None,
         };
 
         Ok(api::ReadRequest {
@@ -1081,19 +1076,21 @@ impl From<api::read_output::Output> for ReadOutput {
 }
 
 impl TryFrom<api::ReadOutput> for ReadOutput {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: api::ReadOutput) -> Result<Self, Self::Error> {
         let api::ReadOutput { output } = value;
-        let output = output.ok_or("missing read output")?;
+        let output = output.ok_or(ClientError::Conversion("missing read output".into()))?;
         Ok(output.into())
     }
 }
 
 impl TryFrom<api::ReadResponse> for ReadOutput {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: api::ReadResponse) -> Result<Self, Self::Error> {
         let api::ReadResponse { output } = value;
-        let output = output.ok_or("missing output in read response")?;
+        let output = output.ok_or(ClientError::Conversion(
+            "missing output in read response".into(),
+        ))?;
         output.try_into()
     }
 }
@@ -1147,10 +1144,12 @@ pub struct ReadSessionResponse {
 }
 
 impl TryFrom<api::ReadSessionResponse> for ReadSessionResponse {
-    type Error = ConvertError;
+    type Error = ClientError;
     fn try_from(value: api::ReadSessionResponse) -> Result<Self, Self::Error> {
         let api::ReadSessionResponse { output } = value;
-        let output = output.ok_or("missing output in read session response")?;
+        let output = output.ok_or(ClientError::Conversion(
+            "missing output in read session response".into(),
+        ))?;
         Ok(Self {
             output: output.try_into()?,
         })

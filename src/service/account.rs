@@ -1,9 +1,9 @@
 use tonic::{transport::Channel, IntoRequest};
 
-use super::{IdempotentRequest, ServiceRequest};
+use super::{ClientError, IdempotentRequest, ServiceRequest};
 use crate::{
     api::{self, account_service_client::AccountServiceClient},
-    types::{self, ConvertError},
+    types,
 };
 
 #[derive(Debug, Clone)]
@@ -22,9 +22,8 @@ impl ServiceRequest for CreateBasinServiceRequest {
     type ApiRequest = api::CreateBasinRequest;
     type Response = types::BasinMetadata;
     type ApiResponse = api::CreateBasinResponse;
-    type Error = CreateBasinError;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
         let req: api::CreateBasinRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -32,20 +31,8 @@ impl ServiceRequest for CreateBasinServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ConvertError> {
+    ) -> Result<Self::Response, ClientError> {
         resp.into_inner().try_into()
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::InvalidArgument => Some(CreateBasinError::InvalidArgument(
-                status.message().to_string(),
-            )),
-            tonic::Code::AlreadyExists => Some(CreateBasinError::AlreadyExists(
-                status.message().to_string(),
-            )),
-            _ => None,
-        })
     }
 
     async fn send(
@@ -54,14 +41,6 @@ impl ServiceRequest for CreateBasinServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.create_basin(req).await
     }
-}
-
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum CreateBasinError {
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
-    #[error("Already exists: {0}")]
-    AlreadyExists(String),
 }
 
 #[derive(Debug, Clone)]
@@ -80,9 +59,8 @@ impl ServiceRequest for ListBasinsServiceRequest {
     type ApiRequest = api::ListBasinsRequest;
     type Response = types::ListBasinsResponse;
     type ApiResponse = api::ListBasinsResponse;
-    type Error = ListBasinsError;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
         let req: api::ListBasinsRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -90,17 +68,8 @@ impl ServiceRequest for ListBasinsServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ConvertError> {
+    ) -> Result<Self::Response, ClientError> {
         resp.into_inner().try_into()
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::InvalidArgument => Some(ListBasinsError::InvalidArgument(
-                status.message().to_string(),
-            )),
-            _ => None,
-        })
     }
 
     async fn send(
@@ -113,12 +82,6 @@ impl ServiceRequest for ListBasinsServiceRequest {
 
 impl IdempotentRequest for ListBasinsServiceRequest {
     const NO_SIDE_EFFECTS: bool = true;
-}
-
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum ListBasinsError {
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
 }
 
 #[derive(Debug, Clone)]
@@ -137,9 +100,8 @@ impl ServiceRequest for DeleteBasinServiceRequest {
     type ApiRequest = api::DeleteBasinRequest;
     type Response = ();
     type ApiResponse = api::DeleteBasinResponse;
-    type Error = DeleteBasinError;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
         let req: api::DeleteBasinRequest = self.req.clone().into();
         Ok(req.into_request())
     }
@@ -147,21 +109,8 @@ impl ServiceRequest for DeleteBasinServiceRequest {
     fn parse_response(
         &self,
         _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ConvertError> {
+    ) -> Result<Self::Response, ClientError> {
         Ok(())
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
-        match status.code() {
-            tonic::Code::InvalidArgument => Err(Some(DeleteBasinError::InvalidArgument(
-                status.message().to_string(),
-            ))),
-            tonic::Code::NotFound if self.req.if_exists => Ok(()),
-            tonic::Code::NotFound => Err(Some(DeleteBasinError::NotFound(
-                status.message().to_string(),
-            ))),
-            _ => Err(None),
-        }
     }
 
     async fn send(
@@ -174,14 +123,6 @@ impl ServiceRequest for DeleteBasinServiceRequest {
 
 impl IdempotentRequest for DeleteBasinServiceRequest {
     const NO_SIDE_EFFECTS: bool = false;
-}
-
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum DeleteBasinError {
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
-    #[error("Not found: {0}")]
-    NotFound(String),
 }
 
 #[derive(Debug, Clone)]
@@ -203,9 +144,8 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
     type ApiRequest = api::GetBasinConfigRequest;
     type Response = types::BasinConfig;
     type ApiResponse = api::GetBasinConfigResponse;
-    type Error = GetBasinConfigError;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
         let req = api::GetBasinConfigRequest {
             basin: self.basin.clone(),
         };
@@ -215,17 +155,8 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
+    ) -> Result<Self::Response, ClientError> {
         resp.into_inner().try_into()
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::NotFound => {
-                Some(GetBasinConfigError::NotFound(status.message().to_string()))
-            }
-            _ => None,
-        })
     }
 
     async fn send(
@@ -238,12 +169,6 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
 
 impl IdempotentRequest for GetBasinConfigServiceRequest {
     const NO_SIDE_EFFECTS: bool = true;
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum GetBasinConfigError {
-    #[error("Not found: {0}")]
-    NotFound(String),
 }
 
 #[derive(Debug, Clone)]
@@ -262,9 +187,8 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
     type ApiRequest = api::ReconfigureBasinRequest;
     type Response = ();
     type ApiResponse = api::ReconfigureBasinResponse;
-    type Error = ReconfigureBasinError;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
         let req: api::ReconfigureBasinRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -272,20 +196,8 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
     fn parse_response(
         &self,
         _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
+    ) -> Result<Self::Response, ClientError> {
         Ok(())
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::NotFound => Some(ReconfigureBasinError::NotFound(
-                status.message().to_string(),
-            )),
-            tonic::Code::InvalidArgument => Some(ReconfigureBasinError::InvalidArgument(
-                status.message().to_string(),
-            )),
-            _ => None,
-        })
     }
 
     async fn send(
@@ -298,12 +210,4 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
 
 impl IdempotentRequest for ReconfigureBasinServiceRequest {
     const NO_SIDE_EFFECTS: bool = false;
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ReconfigureBasinError {
-    #[error("Not found: {0}")]
-    NotFound(String),
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
 }

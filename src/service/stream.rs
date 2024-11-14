@@ -1,8 +1,8 @@
 use tonic::{transport::Channel, IntoRequest};
 
 use super::{
-    IdempotentRequest, ServiceRequest, ServiceStreamingRequest, ServiceStreamingResponse,
-    StreamingRequest, StreamingResponse,
+    ClientError, IdempotentRequest, ServiceRequest, ServiceStreamingRequest,
+    ServiceStreamingResponse, StreamingRequest, StreamingResponse,
 };
 use crate::{
     api::{self, stream_service_client::StreamServiceClient},
@@ -28,9 +28,8 @@ impl ServiceRequest for CheckTailServiceRequest {
     type ApiRequest = api::CheckTailRequest;
     type Response = u64;
     type ApiResponse = api::CheckTailResponse;
-    type Error = CheckTailError;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
         let req = api::CheckTailRequest {
             stream: self.stream.clone(),
         };
@@ -40,18 +39,8 @@ impl ServiceRequest for CheckTailServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
+    ) -> Result<Self::Response, ClientError> {
         Ok(resp.into_inner().into())
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::NotFound => Some(CheckTailError::NotFound(status.message().to_string())),
-            tonic::Code::InvalidArgument => Some(CheckTailError::InvalidArgument(
-                status.message().to_string(),
-            )),
-            _ => None,
-        })
     }
 
     async fn send(
@@ -64,14 +53,6 @@ impl ServiceRequest for CheckTailServiceRequest {
 
 impl IdempotentRequest for CheckTailServiceRequest {
     const NO_SIDE_EFFECTS: bool = true;
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum CheckTailError {
-    #[error("Not found: {0}")]
-    NotFound(String),
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
 }
 
 #[derive(Debug, Clone)]
@@ -99,9 +80,8 @@ impl ServiceRequest for ReadServiceRequest {
     type ApiRequest = api::ReadRequest;
     type Response = types::ReadOutput;
     type ApiResponse = api::ReadResponse;
-    type Error = ReadError;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
         let req = self.req.clone().try_into_api_type(self.stream.clone())?;
         Ok(req.into_request())
     }
@@ -109,21 +89,8 @@ impl ServiceRequest for ReadServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
+    ) -> Result<Self::Response, ClientError> {
         resp.into_inner().try_into()
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::NotFound => Some(ReadError::NotFound(status.message().to_string())),
-            tonic::Code::InvalidArgument => {
-                Some(ReadError::InvalidArgument(status.message().to_string()))
-            }
-            tonic::Code::DeadlineExceeded => {
-                Some(ReadError::DeadlineExceeded(status.message().to_string()))
-            }
-            _ => None,
-        })
     }
 
     async fn send(
@@ -136,16 +103,6 @@ impl ServiceRequest for ReadServiceRequest {
 
 impl IdempotentRequest for ReadServiceRequest {
     const NO_SIDE_EFFECTS: bool = true;
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ReadError {
-    #[error("Not found: {0}")]
-    NotFound(String),
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
-    #[error("Deadline exceeded: {0}")]
-    DeadlineExceeded(String),
 }
 
 #[derive(Debug, Clone)]
@@ -173,9 +130,8 @@ impl ServiceRequest for ReadSessionServiceRequest {
     type ApiRequest = api::ReadSessionRequest;
     type Response = ServiceStreamingResponse<ReadSessionStreamingResponse>;
     type ApiResponse = tonic::Streaming<api::ReadSessionResponse>;
-    type Error = ReadSessionError;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
         let req = self.req.clone().into_api_type(self.stream.clone());
         Ok(req.into_request())
     }
@@ -183,24 +139,11 @@ impl ServiceRequest for ReadSessionServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
+    ) -> Result<Self::Response, ClientError> {
         Ok(ServiceStreamingResponse::new(
             ReadSessionStreamingResponse,
             resp.into_inner(),
         ))
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::NotFound => Some(ReadSessionError::NotFound(status.message().to_string())),
-            tonic::Code::InvalidArgument => Some(ReadSessionError::InvalidArgument(
-                status.message().to_string(),
-            )),
-            tonic::Code::DeadlineExceeded => Some(ReadSessionError::DeadlineExceeded(
-                status.message().to_string(),
-            )),
-            _ => None,
-        })
     }
 
     async fn send(
@@ -220,40 +163,13 @@ pub struct ReadSessionStreamingResponse;
 impl StreamingResponse for ReadSessionStreamingResponse {
     type ResponseItem = types::ReadSessionResponse;
     type ApiResponseItem = api::ReadSessionResponse;
-    type Error = ReadSessionError;
 
     fn parse_response_item(
         &self,
         resp: Self::ApiResponseItem,
-    ) -> Result<Self::ResponseItem, types::ConvertError> {
+    ) -> Result<Self::ResponseItem, ClientError> {
         resp.try_into()
     }
-
-    fn parse_response_item_status(
-        &self,
-        status: &tonic::Status,
-    ) -> Result<Self::ResponseItem, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::NotFound => Some(ReadSessionError::NotFound(status.message().to_string())),
-            tonic::Code::InvalidArgument => Some(ReadSessionError::InvalidArgument(
-                status.message().to_string(),
-            )),
-            tonic::Code::DeadlineExceeded => Some(ReadSessionError::DeadlineExceeded(
-                status.message().to_string(),
-            )),
-            _ => None,
-        })
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ReadSessionError {
-    #[error("Not found: {0}")]
-    NotFound(String),
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
-    #[error("Deadline exceeded: {0}")]
-    DeadlineExceeded(String),
 }
 
 #[derive(Debug, Clone)]
@@ -281,9 +197,8 @@ impl ServiceRequest for AppendServiceRequest {
     type ApiRequest = api::AppendRequest;
     type Response = types::AppendOutput;
     type ApiResponse = api::AppendResponse;
-    type Error = AppendError;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
         Ok(api::AppendRequest {
             input: Some(self.req.clone().into_api_type(self.stream.clone())),
         }
@@ -293,22 +208,8 @@ impl ServiceRequest for AppendServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
+    ) -> Result<Self::Response, ClientError> {
         resp.into_inner().try_into()
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::NotFound => Some(AppendError::NotFound(status.message().to_string())),
-            tonic::Code::InvalidArgument => {
-                Some(AppendError::InvalidArgument(status.message().to_string()))
-            }
-            tonic::Code::Aborted => Some(AppendError::Aborted(status.message().to_string())),
-            tonic::Code::FailedPrecondition => Some(AppendError::FailedPrecondition(
-                status.message().to_string(),
-            )),
-            _ => None,
-        })
     }
 
     async fn send(
@@ -317,18 +218,6 @@ impl ServiceRequest for AppendServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.append(req).await
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum AppendError {
-    #[error("Not found: {0}")]
-    NotFound(String),
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
-    #[error("Aborted: {0}")]
-    Aborted(String),
-    #[error("Failed precondition: {0}")]
-    FailedPrecondition(String),
 }
 
 pub struct AppendSessionServiceRequest<S>
@@ -360,12 +249,13 @@ where
     type ApiRequest = ServiceStreamingRequest<AppendSessionStreamingRequest, S>;
     type Response = ServiceStreamingResponse<AppendSessionStreamingResponse>;
     type ApiResponse = tonic::Streaming<api::AppendSessionResponse>;
-    type Error = AppendSessionError;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
         let req = ServiceStreamingRequest::new(
             AppendSessionStreamingRequest::new(&self.stream),
-            self.req.take().ok_or("missing streaming append request")?,
+            self.req.take().ok_or(ClientError::Conversion(
+                "missing streaming append request".into(),
+            ))?,
         );
         Ok(req.into_request())
     }
@@ -373,26 +263,11 @@ where
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
+    ) -> Result<Self::Response, ClientError> {
         Ok(ServiceStreamingResponse::new(
             AppendSessionStreamingResponse,
             resp.into_inner(),
         ))
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::NotFound => {
-                Some(AppendSessionError::NotFound(status.message().to_string()))
-            }
-            tonic::Code::InvalidArgument => Some(AppendSessionError::InvalidArgument(
-                status.message().to_string(),
-            )),
-            tonic::Code::DeadlineExceeded => Some(AppendSessionError::DeadlineExceeded(
-                status.message().to_string(),
-            )),
-            _ => None,
-        })
     }
 
     async fn send(
@@ -431,40 +306,11 @@ pub struct AppendSessionStreamingResponse;
 impl StreamingResponse for AppendSessionStreamingResponse {
     type ResponseItem = types::AppendOutput;
     type ApiResponseItem = api::AppendSessionResponse;
-    type Error = AppendSessionError;
 
     fn parse_response_item(
         &self,
         resp: Self::ApiResponseItem,
-    ) -> Result<Self::ResponseItem, types::ConvertError> {
+    ) -> Result<Self::ResponseItem, ClientError> {
         resp.try_into()
     }
-
-    fn parse_response_item_status(
-        &self,
-        status: &tonic::Status,
-    ) -> Result<Self::ResponseItem, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::NotFound => {
-                Some(AppendSessionError::NotFound(status.message().to_string()))
-            }
-            tonic::Code::InvalidArgument => Some(AppendSessionError::InvalidArgument(
-                status.message().to_string(),
-            )),
-            tonic::Code::DeadlineExceeded => Some(AppendSessionError::DeadlineExceeded(
-                status.message().to_string(),
-            )),
-            _ => None,
-        })
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum AppendSessionError {
-    #[error("Not found: {0}")]
-    NotFound(String),
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
-    #[error("Deadline exceeded: {0}")]
-    DeadlineExceeded(String),
 }

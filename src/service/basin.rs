@@ -1,6 +1,6 @@
 use tonic::{transport::Channel, IntoRequest};
 
-use super::{IdempotentRequest, ServiceRequest};
+use super::{ClientError, IdempotentRequest, ServiceRequest};
 use crate::{
     api::{self, basin_service_client::BasinServiceClient},
     types,
@@ -22,9 +22,8 @@ impl ServiceRequest for ListStreamsServiceRequest {
     type ApiRequest = api::ListStreamsRequest;
     type Response = types::ListStreamsResponse;
     type ApiResponse = api::ListStreamsResponse;
-    type Error = ListStreamsError;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
         let req: api::ListStreamsRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -32,18 +31,8 @@ impl ServiceRequest for ListStreamsServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
+    ) -> Result<Self::Response, ClientError> {
         Ok(resp.into_inner().into())
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::NotFound => Some(ListStreamsError::NotFound(status.message().to_string())),
-            tonic::Code::InvalidArgument => Some(ListStreamsError::InvalidArgument(
-                status.message().to_string(),
-            )),
-            _ => None,
-        })
     }
 
     async fn send(
@@ -56,14 +45,6 @@ impl ServiceRequest for ListStreamsServiceRequest {
 
 impl IdempotentRequest for ListStreamsServiceRequest {
     const NO_SIDE_EFFECTS: bool = true;
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ListStreamsError {
-    #[error("Not found: {0}")]
-    NotFound(String),
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
 }
 
 #[derive(Debug, Clone)]
@@ -85,9 +66,8 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
     type ApiRequest = api::GetStreamConfigRequest;
     type Response = types::StreamConfig;
     type ApiResponse = api::GetStreamConfigResponse;
-    type Error = GetStreamConfigError;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
         let req = api::GetStreamConfigRequest {
             stream: self.stream.clone(),
         };
@@ -97,20 +77,8 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
+    ) -> Result<Self::Response, ClientError> {
         resp.into_inner().try_into()
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::NotFound => {
-                Some(GetStreamConfigError::NotFound(status.message().to_string()))
-            }
-            tonic::Code::InvalidArgument => Some(GetStreamConfigError::InvalidArgument(
-                status.message().to_string(),
-            )),
-            _ => None,
-        })
     }
 
     async fn send(
@@ -123,14 +91,6 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
 
 impl IdempotentRequest for GetStreamConfigServiceRequest {
     const NO_SIDE_EFFECTS: bool = true;
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum GetStreamConfigError {
-    #[error("Not found: {0}")]
-    NotFound(String),
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
 }
 
 #[derive(Debug, Clone)]
@@ -149,9 +109,8 @@ impl ServiceRequest for CreateStreamServiceRequest {
     type ApiRequest = api::CreateStreamRequest;
     type Response = ();
     type ApiResponse = api::CreateStreamResponse;
-    type Error = CreateStreamError;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
         let req: api::CreateStreamRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -159,23 +118,8 @@ impl ServiceRequest for CreateStreamServiceRequest {
     fn parse_response(
         &self,
         _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
+    ) -> Result<Self::Response, ClientError> {
         Ok(())
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::AlreadyExists => Some(CreateStreamError::AlreadyExists(
-                status.message().to_string(),
-            )),
-            tonic::Code::NotFound => {
-                Some(CreateStreamError::NotFound(status.message().to_string()))
-            }
-            tonic::Code::InvalidArgument => Some(CreateStreamError::InvalidArgument(
-                status.message().to_string(),
-            )),
-            _ => None,
-        })
     }
 
     async fn send(
@@ -184,16 +128,6 @@ impl ServiceRequest for CreateStreamServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.create_stream(req).await
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum CreateStreamError {
-    #[error("Already exists: {0}")]
-    AlreadyExists(String),
-    #[error("Not found: {0}")]
-    NotFound(String),
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
 }
 
 #[derive(Debug, Clone)]
@@ -212,9 +146,8 @@ impl ServiceRequest for DeleteStreamServiceRequest {
     type ApiRequest = api::DeleteStreamRequest;
     type Response = ();
     type ApiResponse = api::DeleteStreamResponse;
-    type Error = DeleteStreamError;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
         let req: api::DeleteStreamRequest = self.req.clone().into();
         Ok(req.into_request())
     }
@@ -222,21 +155,8 @@ impl ServiceRequest for DeleteStreamServiceRequest {
     fn parse_response(
         &self,
         _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
+    ) -> Result<Self::Response, ClientError> {
         Ok(())
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
-        match status.code() {
-            tonic::Code::NotFound if self.req.if_exists => Ok(()),
-            tonic::Code::NotFound => Err(Some(DeleteStreamError::NotFound(
-                status.message().to_string(),
-            ))),
-            tonic::Code::InvalidArgument => Err(Some(DeleteStreamError::InvalidArgument(
-                status.message().to_string(),
-            ))),
-            _ => Err(None),
-        }
     }
 
     async fn send(
@@ -249,14 +169,6 @@ impl ServiceRequest for DeleteStreamServiceRequest {
 
 impl IdempotentRequest for DeleteStreamServiceRequest {
     const NO_SIDE_EFFECTS: bool = false;
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum DeleteStreamError {
-    #[error("Not found: {0}")]
-    NotFound(String),
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
 }
 
 #[derive(Debug, Clone)]
@@ -275,9 +187,8 @@ impl ServiceRequest for ReconfigureStreamServiceRequest {
     type ApiRequest = api::ReconfigureStreamRequest;
     type Response = ();
     type ApiResponse = api::ReconfigureStreamResponse;
-    type Error = ReconfigureStreamError;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
         let req: api::ReconfigureStreamRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -285,20 +196,8 @@ impl ServiceRequest for ReconfigureStreamServiceRequest {
     fn parse_response(
         &self,
         _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
+    ) -> Result<Self::Response, ClientError> {
         Ok(())
-    }
-
-    fn parse_status(&self, status: &tonic::Status) -> Result<Self::Response, Option<Self::Error>> {
-        Err(match status.code() {
-            tonic::Code::NotFound => Some(ReconfigureStreamError::NotFound(
-                status.message().to_string(),
-            )),
-            tonic::Code::InvalidArgument => Some(ReconfigureStreamError::InvalidArgument(
-                status.message().to_string(),
-            )),
-            _ => None,
-        })
     }
 
     async fn send(
@@ -307,12 +206,4 @@ impl ServiceRequest for ReconfigureStreamServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.reconfigure_stream(req).await
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ReconfigureStreamError {
-    #[error("Not found: {0}")]
-    NotFound(String),
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
 }
