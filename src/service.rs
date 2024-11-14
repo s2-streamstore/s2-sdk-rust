@@ -3,6 +3,7 @@ pub mod basin;
 pub mod stream;
 
 use std::{
+    error::Error,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -13,24 +14,32 @@ use tonic::metadata::{AsciiMetadataValue, MetadataMap};
 
 use crate::types::ConvertError;
 
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum ServiceError<T: std::error::Error> {
     #[error("Message conversion: {0}")]
     Convert(ConvertError),
-    #[error("Internal server error: {0}")]
-    Internal(String),
+    #[error("Internal server error: {message}")]
+    Internal {
+        message: String,
+        src: Option<String>,
+    },
     #[error("{0} currently not supported")]
     NotSupported(String),
-    #[error("User not authenticated: {0}")]
-    Unauthenticated(String),
-    #[error("Unavailable: {0}")]
-    Unavailable(String),
-    #[error("Aborted: {0}")]
-    Aborted(String),
-    #[error("Cancelled: {0}")]
-    Cancelled(String),
-    #[error("{0}")]
-    Unknown(String),
+    #[error("User not authenticated: {message}")]
+    Unauthenticated {
+        message: String,
+        src: Option<String>,
+    },
+    #[error("Unavailable: {message}")]
+    Unavailable {
+        message: String,
+        src: Option<String>,
+    },
+    #[error("Cancelled: {message}")]
+    Cancelled {
+        message: String,
+        src: Option<String>,
+    },
     #[error(transparent)]
     Remote(T),
 }
@@ -44,21 +53,31 @@ pub async fn send_request<T: ServiceRequest>(
     match service.send(req).await {
         Ok(resp) => service.parse_response(resp).map_err(ServiceError::Convert),
         Err(status) => match status.code() {
-            tonic::Code::Internal => Err(ServiceError::Internal(status.message().to_string())),
+            tonic::Code::Internal => Err(ServiceError::Internal {
+                message: status.message().to_string(),
+                src: status.source().map(|s| format!("{:?}", s)),
+            }),
             tonic::Code::Unimplemented => {
                 Err(ServiceError::NotSupported(status.message().to_string()))
             }
-            tonic::Code::Unauthenticated => {
-                Err(ServiceError::Unauthenticated(status.message().to_string()))
-            }
-            tonic::Code::Unavailable => {
-                Err(ServiceError::Unavailable(status.message().to_string()))
-            }
-            tonic::Code::Aborted => Err(ServiceError::Aborted(status.message().to_string())),
-            tonic::Code::Cancelled => Err(ServiceError::Cancelled(status.message().to_string())),
+            tonic::Code::Unauthenticated => Err(ServiceError::Unauthenticated {
+                message: status.message().to_string(),
+                src: status.source().map(|s| s.to_string()),
+            }),
+            tonic::Code::Unavailable => Err(ServiceError::Unavailable {
+                message: status.message().to_string(),
+                src: status.source().map(|s| s.to_string()),
+            }),
+            tonic::Code::Cancelled => Err(ServiceError::Cancelled {
+                message: status.message().to_string(),
+                src: status.source().map(|s| s.to_string()),
+            }),
             _ => match service.parse_status(&status) {
                 Ok(resp) => Ok(resp),
-                Err(None) => Err(ServiceError::Unknown(status.message().to_string())),
+                Err(None) => Err(ServiceError::Internal {
+                    message: status.message().to_string(),
+                    src: status.source().map(|s| s.to_string()),
+                }),
                 Err(Some(e)) => Err(ServiceError::Remote(e)),
             },
         },
@@ -146,8 +165,8 @@ impl<T: IdempotentRequest> RetryableRequest for T {
         match err {
             // Always retry on unavailable (if the request doesn't have any
             // side-effects).
-            ServiceError::Unavailable(_) => true,
-            ServiceError::Internal(_) => T::NO_SIDE_EFFECTS,
+            ServiceError::Unavailable { .. } => true,
+            ServiceError::Internal { .. } => T::NO_SIDE_EFFECTS,
             _ => false,
         }
     }
@@ -215,7 +234,7 @@ pub trait StreamingResponse: Unpin {
     fn parse_response_item_status(
         &self,
         status: &tonic::Status,
-    ) -> Result<Option<Self::ResponseItem>, Option<Self::Error>>;
+    ) -> Result<Self::ResponseItem, Option<Self::Error>>;
 }
 
 pub struct ServiceStreamingResponse<S: StreamingResponse> {
@@ -236,35 +255,40 @@ impl<S: StreamingResponse> futures::Stream for ServiceStreamingResponse<S> {
         match self.stream.poll_next_unpin(cx) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(None) => Poll::Ready(None),
-            Poll::Ready(Some(item)) => match item {
-                Ok(resp) => Poll::Ready(Some(
-                    self.req
+            Poll::Ready(Some(item)) => {
+                let item = match item {
+                    Ok(resp) => self
+                        .req
                         .parse_response_item(resp)
                         .map_err(ServiceError::Convert),
-                )),
-                Err(status) => match status.code() {
-                    tonic::Code::Internal => Poll::Ready(Some(Err(ServiceError::Internal(
-                        status.message().to_string(),
-                    )))),
-                    tonic::Code::Unimplemented => Poll::Ready(Some(Err(
-                        ServiceError::NotSupported(status.message().to_string()),
-                    ))),
-                    tonic::Code::Unauthenticated => Poll::Ready(Some(Err(
-                        ServiceError::Unauthenticated(status.message().to_string()),
-                    ))),
-                    tonic::Code::Unavailable => Poll::Ready(Some(Err(ServiceError::Unavailable(
-                        status.message().to_string(),
-                    )))),
-                    _ => match self.req.parse_response_item_status(&status) {
-                        Ok(Some(resp)) => Poll::Ready(Some(Ok(resp))),
-                        Ok(None) => Poll::Ready(None),
-                        Err(None) => Poll::Ready(Some(Err(ServiceError::Unknown(
-                            status.message().to_string(),
-                        )))),
-                        Err(Some(e)) => Poll::Ready(Some(Err(ServiceError::Remote(e)))),
+                    Err(status) => match status.code() {
+                        tonic::Code::Internal => Err(ServiceError::Internal {
+                            message: status.message().to_string(),
+                            src: status.source().map(|s| format!("{:?}", s)),
+                        }),
+                        tonic::Code::Unimplemented => {
+                            Err(ServiceError::NotSupported(status.message().to_string()))
+                        }
+                        tonic::Code::Unauthenticated => Err(ServiceError::Unauthenticated {
+                            message: status.message().to_string(),
+                            src: status.source().map(|s| s.to_string()),
+                        }),
+                        tonic::Code::Unavailable => Err(ServiceError::Unavailable {
+                            message: status.message().to_string(),
+                            src: status.source().map(|s| s.to_string()),
+                        }),
+                        _ => match self.req.parse_response_item_status(&status) {
+                            Ok(resp) => Ok(resp),
+                            Err(None) => Err(ServiceError::Internal {
+                                message: status.message().to_string(),
+                                src: status.source().map(|s| s.to_string()),
+                            }),
+                            Err(Some(e)) => Err(ServiceError::Remote(e)),
+                        },
                     },
-                },
-            },
+                };
+                Poll::Ready(Some(item))
+            }
         }
     }
 }
