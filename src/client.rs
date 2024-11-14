@@ -599,12 +599,10 @@ impl ClientInner {
             .timeout(config.request_timeout);
 
         let channel = if let Some(connector) = connector {
-            // We also want to ensure, while connecting with a connector, the
-            // bazin_zone should be none.
-            #[cfg(feature = "connector")]
-            if config.host_endpoint.basin_zone.is_some() {
-                return Err(ClientError::InvalidBasinZoneConnector);
-            }
+            assert!(
+                config.host_endpoint.basin_zone.is_none(),
+                "cannot connect with connector if basin zone is provided"
+            );
             endpoint.connect_with_connector_lazy(connector)
         } else {
             endpoint.connect_lazy()
@@ -652,9 +650,6 @@ impl ClientInner {
 /// Error connecting to S2 endpoint.
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
-    #[cfg(feature = "connector")]
-    #[error("Invalid basin zone: should be None when connecting with connector")]
-    InvalidBasinZoneConnector,
     #[error(transparent)]
     TonicTransportError(#[from] tonic::transport::Error),
     #[error(transparent)]
