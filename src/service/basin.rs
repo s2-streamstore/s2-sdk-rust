@@ -78,7 +78,7 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
         &self,
         resp: tonic::Response<Self::ApiResponse>,
     ) -> Result<Self::Response, ClientError> {
-        resp.into_inner().try_into()
+        resp.into_inner().try_into().map_err(Into::into)
     }
 
     async fn send(

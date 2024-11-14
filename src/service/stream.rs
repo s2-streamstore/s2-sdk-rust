@@ -90,7 +90,7 @@ impl ServiceRequest for ReadServiceRequest {
         &self,
         resp: tonic::Response<Self::ApiResponse>,
     ) -> Result<Self::Response, ClientError> {
-        resp.into_inner().try_into()
+        resp.into_inner().try_into().map_err(Into::into)
     }
 
     async fn send(
@@ -168,7 +168,7 @@ impl StreamingResponse for ReadSessionStreamingResponse {
         &self,
         resp: Self::ApiResponseItem,
     ) -> Result<Self::ResponseItem, ClientError> {
-        resp.try_into()
+        resp.try_into().map_err(Into::into)
     }
 }
 
@@ -209,7 +209,7 @@ impl ServiceRequest for AppendServiceRequest {
         &self,
         resp: tonic::Response<Self::ApiResponse>,
     ) -> Result<Self::Response, ClientError> {
-        resp.into_inner().try_into()
+        resp.into_inner().try_into().map_err(Into::into)
     }
 
     async fn send(
@@ -311,6 +311,6 @@ impl StreamingResponse for AppendSessionStreamingResponse {
         &self,
         resp: Self::ApiResponseItem,
     ) -> Result<Self::ResponseItem, ClientError> {
-        resp.try_into()
+        resp.try_into().map_err(Into::into)
     }
 }
