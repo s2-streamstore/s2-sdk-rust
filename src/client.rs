@@ -2,6 +2,7 @@ use std::{fmt::Display, str::FromStr, time::Duration};
 
 use backon::{ConstantBuilder, Retryable};
 use http::uri::Authority;
+use hyper_util::client::legacy::connect::HttpConnector;
 use secrecy::SecretString;
 use sync_docs::sync_docs;
 use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
@@ -34,6 +35,8 @@ use crate::{
     },
     types,
 };
+
+const DEFAULT_HTTP_CONNECTOR: Option<HttpConnector> = None;
 
 /// Cloud deployment to be used to connect the client with.
 ///
@@ -158,6 +161,9 @@ pub struct ClientConfig {
     pub request_timeout: Duration,
     /// User agent to be used for the client.
     pub user_agent: String,
+    /// URI scheme to use to connect.
+    #[cfg(feature = "connector")]
+    pub uri_scheme: http::uri::Scheme,
 }
 
 impl ClientConfig {
@@ -170,6 +176,8 @@ impl ClientConfig {
             connection_timeout: Duration::from_secs(3),
             request_timeout: Duration::from_secs(5),
             user_agent: "s2-sdk-rust".to_string(),
+            #[cfg(feature = "connector")]
+            uri_scheme: http::uri::Scheme::HTTPS,
         }
     }
 
@@ -205,6 +213,15 @@ impl ClientConfig {
             ..self
         }
     }
+
+    /// Construct from an existing configuration with the new URI scheme.
+    #[cfg(feature = "connector")]
+    pub fn with_uri_scheme(self, uri_scheme: impl Into<http::uri::Scheme>) -> Self {
+        Self {
+            uri_scheme: uri_scheme.into(),
+            ..self
+        }
+    }
 }
 
 /// The S2 client to interact with the API.
@@ -217,7 +234,20 @@ impl Client {
     /// Create the client to connect with the S2 API.
     pub fn new(config: ClientConfig) -> Result<Self, ClientError> {
         Ok(Self {
-            inner: ClientInner::new_cell(config)?,
+            inner: ClientInner::new_cell(config, DEFAULT_HTTP_CONNECTOR)?,
+        })
+    }
+
+    #[cfg(feature = "connector")]
+    pub fn new_with_connector<C>(config: ClientConfig, connector: C) -> Result<Self, ClientError>
+    where
+        C: tower_service::Service<http::Uri> + Send + 'static,
+        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        C::Future: Send,
+        C::Error: std::error::Error + Send + Sync + 'static,
+    {
+        Ok(Self {
+            inner: ClientInner::new_cell(config, Some(connector))?,
         })
     }
 
@@ -304,6 +334,22 @@ impl BasinClient {
     /// Create the client to connect with the S2 basin service API.
     pub fn new(config: ClientConfig, basin: impl Into<String>) -> Result<Self, ClientError> {
         let client = Client::new(config)?;
+        client.basin_client(basin)
+    }
+
+    #[cfg(feature = "connector")]
+    pub fn new_with_connector<C>(
+        config: ClientConfig,
+        basin: impl Into<String>,
+        connector: C,
+    ) -> Result<Self, ClientError>
+    where
+        C: tower_service::Service<http::Uri> + Send + 'static,
+        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        C::Future: Send,
+        C::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let client = Client::new_with_connector(config, connector)?;
         client.basin_client(basin)
     }
 
@@ -398,6 +444,23 @@ impl StreamClient {
         BasinClient::new(config, basin).map(|client| client.stream_client(stream))
     }
 
+    #[cfg(feature = "connector")]
+    pub fn new_with_connector<C>(
+        config: ClientConfig,
+        basin: impl Into<String>,
+        stream: impl Into<String>,
+        connector: C,
+    ) -> Result<Self, ClientError>
+    where
+        C: tower_service::Service<http::Uri> + Send + 'static,
+        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        C::Future: Send,
+        C::Error: std::error::Error + Send + Sync + 'static,
+    {
+        BasinClient::new_with_connector(config, basin, connector)
+            .map(|client| client.stream_client(stream))
+    }
+
     #[sync_docs]
     pub async fn check_tail(&self) -> Result<u64, ServiceError<CheckTailError>> {
         self.inner
@@ -481,9 +544,15 @@ struct ClientInner {
 }
 
 impl ClientInner {
-    fn new_cell(config: ClientConfig) -> Result<Self, ClientError> {
+    fn new_cell<C>(config: ClientConfig, connector: Option<C>) -> Result<Self, ClientError>
+    where
+        C: tower_service::Service<http::Uri> + Send + 'static,
+        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        C::Future: Send,
+        C::Error: std::error::Error + Send + Sync + 'static,
+    {
         let cell_endpoint = config.host_endpoint.cell.clone();
-        Self::new(config, cell_endpoint)
+        Self::new(config, cell_endpoint, connector)
     }
 
     fn new_basin(&self, basin: impl Into<String>) -> Result<Self, ClientError> {
@@ -492,7 +561,7 @@ impl ClientInner {
         match self.config.host_endpoint.basin_zone.clone() {
             Some(endpoint) => {
                 let basin_endpoint: Authority = format!("{basin}.{endpoint}").parse()?;
-                ClientInner::new(self.config.clone(), basin_endpoint)
+                ClientInner::new(self.config.clone(), basin_endpoint, DEFAULT_HTTP_CONNECTOR)
             }
             None => Ok(Self {
                 basin: Some(basin),
@@ -501,8 +570,23 @@ impl ClientInner {
         }
     }
 
-    fn new(config: ClientConfig, endpoint: Authority) -> Result<Self, ClientError> {
-        let endpoint = format!("https://{endpoint}")
+    fn new<C>(
+        config: ClientConfig,
+        endpoint: Authority,
+        connector: Option<C>,
+    ) -> Result<Self, ClientError>
+    where
+        C: tower_service::Service<http::Uri> + Send + 'static,
+        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
+        C::Future: Send,
+        C::Error: std::error::Error + Send + Sync + 'static,
+    {
+        #[cfg(not(feature = "connector"))]
+        let scheme = "https";
+        #[cfg(feature = "connector")]
+        let scheme = config.uri_scheme.as_str();
+
+        let endpoint = format!("{scheme}://{endpoint}")
             .parse::<Endpoint>()?
             .user_agent(config.user_agent.clone())?
             .http2_adaptive_window(true)
@@ -513,8 +597,21 @@ impl ClientInner {
             )?
             .connect_timeout(config.connection_timeout)
             .timeout(config.request_timeout);
+
+        let channel = if let Some(connector) = connector {
+            // We also want to ensure, while connecting with a connector, the
+            // bazin_zone should be none.
+            #[cfg(feature = "connector")]
+            if config.host_endpoint.basin_zone.is_some() {
+                return Err(ClientError::InvalidBasinZoneConnector);
+            }
+            endpoint.connect_with_connector_lazy(connector)
+        } else {
+            endpoint.connect_lazy()
+        };
+
         Ok(Self {
-            channel: endpoint.connect_lazy(),
+            channel,
             basin: None,
             config,
         })
@@ -555,6 +652,9 @@ impl ClientInner {
 /// Error connecting to S2 endpoint.
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
+    #[cfg(feature = "connector")]
+    #[error("Invalid basin zone: should be None when connecting with connector")]
+    InvalidBasinZoneConnector,
     #[error(transparent)]
     TonicTransportError(#[from] tonic::transport::Error),
     #[error(transparent)]
