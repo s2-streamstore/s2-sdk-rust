@@ -1,6 +1,6 @@
 use tonic::{transport::Channel, IntoRequest};
 
-use super::{ClientError, IdempotentRequest, ServiceRequest};
+use super::{IdempotentRequest, ServiceRequest};
 use crate::{
     api::{self, account_service_client::AccountServiceClient},
     types,
@@ -23,7 +23,7 @@ impl ServiceRequest for CreateBasinServiceRequest {
     type Response = types::BasinMetadata;
     type ApiResponse = api::CreateBasinResponse;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::CreateBasinRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -31,8 +31,8 @@ impl ServiceRequest for CreateBasinServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError> {
-        resp.into_inner().try_into().map_err(Into::into)
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
     }
 
     async fn send(
@@ -60,7 +60,7 @@ impl ServiceRequest for ListBasinsServiceRequest {
     type Response = types::ListBasinsResponse;
     type ApiResponse = api::ListBasinsResponse;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ListBasinsRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -68,8 +68,8 @@ impl ServiceRequest for ListBasinsServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError> {
-        resp.into_inner().try_into().map_err(Into::into)
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
     }
 
     async fn send(
@@ -101,7 +101,7 @@ impl ServiceRequest for DeleteBasinServiceRequest {
     type Response = ();
     type ApiResponse = api::DeleteBasinResponse;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::DeleteBasinRequest = self.req.clone().into();
         Ok(req.into_request())
     }
@@ -109,7 +109,7 @@ impl ServiceRequest for DeleteBasinServiceRequest {
     fn parse_response(
         &self,
         _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError> {
+    ) -> Result<Self::Response, types::ConvertError> {
         Ok(())
     }
 
@@ -145,7 +145,7 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
     type Response = types::BasinConfig;
     type ApiResponse = api::GetBasinConfigResponse;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = api::GetBasinConfigRequest {
             basin: self.basin.clone(),
         };
@@ -155,8 +155,8 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError> {
-        resp.into_inner().try_into().map_err(Into::into)
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
     }
 
     async fn send(
@@ -188,7 +188,7 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
     type Response = ();
     type ApiResponse = api::ReconfigureBasinResponse;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ReconfigureBasinRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -196,7 +196,7 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
     fn parse_response(
         &self,
         _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError> {
+    ) -> Result<Self::Response, types::ConvertError> {
         Ok(())
     }
 

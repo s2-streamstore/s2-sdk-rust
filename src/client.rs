@@ -28,7 +28,7 @@ use crate::{
         },
         RetryableRequest, ServiceRequest, Streaming,
     },
-    types::{self, ConvertError},
+    types,
 };
 
 const DEFAULT_HTTP_CONNECTOR: Option<HttpConnector> = None;
@@ -222,7 +222,7 @@ impl ClientConfig {
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum ClientError {
     #[error(transparent)]
-    Conversion(#[from] ConvertError),
+    Conversion(#[from] types::ConvertError),
     #[error(transparent)]
     Service(#[from] tonic::Status),
 }

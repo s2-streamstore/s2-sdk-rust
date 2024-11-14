@@ -11,7 +11,7 @@ use futures::StreamExt;
 use secrecy::{ExposeSecret, SecretString};
 use tonic::metadata::{AsciiMetadataValue, MetadataMap};
 
-use crate::client::ClientError;
+use crate::{client::ClientError, types};
 
 pub async fn send_request<T: ServiceRequest>(
     mut service: T,
@@ -20,7 +20,7 @@ pub async fn send_request<T: ServiceRequest>(
 ) -> Result<T::Response, ClientError> {
     let req = prepare_request(&mut service, token, basin)?;
     match service.send(req).await {
-        Ok(resp) => service.parse_response(resp),
+        Ok(resp) => Ok(service.parse_response(resp)?),
         Err(status) => Err(ClientError::Service(status)),
     }
 }
@@ -29,7 +29,7 @@ fn prepare_request<T: ServiceRequest>(
     service: &mut T,
     token: &SecretString,
     basin: Option<&str>,
-) -> Result<tonic::Request<T::ApiRequest>, ClientError> {
+) -> Result<tonic::Request<T::ApiRequest>, types::ConvertError> {
     let mut req = service.prepare_request()?;
     add_authorization_header(req.metadata_mut(), token)?;
     if let Some(basin) = basin {
@@ -41,21 +41,21 @@ fn prepare_request<T: ServiceRequest>(
 fn add_authorization_header(
     meta: &mut MetadataMap,
     token: &SecretString,
-) -> Result<(), ClientError> {
+) -> Result<(), types::ConvertError> {
     let mut val: AsciiMetadataValue = format!("Bearer {}", token.expose_secret())
         .try_into()
-        .map_err(|_| ClientError::Conversion("failed to parse token as metadata value".into()))?;
+        .map_err(|_| "failed to parse token as metadata value")?;
     val.set_sensitive(true);
     meta.insert("authorization", val);
     Ok(())
 }
 
-fn add_basin_header(meta: &mut MetadataMap, basin: &str) -> Result<(), ClientError> {
+fn add_basin_header(meta: &mut MetadataMap, basin: &str) -> Result<(), types::ConvertError> {
     meta.insert(
         "s2-basin",
-        basin.parse().map_err(|_| {
-            ClientError::Conversion("failed to parse basin as metadata value".into())
-        })?,
+        basin
+            .parse()
+            .map_err(|_| "failed to parse basin as metadata value")?,
     );
     Ok(())
 }
@@ -69,13 +69,13 @@ pub trait ServiceRequest {
     type ApiResponse;
 
     /// Take the request parameters and generate the corresponding tonic request.
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError>;
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError>;
 
     /// Take the tonic response and generate the response to be returned.
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError>;
+    ) -> Result<Self::Response, types::ConvertError>;
 
     /// Actually send the tonic request to receive a raw response and the parsed error.
     async fn send(

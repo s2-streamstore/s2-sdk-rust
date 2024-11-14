@@ -29,7 +29,7 @@ impl ServiceRequest for CheckTailServiceRequest {
     type Response = u64;
     type ApiResponse = api::CheckTailResponse;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = api::CheckTailRequest {
             stream: self.stream.clone(),
         };
@@ -39,7 +39,7 @@ impl ServiceRequest for CheckTailServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError> {
+    ) -> Result<Self::Response, types::ConvertError> {
         Ok(resp.into_inner().into())
     }
 
@@ -81,7 +81,7 @@ impl ServiceRequest for ReadServiceRequest {
     type Response = types::ReadOutput;
     type ApiResponse = api::ReadResponse;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = self.req.clone().try_into_api_type(self.stream.clone())?;
         Ok(req.into_request())
     }
@@ -89,7 +89,7 @@ impl ServiceRequest for ReadServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError> {
+    ) -> Result<Self::Response, types::ConvertError> {
         resp.into_inner().try_into().map_err(Into::into)
     }
 
@@ -131,7 +131,7 @@ impl ServiceRequest for ReadSessionServiceRequest {
     type Response = ServiceStreamingResponse<ReadSessionStreamingResponse>;
     type ApiResponse = tonic::Streaming<api::ReadSessionResponse>;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = self.req.clone().into_api_type(self.stream.clone());
         Ok(req.into_request())
     }
@@ -139,7 +139,7 @@ impl ServiceRequest for ReadSessionServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError> {
+    ) -> Result<Self::Response, types::ConvertError> {
         Ok(ServiceStreamingResponse::new(
             ReadSessionStreamingResponse,
             resp.into_inner(),
@@ -198,7 +198,7 @@ impl ServiceRequest for AppendServiceRequest {
     type Response = types::AppendOutput;
     type ApiResponse = api::AppendResponse;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         Ok(api::AppendRequest {
             input: Some(self.req.clone().into_api_type(self.stream.clone())),
         }
@@ -208,7 +208,7 @@ impl ServiceRequest for AppendServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError> {
+    ) -> Result<Self::Response, types::ConvertError> {
         resp.into_inner().try_into().map_err(Into::into)
     }
 
@@ -250,12 +250,10 @@ where
     type Response = ServiceStreamingResponse<AppendSessionStreamingResponse>;
     type ApiResponse = tonic::Streaming<api::AppendSessionResponse>;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = ServiceStreamingRequest::new(
             AppendSessionStreamingRequest::new(&self.stream),
-            self.req.take().ok_or(ClientError::Conversion(
-                "missing streaming append request".into(),
-            ))?,
+            self.req.take().ok_or("missing streaming append request")?,
         );
         Ok(req.into_request())
     }
@@ -263,7 +261,7 @@ where
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError> {
+    ) -> Result<Self::Response, types::ConvertError> {
         Ok(ServiceStreamingResponse::new(
             AppendSessionStreamingResponse,
             resp.into_inner(),

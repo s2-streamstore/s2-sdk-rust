@@ -1,6 +1,6 @@
 use tonic::{transport::Channel, IntoRequest};
 
-use super::{ClientError, IdempotentRequest, ServiceRequest};
+use super::{IdempotentRequest, ServiceRequest};
 use crate::{
     api::{self, basin_service_client::BasinServiceClient},
     types,
@@ -23,7 +23,7 @@ impl ServiceRequest for ListStreamsServiceRequest {
     type Response = types::ListStreamsResponse;
     type ApiResponse = api::ListStreamsResponse;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ListStreamsRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -31,7 +31,7 @@ impl ServiceRequest for ListStreamsServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError> {
+    ) -> Result<Self::Response, types::ConvertError> {
         Ok(resp.into_inner().into())
     }
 
@@ -67,7 +67,7 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
     type Response = types::StreamConfig;
     type ApiResponse = api::GetStreamConfigResponse;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = api::GetStreamConfigRequest {
             stream: self.stream.clone(),
         };
@@ -77,8 +77,8 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError> {
-        resp.into_inner().try_into().map_err(Into::into)
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
     }
 
     async fn send(
@@ -110,7 +110,7 @@ impl ServiceRequest for CreateStreamServiceRequest {
     type Response = ();
     type ApiResponse = api::CreateStreamResponse;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::CreateStreamRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -118,7 +118,7 @@ impl ServiceRequest for CreateStreamServiceRequest {
     fn parse_response(
         &self,
         _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError> {
+    ) -> Result<Self::Response, types::ConvertError> {
         Ok(())
     }
 
@@ -147,7 +147,7 @@ impl ServiceRequest for DeleteStreamServiceRequest {
     type Response = ();
     type ApiResponse = api::DeleteStreamResponse;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::DeleteStreamRequest = self.req.clone().into();
         Ok(req.into_request())
     }
@@ -155,7 +155,7 @@ impl ServiceRequest for DeleteStreamServiceRequest {
     fn parse_response(
         &self,
         _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError> {
+    ) -> Result<Self::Response, types::ConvertError> {
         Ok(())
     }
 
@@ -188,7 +188,7 @@ impl ServiceRequest for ReconfigureStreamServiceRequest {
     type Response = ();
     type ApiResponse = api::ReconfigureStreamResponse;
 
-    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, ClientError> {
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ReconfigureStreamRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
     }
@@ -196,7 +196,7 @@ impl ServiceRequest for ReconfigureStreamServiceRequest {
     fn parse_response(
         &self,
         _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, ClientError> {
+    ) -> Result<Self::Response, types::ConvertError> {
         Ok(())
     }
 
