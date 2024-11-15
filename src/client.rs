@@ -174,6 +174,12 @@ impl Default for HostEndpoints {
     }
 }
 
+impl From<HostCloud> for HostEndpoints {
+    fn from(cloud: HostCloud) -> Self {
+        HostEndpoints::for_cloud(cloud)
+    }
+}
+
 impl HostEndpoints {
     pub fn from_env() -> Result<Self, ParseError> {
         fn env_var<T>(
@@ -196,6 +202,10 @@ impl HostEndpoints {
         let cell_id = env_var("S2_CELL_ID", Ok)?;
 
         Ok(Self::from_parts(cloud, env, basin_zone, cell_id.as_deref()))
+    }
+
+    pub fn for_cloud(cloud: HostCloud) -> Self {
+        Self::from_parts(cloud, HostEnv::Prod, None, None)
     }
 
     pub fn from_parts(
@@ -263,9 +273,9 @@ impl ClientConfig {
     }
 
     /// Construct from an existing configuration with the new host URIs.
-    pub fn with_host_endpoint(self, host_endpoint: impl Into<HostEndpoints>) -> Self {
+    pub fn with_host_endpoints(self, host_endpoints: impl Into<HostEndpoints>) -> Self {
         Self {
-            host_endpoints: host_endpoint.into(),
+            host_endpoints: host_endpoints.into(),
             ..self
         }
     }
