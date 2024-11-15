@@ -176,11 +176,15 @@ impl From<HostCloud> for HostEndpoints {
 
 impl Default for HostEndpoints {
     fn default() -> Self {
-        Self::from_parts(HostCloud::Aws, HostEnv::Prod, None, None)
+        Self::for_cloud(HostCloud::default())
     }
 }
 
 impl HostEndpoints {
+    pub fn for_cloud(cloud: HostCloud) -> Self {
+        Self::from_parts(cloud, HostEnv::default(), None, None)
+    }
+
     pub fn from_env() -> Result<Self, ParseError> {
         fn env_var<T>(
             name: &str,
@@ -202,10 +206,6 @@ impl HostEndpoints {
         let cell_id = env_var("S2_CELL_ID", Ok)?;
 
         Ok(Self::from_parts(cloud, env, basin_zone, cell_id.as_deref()))
-    }
-
-    pub fn for_cloud(cloud: HostCloud) -> Self {
-        Self::from_parts(cloud, HostEnv::Prod, None, None)
     }
 
     pub fn from_parts(
