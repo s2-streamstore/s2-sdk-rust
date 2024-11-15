@@ -17,7 +17,7 @@ async fn main() {
     let host_endpoints = HostEndpoints::from_env().unwrap();
 
     let config = ClientConfig::new(token)
-        .with_host_endpoint(host_endpoints)
+        .with_host_endpoints(host_endpoints)
         .with_request_timeout(Duration::from_secs(10));
 
     println!("Connecting with {config:#?}");
