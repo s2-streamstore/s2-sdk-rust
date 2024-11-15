@@ -529,7 +529,7 @@ pub struct StreamClient {
 
 impl StreamClient {
     /// Create the client to connect with the S2 stream service API.
-    pub async fn new(
+    pub fn new(
         config: ClientConfig,
         basin: impl Into<String>,
         stream: impl Into<String>,
