@@ -168,15 +168,15 @@ pub struct HostEndpoints {
     pub basin_zone: Option<Authority>,
 }
 
-impl Default for HostEndpoints {
-    fn default() -> Self {
-        Self::from_parts(HostCloud::default(), HostEnv::default(), None, None)
-    }
-}
-
 impl From<HostCloud> for HostEndpoints {
     fn from(cloud: HostCloud) -> Self {
         HostEndpoints::for_cloud(cloud)
+    }
+}
+
+impl Default for HostEndpoints {
+    fn default() -> Self {
+        Self::from_parts(HostCloud::Aws, HostEnv::Prod, None, None)
     }
 }
 
