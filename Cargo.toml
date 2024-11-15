@@ -33,3 +33,6 @@ tokio = { version = "*", features = ["full"] }
 [features]
 serde = ["dep:serde"]
 connector = []
+
+[lints.clippy]
+unused_async = "deny"
