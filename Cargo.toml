@@ -37,3 +37,6 @@ tokio-stream = "0.1.16"
 [features]
 serde = ["dep:serde"]
 connector = []
+
+[lints.clippy]
+unused_async = "deny"

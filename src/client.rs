@@ -168,13 +168,23 @@ pub struct HostEndpoints {
     pub basin_zone: Option<Authority>,
 }
 
+impl From<HostCloud> for HostEndpoints {
+    fn from(cloud: HostCloud) -> Self {
+        HostEndpoints::for_cloud(cloud)
+    }
+}
+
 impl Default for HostEndpoints {
     fn default() -> Self {
-        Self::from_parts(HostCloud::default(), HostEnv::default(), None, None)
+        Self::for_cloud(HostCloud::default())
     }
 }
 
 impl HostEndpoints {
+    pub fn for_cloud(cloud: HostCloud) -> Self {
+        Self::from_parts(cloud, HostEnv::default(), None, None)
+    }
+
     pub fn from_env() -> Result<Self, ParseError> {
         fn env_var<T>(
             name: &str,
@@ -263,9 +273,9 @@ impl ClientConfig {
     }
 
     /// Construct from an existing configuration with the new host URIs.
-    pub fn with_host_endpoint(self, host_endpoint: impl Into<HostEndpoints>) -> Self {
+    pub fn with_host_endpoints(self, host_endpoints: impl Into<HostEndpoints>) -> Self {
         Self {
-            host_endpoints: host_endpoint.into(),
+            host_endpoints: host_endpoints.into(),
             ..self
         }
     }
@@ -519,7 +529,7 @@ pub struct StreamClient {
 
 impl StreamClient {
     /// Create the client to connect with the S2 stream service API.
-    pub async fn new(
+    pub fn new(
         config: ClientConfig,
         basin: impl Into<String>,
         stream: impl Into<String>,
