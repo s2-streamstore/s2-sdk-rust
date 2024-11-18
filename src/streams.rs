@@ -51,6 +51,7 @@ impl AppendRecordStreamOpts {
     }
 
     /// Maximum size of a batch in bytes.
+    #[cfg(test)]
     pub fn with_max_batch_size(self, max_batch_size: impl Into<ByteSize>) -> Self {
         let max_batch_size = max_batch_size.into();
 
@@ -212,6 +213,7 @@ impl<'a> BatchBuilder<'a> {
     }
 
     pub fn is_full(&self) -> bool {
+        assert!(self.batch.len() <= self.opts.max_batch_records);
         self.batch.len() == self.opts.max_batch_records || self.peeked_record.is_some()
     }
 
