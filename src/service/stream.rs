@@ -1,4 +1,5 @@
 pub mod batching;
+pub mod read_resumption;
 
 use tonic::{transport::Channel, IntoRequest};
 

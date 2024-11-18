@@ -23,8 +23,8 @@ use crate::{
         },
         send_request,
         stream::{
-            AppendServiceRequest, AppendSessionServiceRequest, CheckTailServiceRequest,
-            ReadServiceRequest, ReadSessionServiceRequest,
+            read_resumption, AppendServiceRequest, AppendSessionServiceRequest,
+            CheckTailServiceRequest, ReadServiceRequest, ReadSessionServiceRequest,
         },
         RetryableRequest, ServiceRequest, Streaming,
     },
@@ -580,14 +580,18 @@ impl StreamClient {
         &self,
         req: types::ReadSessionRequest,
     ) -> Result<Streaming<types::ReadOutput>, ClientError> {
+        let request =
+            ReadSessionServiceRequest::new(self.inner.stream_service_client(), &self.stream, req);
         self.inner
-            .send_retryable(ReadSessionServiceRequest::new(
-                self.inner.stream_service_client(),
-                &self.stream,
-                req,
-            ))
+            .send_retryable(request.clone())
             .await
-            .map(|s| Box::pin(s) as _)
+            .map(|response| {
+                Box::pin(read_resumption::stream(
+                    request,
+                    response,
+                    self.inner.clone(),
+                )) as _
+            })
     }
 
     #[sync_docs]
@@ -624,7 +628,7 @@ impl StreamClient {
 }
 
 #[derive(Debug, Clone)]
-struct ClientInner {
+pub(crate) struct ClientInner {
     channel: Channel,
     basin: Option<String>,
     config: ClientConfig,
@@ -702,11 +706,14 @@ impl ClientInner {
         })
     }
 
-    async fn send<T: ServiceRequest>(&self, service_req: T) -> Result<T::Response, ClientError> {
+    pub async fn send<T: ServiceRequest>(
+        &self,
+        service_req: T,
+    ) -> Result<T::Response, ClientError> {
         send_request(service_req, &self.config.token, self.basin.as_deref()).await
     }
 
-    async fn send_retryable<T: RetryableRequest>(
+    pub async fn send_retryable<T: RetryableRequest>(
         &self,
         service_req: T,
     ) -> Result<T::Response, ClientError> {

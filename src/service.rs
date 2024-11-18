@@ -98,7 +98,7 @@ impl<T: IdempotentRequest> RetryableRequest for T {
     fn should_retry(&self, err: &ClientError) -> bool {
         match err {
             // Always retry on unavailable (if the request doesn't have any
-            // side-effects).
+            // side effects).
             ClientError::Service(status) => match status.code() {
                 tonic::Code::Unavailable => true,
                 tonic::Code::Internal => T::NO_SIDE_EFFECTS,
