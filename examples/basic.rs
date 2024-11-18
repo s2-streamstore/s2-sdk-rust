@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use streamstore::{
+    batching::AppendRecordsBatchingStream,
     client::{Client, ClientConfig, ClientError, HostEndpoints},
-    streams::AppendRecordStream,
     types::{
         AppendInput, AppendRecord, CreateBasinRequest, CreateStreamRequest, DeleteBasinRequest,
         DeleteStreamRequest, ListBasinsRequest, ListStreamsRequest, ReadSessionRequest,
@@ -123,7 +123,7 @@ async fn main() {
     };
 
     let append_session_req =
-        AppendRecordStream::new(futures::stream::iter(records), Default::default()).unwrap();
+        AppendRecordsBatchingStream::new(futures::stream::iter(records), Default::default());
 
     match stream_client.append_session(append_session_req).await {
         Ok(mut stream) => {

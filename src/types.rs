@@ -1140,19 +1140,11 @@ impl ReadSessionRequest {
     }
 }
 
-#[sync_docs]
-#[derive(Debug, Clone)]
-pub struct ReadSessionResponse {
-    pub output: ReadOutput,
-}
-
-impl TryFrom<api::ReadSessionResponse> for ReadSessionResponse {
+impl TryFrom<api::ReadSessionResponse> for ReadOutput {
     type Error = ConvertError;
     fn try_from(value: api::ReadSessionResponse) -> Result<Self, Self::Error> {
         let api::ReadSessionResponse { output } = value;
         let output = output.ok_or("missing output in read session response")?;
-        Ok(Self {
-            output: output.try_into()?,
-        })
+        output.try_into()
     }
 }

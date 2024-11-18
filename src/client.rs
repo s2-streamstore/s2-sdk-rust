@@ -579,7 +579,7 @@ impl StreamClient {
     pub async fn read_session(
         &self,
         req: types::ReadSessionRequest,
-    ) -> Result<Streaming<types::ReadSessionResponse>, ClientError> {
+    ) -> Result<Streaming<types::ReadOutput>, ClientError> {
         self.inner
             .send_retryable(ReadSessionServiceRequest::new(
                 self.inner.stream_service_client(),
@@ -587,7 +587,7 @@ impl StreamClient {
                 req,
             ))
             .await
-            .map(Streaming::new)
+            .map(|s| Box::pin(s) as _)
     }
 
     #[sync_docs]
@@ -610,7 +610,7 @@ impl StreamClient {
         req: S,
     ) -> Result<Streaming<types::AppendOutput>, ClientError>
     where
-        S: 'static + Send + futures::Stream<Item = types::AppendInput> + Unpin,
+        S: 'static + Send + Unpin + futures::Stream<Item = types::AppendInput>,
     {
         self.inner
             .send(AppendSessionServiceRequest::new(
@@ -619,7 +619,7 @@ impl StreamClient {
                 req,
             ))
             .await
-            .map(Streaming::new)
+            .map(|s| Box::pin(s) as _)
     }
 }
 

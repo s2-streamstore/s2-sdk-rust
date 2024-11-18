@@ -193,21 +193,5 @@ impl<S: StreamingResponse> futures::Stream for ServiceStreamingResponse<S> {
     }
 }
 
-pub struct Streaming<R>(Box<dyn Unpin + Send + futures::Stream<Item = Result<R, ClientError>>>);
-
-impl<R> Streaming<R> {
-    pub(crate) fn new<S>(s: ServiceStreamingResponse<S>) -> Self
-    where
-        S: StreamingResponse<ResponseItem = R> + Send + 'static,
-    {
-        Self(Box::new(s))
-    }
-}
-
-impl<R> futures::Stream for Streaming<R> {
-    type Item = Result<R, ClientError>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.0.poll_next_unpin(cx)
-    }
-}
+/// Generic type for streaming response.
+pub type Streaming<R> = Pin<Box<dyn Send + futures::Stream<Item = Result<R, ClientError>>>>;

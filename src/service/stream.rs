@@ -1,3 +1,5 @@
+pub mod batching;
+
 use tonic::{transport::Channel, IntoRequest};
 
 use super::{
@@ -161,7 +163,7 @@ impl IdempotentRequest for ReadSessionServiceRequest {
 pub struct ReadSessionStreamingResponse;
 
 impl StreamingResponse for ReadSessionStreamingResponse {
-    type ResponseItem = types::ReadSessionResponse;
+    type ResponseItem = types::ReadOutput;
     type ApiResponseItem = api::ReadSessionResponse;
 
     fn parse_response_item(
