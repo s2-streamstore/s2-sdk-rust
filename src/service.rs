@@ -193,22 +193,5 @@ impl<S: StreamingResponse> futures::Stream for ServiceStreamingResponse<S> {
     }
 }
 
-/// Wrapper around `ServiceStreamingResponse` to expose publically.
-pub struct Streaming<R>(Box<dyn Unpin + futures::Stream<Item = Result<R, ClientError>>>);
-
-impl<R> Streaming<R> {
-    pub(crate) fn new<S>(s: ServiceStreamingResponse<S>) -> Self
-    where
-        S: StreamingResponse<ResponseItem = R> + 'static,
-    {
-        Self(Box::new(s))
-    }
-}
-
-impl<R> futures::Stream for Streaming<R> {
-    type Item = Result<R, ClientError>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.0.poll_next_unpin(cx)
-    }
-}
+/// Generic type for streaming response.
+pub type Streaming<R> = Pin<Box<dyn futures::Stream<Item = Result<R, ClientError>>>>;

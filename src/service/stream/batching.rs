@@ -9,9 +9,9 @@ use futures::{Stream, StreamExt};
 
 use crate::types::{self, MeteredSize as _};
 
-/// Options to configure [`AppendRecordStream`].
+/// Options to configure append records batching scheme.
 #[derive(Debug, Clone)]
-pub struct AppendRecordStreamOpts {
+pub struct AppendRecordsBatchingOpts {
     max_batch_records: usize,
     max_batch_size: ByteSize,
     match_seq_num: Option<u64>,
@@ -19,7 +19,7 @@ pub struct AppendRecordStreamOpts {
     linger_duration: Duration,
 }
 
-impl Default for AppendRecordStreamOpts {
+impl Default for AppendRecordsBatchingOpts {
     fn default() -> Self {
         Self {
             max_batch_records: 1000,
@@ -31,7 +31,7 @@ impl Default for AppendRecordStreamOpts {
     }
 }
 
-impl AppendRecordStreamOpts {
+impl AppendRecordsBatchingOpts {
     /// Construct an options struct with defaults.
     pub fn new() -> Self {
         Self::default()
@@ -96,79 +96,85 @@ impl AppendRecordStreamOpts {
     }
 }
 
-/// Wrapper over a stream of append records that can be sent over to
-/// [`crate::client::StreamClient::append_session`].
-pub struct AppendRecordStream {
-    inner: Pin<Box<dyn Stream<Item = types::AppendInput> + Send>>,
-}
+/// Wrapper stream that takes a stream of append records and batches them
+/// together to send as an `AppendOutput`.
+pub struct AppendRecordsBatchingStream(Pin<Box<dyn Stream<Item = types::AppendInput> + Send>>);
 
-impl AppendRecordStream {
-    /// Try constructing a new [`AppendRecordStream`] from the given stream and options.
-    pub fn new<R, S>(mut stream: S, opts: AppendRecordStreamOpts) -> Self
+impl AppendRecordsBatchingStream {
+    /// Create a new batching stream.
+    pub fn new<R, S>(stream: S, opts: AppendRecordsBatchingOpts) -> Self
     where
-        R: Into<types::AppendRecord>,
+        R: 'static + Into<types::AppendRecord>,
         S: 'static + Send + Stream<Item = R> + Unpin,
     {
-        let inner = Box::pin(async_stream::stream! {
-            let mut terminated = false;
-            let mut batch_builder = BatchBuilder::new(&opts);
-
-            let batch_deadline = tokio::time::sleep(Duration::ZERO);
-            tokio::pin!(batch_deadline);
-
-            while !terminated {
-                while !batch_builder.is_full() {
-                    if batch_builder.len() == 1 {
-                        // Start the timer when the first record is added.
-                        batch_deadline
-                            .as_mut()
-                            .reset(tokio::time::Instant::now() + opts.linger_duration);
-                    }
-
-                    tokio::select! {
-                        biased;
-                        next = stream.next() => {
-                            if let Some(record) = next {
-                                batch_builder.push(record);
-                            } else {
-                                terminated = true;
-                                break;
-                            }
-                        },
-                        _ = &mut batch_deadline, if !batch_builder.is_empty() => {
-                            break;
-                        }
-                    };
-                }
-
-                if !batch_builder.is_empty() {
-                    yield batch_builder.flush();
-                }
-
-                // Now that we have flushed (if required), the batch builder should
-                // definitely not be full. It might not be empty since the peeked
-                // record might have been pushed into the batch.
-                assert!(
-                    !batch_builder.is_full(),
-                    "dangling peeked record does not fit into size limits",
-                );
-            }
-        });
-
-        Self { inner }
+        Self(Box::pin(append_records_batching_stream(stream, opts)))
     }
 }
 
-impl Stream for AppendRecordStream {
+impl Stream for AppendRecordsBatchingStream {
     type Item = types::AppendInput;
-
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.inner.poll_next_unpin(cx)
+        self.0.poll_next_unpin(cx)
+    }
+}
+
+fn append_records_batching_stream<R, S>(
+    mut stream: S,
+    opts: AppendRecordsBatchingOpts,
+) -> impl Stream<Item = types::AppendInput> + Send
+where
+    R: Into<types::AppendRecord>,
+    S: 'static + Send + Stream<Item = R> + Unpin,
+{
+    async_stream::stream! {
+        let mut terminated = false;
+        let mut batch_builder = BatchBuilder::new(&opts);
+
+        let batch_deadline = tokio::time::sleep(Duration::ZERO);
+        tokio::pin!(batch_deadline);
+
+        while !terminated {
+            while !batch_builder.is_full() {
+                if batch_builder.len() == 1 {
+                    // Start the timer when the first record is added.
+                    batch_deadline
+                        .as_mut()
+                        .reset(tokio::time::Instant::now() + opts.linger_duration);
+                }
+
+                tokio::select! {
+                    biased;
+                    next = stream.next() => {
+                        if let Some(record) = next {
+                            batch_builder.push(record);
+                        } else {
+                            terminated = true;
+                            break;
+                        }
+                    },
+                    _ = &mut batch_deadline, if !batch_builder.is_empty() => {
+                        break;
+                    }
+                };
+            }
+
+            if !batch_builder.is_empty() {
+                yield batch_builder.flush();
+            }
+
+            // Now that we have flushed (if required), the batch builder should
+            // definitely not be full. It might not be empty since the peeked
+            // record might have been pushed into the batch.
+            assert!(
+                !batch_builder.is_full(),
+                "dangling peeked record does not fit into size limits",
+            );
+        }
     }
 }
 
 struct BatchBuilder<'a> {
-    opts: &'a AppendRecordStreamOpts,
+    opts: &'a AppendRecordsBatchingOpts,
     peeked_record: Option<types::AppendRecord>,
     next_match_seq_num: Option<u64>,
     batch: Vec<types::AppendRecord>,
@@ -176,7 +182,7 @@ struct BatchBuilder<'a> {
 }
 
 impl<'a> BatchBuilder<'a> {
-    pub fn new<'b: 'a>(opts: &'b AppendRecordStreamOpts) -> Self {
+    pub fn new<'b: 'a>(opts: &'b AppendRecordsBatchingOpts) -> Self {
         Self {
             peeked_record: None,
             next_match_seq_num: opts.match_seq_num,
@@ -256,10 +262,8 @@ mod tests {
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnboundedReceiverStream;
 
-    use crate::{
-        streams::{AppendRecordStream, AppendRecordStreamOpts},
-        types,
-    };
+    use super::{AppendRecordsBatchingOpts, AppendRecordsBatchingStream};
+    use crate::types;
 
     #[rstest]
     #[case(Some(2), None)]
@@ -274,7 +278,7 @@ mod tests {
         let stream_iter = (0..100).map(|i| types::AppendRecord::new(format!("r_{i}")));
         let stream = futures::stream::iter(stream_iter);
 
-        let mut opts = AppendRecordStreamOpts::new().with_linger(Duration::ZERO);
+        let mut opts = AppendRecordsBatchingOpts::new().with_linger(Duration::ZERO);
         if let Some(max_batch_records) = max_batch_records {
             opts = opts.with_max_batch_records(max_batch_records);
         }
@@ -282,7 +286,7 @@ mod tests {
             opts = opts.with_max_batch_size(max_batch_size);
         }
 
-        let batch_stream = AppendRecordStream::new(stream, opts);
+        let batch_stream = AppendRecordsBatchingStream::new(stream, opts);
 
         let batches = batch_stream
             .map(|batch| batch.records)
@@ -305,9 +309,9 @@ mod tests {
         let mut i = 0;
 
         let collect_batches_handle = tokio::spawn(async move {
-            let batch_stream = AppendRecordStream::new(
+            let batch_stream = AppendRecordsBatchingStream::new(
                 UnboundedReceiverStream::new(stream_rx),
-                AppendRecordStreamOpts::new()
+                AppendRecordsBatchingOpts::new()
                     .with_linger(Duration::from_secs(2))
                     .with_max_batch_records(3)
                     .with_max_batch_size(ByteSize::b(40)),
@@ -392,9 +396,9 @@ mod tests {
         let stream =
             futures::stream::iter([types::AppendRecord::new("too long to fit into size limits")]);
 
-        let mut batch_stream = AppendRecordStream::new(
+        let mut batch_stream = AppendRecordsBatchingStream::new(
             stream,
-            AppendRecordStreamOpts::new().with_max_batch_size(ByteSize::b(1)),
+            AppendRecordsBatchingOpts::new().with_max_batch_size(ByteSize::b(1)),
         );
 
         let _ = batch_stream.next().await;
