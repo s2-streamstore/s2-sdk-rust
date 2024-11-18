@@ -891,18 +891,30 @@ impl AppendInput {
         }
     }
 
-    pub fn into_api_type(self, stream: impl Into<String>) -> api::AppendInput {
+    pub fn try_into_api_type(
+        self,
+        stream: impl Into<String>,
+    ) -> Result<api::AppendInput, ConvertError> {
         let Self {
             records,
             match_seq_num,
             fencing_token,
         } = self;
-        api::AppendInput {
+
+        if records.len() > 1000 {
+            return Err("Batch exceeds limit of 1000 records".into());
+        }
+
+        if records.metered_size() > ByteSize::mib(1) {
+            return Err("Batch exceeds limit of 1 MiB metered size".into());
+        }
+
+        Ok(api::AppendInput {
             stream: stream.into(),
             records: records.into_iter().map(Into::into).collect(),
             match_seq_num,
             fencing_token: fencing_token.map(Into::into),
-        }
+        })
     }
 }
 

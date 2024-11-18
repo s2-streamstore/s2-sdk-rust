@@ -202,7 +202,7 @@ impl ServiceRequest for AppendServiceRequest {
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         Ok(api::AppendRequest {
-            input: Some(self.req.clone().into_api_type(self.stream.clone())),
+            input: Some(self.req.clone().try_into_api_type(self.stream.clone())?),
         }
         .into_request())
     }
@@ -296,7 +296,10 @@ impl StreamingRequest for AppendSessionStreamingRequest {
 
     fn prepare_request_item(&self, req: Self::RequestItem) -> Self::ApiRequestItem {
         api::AppendSessionRequest {
-            input: Some(req.into_api_type(&self.stream)),
+            input: Some(
+                req.try_into_api_type(&self.stream)
+                    .expect("append input batch should be valid"),
+            ),
         }
     }
 }
