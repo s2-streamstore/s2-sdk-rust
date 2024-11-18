@@ -902,11 +902,11 @@ impl AppendInput {
         } = self;
 
         if records.len() > 1000 {
-            return Err("append input cannot send batch with more than 1000 records".into());
+            return Err("Batch exceeds limit of 1000 records".into());
         }
 
         if records.metered_size() > ByteSize::mib(1) {
-            return Err("append input cannot send batch bigger than 1 MiB".into());
+            return Err("Batch exceeds limit of 1 MiB metered size".into());
         }
 
         Ok(api::AppendInput {
