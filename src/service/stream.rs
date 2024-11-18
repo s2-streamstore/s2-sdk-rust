@@ -1,5 +1,3 @@
-pub mod batching;
-
 use tonic::{transport::Channel, IntoRequest};
 
 use super::{
@@ -125,6 +123,10 @@ impl ReadSessionServiceRequest {
             stream: stream.into(),
             req,
         }
+    }
+
+    pub fn set_start_seq_num(&mut self, start_seq_num: Option<u64>) {
+        self.req.start_seq_num = start_seq_num;
     }
 }
 

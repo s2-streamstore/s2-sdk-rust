@@ -1,6 +1,7 @@
 use std::{fmt::Display, str::FromStr, time::Duration};
 
-use backon::{ConstantBuilder, Retryable};
+use backon::{BackoffBuilder, ConstantBuilder, Retryable};
+use futures::StreamExt;
 use http::uri::Authority;
 use hyper_util::client::legacy::connect::HttpConnector;
 use secrecy::SecretString;
@@ -24,9 +25,9 @@ use crate::{
         send_request,
         stream::{
             AppendServiceRequest, AppendSessionServiceRequest, CheckTailServiceRequest,
-            ReadServiceRequest, ReadSessionServiceRequest,
+            ReadServiceRequest, ReadSessionServiceRequest, ReadSessionStreamingResponse,
         },
-        RetryableRequest, ServiceRequest, Streaming,
+        RetryableRequest, ServiceRequest, ServiceStreamingResponse, Streaming,
     },
     types,
 };
@@ -580,14 +581,18 @@ impl StreamClient {
         &self,
         req: types::ReadSessionRequest,
     ) -> Result<Streaming<types::ReadOutput>, ClientError> {
+        let request =
+            ReadSessionServiceRequest::new(self.inner.stream_service_client(), &self.stream, req);
         self.inner
-            .send_retryable(ReadSessionServiceRequest::new(
-                self.inner.stream_service_client(),
-                &self.stream,
-                req,
-            ))
+            .send_retryable(request.clone())
             .await
-            .map(|s| Box::pin(s) as _)
+            .map(|responses| {
+                Box::pin(read_resumption_stream(
+                    request,
+                    responses,
+                    self.inner.clone(),
+                )) as _
+            })
     }
 
     #[sync_docs]
@@ -706,16 +711,31 @@ impl ClientInner {
         send_request(service_req, &self.config.token, self.basin.as_deref()).await
     }
 
-    async fn send_retryable<T: RetryableRequest>(
+    async fn send_retryable_with_backoff<T: RetryableRequest>(
         &self,
         service_req: T,
+        backoff_builder: impl BackoffBuilder,
     ) -> Result<T::Response, ClientError> {
         let retry_fn = || async { self.send(service_req.clone()).await };
 
         retry_fn
-            .retry(ConstantBuilder::default()) // TODO: Configure retry.
+            .retry(backoff_builder)
             .when(|e| service_req.should_retry(e))
             .await
+    }
+
+    async fn send_retryable<T: RetryableRequest>(
+        &self,
+        service_req: T,
+    ) -> Result<T::Response, ClientError> {
+        self.send_retryable_with_backoff(
+            service_req,
+            ConstantBuilder::default()
+                .with_delay(Duration::from_millis(100))
+                .with_max_times(3)
+                .with_jitter(),
+        )
+        .await
     }
 
     fn account_service_client(&self) -> AccountServiceClient<Channel> {
@@ -738,4 +758,32 @@ pub enum ConnectionError {
     TonicTransportError(#[from] tonic::transport::Error),
     #[error(transparent)]
     UriParseError(#[from] http::uri::InvalidUri),
+}
+
+fn read_resumption_stream(
+    mut request: ReadSessionServiceRequest,
+    mut responses: ServiceStreamingResponse<ReadSessionStreamingResponse>,
+    client: ClientInner,
+) -> impl Send + futures::Stream<Item = Result<types::ReadOutput, ClientError>> {
+    async_stream::stream! {
+        while let Some(item) = responses.next().await {
+            match item {
+                Err(e) if request.should_retry(&e) => {
+                    if let Ok(new_responses) = client.send_retryable(request.clone()).await {
+                        responses = new_responses;
+                    } else {
+                        yield Err(e);
+                    }
+                }
+                item => {
+                    if let Ok(types::ReadOutput::Batch(types::SequencedRecordBatch { records })) = &item {
+                        if let Some(record) = records.last() {
+                            request.set_start_seq_num(Some(record.seq_num + 1));
+                        }
+                    }
+                    yield item;
+                }
+            }
+        }
+    }
 }
