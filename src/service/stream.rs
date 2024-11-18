@@ -1,6 +1,3 @@
-pub mod batching;
-pub mod read_resumption;
-
 use tonic::{transport::Channel, IntoRequest};
 
 use super::{
@@ -112,7 +109,7 @@ impl IdempotentRequest for ReadServiceRequest {
 pub struct ReadSessionServiceRequest {
     client: StreamServiceClient<Channel>,
     stream: String,
-    req: types::ReadSessionRequest,
+    pub(crate) req: types::ReadSessionRequest,
 }
 
 impl ReadSessionServiceRequest {

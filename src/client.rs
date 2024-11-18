@@ -1,6 +1,7 @@
 use std::{fmt::Display, str::FromStr, time::Duration};
 
-use backon::{ConstantBuilder, Retryable};
+use backon::{BackoffBuilder, ConstantBuilder, Retryable};
+use futures::StreamExt;
 use http::uri::Authority;
 use hyper_util::client::legacy::connect::HttpConnector;
 use secrecy::SecretString;
@@ -23,10 +24,10 @@ use crate::{
         },
         send_request,
         stream::{
-            read_resumption, AppendServiceRequest, AppendSessionServiceRequest,
-            CheckTailServiceRequest, ReadServiceRequest, ReadSessionServiceRequest,
+            AppendServiceRequest, AppendSessionServiceRequest, CheckTailServiceRequest,
+            ReadServiceRequest, ReadSessionServiceRequest, ReadSessionStreamingResponse,
         },
-        RetryableRequest, ServiceRequest, Streaming,
+        RetryableRequest, ServiceRequest, ServiceStreamingResponse, Streaming,
     },
     types,
 };
@@ -585,10 +586,10 @@ impl StreamClient {
         self.inner
             .send_retryable(request.clone())
             .await
-            .map(|response| {
-                Box::pin(read_resumption::stream(
+            .map(|responses| {
+                Box::pin(read_resumption_stream(
                     request,
-                    response,
+                    responses,
                     self.inner.clone(),
                 )) as _
             })
@@ -628,7 +629,7 @@ impl StreamClient {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ClientInner {
+struct ClientInner {
     channel: Channel,
     basin: Option<String>,
     config: ClientConfig,
@@ -706,23 +707,32 @@ impl ClientInner {
         })
     }
 
-    pub async fn send<T: ServiceRequest>(
-        &self,
-        service_req: T,
-    ) -> Result<T::Response, ClientError> {
+    async fn send<T: ServiceRequest>(&self, service_req: T) -> Result<T::Response, ClientError> {
         send_request(service_req, &self.config.token, self.basin.as_deref()).await
     }
 
-    pub async fn send_retryable<T: RetryableRequest>(
+    async fn send_retryable_with_backoff<T: RetryableRequest>(
         &self,
         service_req: T,
+        backoff_builder: impl BackoffBuilder,
     ) -> Result<T::Response, ClientError> {
         let retry_fn = || async { self.send(service_req.clone()).await };
 
         retry_fn
-            .retry(ConstantBuilder::default()) // TODO: Configure retry.
+            .retry(backoff_builder)
             .when(|e| service_req.should_retry(e))
             .await
+    }
+
+    async fn send_retryable<T: RetryableRequest>(
+        &self,
+        service_req: T,
+    ) -> Result<T::Response, ClientError> {
+        self.send_retryable_with_backoff(
+            service_req,
+            ConstantBuilder::default().with_delay(Duration::from_millis(100)),
+        )
+        .await
     }
 
     fn account_service_client(&self) -> AccountServiceClient<Channel> {
@@ -745,4 +755,33 @@ pub enum ConnectionError {
     TonicTransportError(#[from] tonic::transport::Error),
     #[error(transparent)]
     UriParseError(#[from] http::uri::InvalidUri),
+}
+
+fn read_resumption_stream(
+    mut request: ReadSessionServiceRequest,
+    mut responses: ServiceStreamingResponse<ReadSessionStreamingResponse>,
+    client: ClientInner,
+) -> impl Send + futures::Stream<Item = Result<types::ReadOutput, ClientError>> {
+    async_stream::stream! {
+        while let Some(item) = responses.next().await {
+            match item {
+                Err(e) if request.should_retry(&e) => {
+                    // TODO: Configure `send_retryable` with a different backoff.
+                    if let Ok(new_responses) = client.send_retryable(request.clone()).await {
+                        responses = new_responses;
+                    } else {
+                        yield Err(e);
+                    }
+                }
+                item => {
+                    if let Ok(types::ReadOutput::Batch(types::SequencedRecordBatch { records })) = &item {
+                        if let Some(record) = records.last() {
+                            request.req.start_seq_num = Some(record.seq_num + 1);
+                        }
+                    }
+                    yield item;
+                }
+            }
+        }
+    }
 }
