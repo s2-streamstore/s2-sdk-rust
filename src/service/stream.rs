@@ -109,7 +109,7 @@ impl IdempotentRequest for ReadServiceRequest {
 pub struct ReadSessionServiceRequest {
     client: StreamServiceClient<Channel>,
     stream: String,
-    pub(crate) req: types::ReadSessionRequest,
+    req: types::ReadSessionRequest,
 }
 
 impl ReadSessionServiceRequest {
@@ -123,6 +123,10 @@ impl ReadSessionServiceRequest {
             stream: stream.into(),
             req,
         }
+    }
+
+    pub fn set_start_seq_num(&mut self, start_seq_num: Option<u64>) {
+        self.req.start_seq_num = start_seq_num;
     }
 }
 

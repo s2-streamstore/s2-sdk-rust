@@ -730,7 +730,10 @@ impl ClientInner {
     ) -> Result<T::Response, ClientError> {
         self.send_retryable_with_backoff(
             service_req,
-            ConstantBuilder::default().with_delay(Duration::from_millis(100)),
+            ConstantBuilder::default()
+                .with_delay(Duration::from_millis(100))
+                .with_max_times(3)
+                .with_jitter(),
         )
         .await
     }
@@ -766,7 +769,6 @@ fn read_resumption_stream(
         while let Some(item) = responses.next().await {
             match item {
                 Err(e) if request.should_retry(&e) => {
-                    // TODO: Configure `send_retryable` with a different backoff.
                     if let Ok(new_responses) = client.send_retryable(request.clone()).await {
                         responses = new_responses;
                     } else {
@@ -776,7 +778,7 @@ fn read_resumption_stream(
                 item => {
                     if let Ok(types::ReadOutput::Batch(types::SequencedRecordBatch { records })) = &item {
                         if let Some(record) = records.last() {
-                            request.req.start_seq_num = Some(record.seq_num + 1);
+                            request.set_start_seq_num(Some(record.seq_num + 1));
                         }
                     }
                     yield item;
