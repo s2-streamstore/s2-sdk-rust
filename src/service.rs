@@ -194,4 +194,4 @@ impl<S: StreamingResponse> futures::Stream for ServiceStreamingResponse<S> {
 }
 
 /// Generic type for streaming response.
-pub type Streaming<R> = Pin<Box<dyn futures::Stream<Item = Result<R, ClientError>>>>;
+pub type Streaming<R> = Pin<Box<dyn Send + futures::Stream<Item = Result<R, ClientError>>>>;
