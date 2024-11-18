@@ -194,12 +194,12 @@ impl<S: StreamingResponse> futures::Stream for ServiceStreamingResponse<S> {
 }
 
 /// Wrapper around `ServiceStreamingResponse` to expose publically.
-pub struct Streaming<R>(Box<dyn Unpin + futures::Stream<Item = Result<R, ClientError>>>);
+pub struct Streaming<R>(Box<dyn Unpin + Send + futures::Stream<Item = Result<R, ClientError>>>);
 
 impl<R> Streaming<R> {
     pub(crate) fn new<S>(s: ServiceStreamingResponse<S>) -> Self
     where
-        S: StreamingResponse<ResponseItem = R> + 'static,
+        S: StreamingResponse<ResponseItem = R> + Send + 'static,
     {
         Self(Box::new(s))
     }
