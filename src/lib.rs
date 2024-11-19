@@ -7,5 +7,5 @@ pub mod types;
 
 pub use bytesize;
 pub use futures;
-pub use http::uri;
+pub use http::{uri, HeaderValue};
 pub use secrecy::SecretString;
