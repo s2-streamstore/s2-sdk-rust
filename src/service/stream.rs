@@ -1,10 +1,12 @@
 use prost_types::method_options::IdempotencyLevel;
-use tonic::{transport::Channel, IntoRequest};
+use tonic::IntoRequest;
+use tonic_side_effect::RequestFrameMonitor;
 
 use super::{
     ClientError, RetryableRequest, ServiceRequest, ServiceStreamingRequest,
     ServiceStreamingResponse, StreamingRequest, StreamingResponse,
 };
+
 use crate::{
     api::{self, stream_service_client::StreamServiceClient},
     types,
@@ -12,12 +14,15 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct CheckTailServiceRequest {
-    client: StreamServiceClient<Channel>,
+    client: StreamServiceClient<RequestFrameMonitor>,
     stream: String,
 }
 
 impl CheckTailServiceRequest {
-    pub fn new(client: StreamServiceClient<Channel>, stream: impl Into<String>) -> Self {
+    pub fn new(
+        client: StreamServiceClient<RequestFrameMonitor>,
+        stream: impl Into<String>,
+    ) -> Self {
         Self {
             client,
             stream: stream.into(),
@@ -58,14 +63,14 @@ impl RetryableRequest for CheckTailServiceRequest {
 
 #[derive(Debug, Clone)]
 pub struct ReadServiceRequest {
-    client: StreamServiceClient<Channel>,
+    client: StreamServiceClient<RequestFrameMonitor>,
     stream: String,
     req: types::ReadRequest,
 }
 
 impl ReadServiceRequest {
     pub fn new(
-        client: StreamServiceClient<Channel>,
+        client: StreamServiceClient<RequestFrameMonitor>,
         stream: impl Into<String>,
         req: types::ReadRequest,
     ) -> Self {
@@ -108,14 +113,14 @@ impl RetryableRequest for ReadServiceRequest {
 
 #[derive(Debug, Clone)]
 pub struct ReadSessionServiceRequest {
-    client: StreamServiceClient<Channel>,
+    client: StreamServiceClient<RequestFrameMonitor>,
     stream: String,
     req: types::ReadSessionRequest,
 }
 
 impl ReadSessionServiceRequest {
     pub fn new(
-        client: StreamServiceClient<Channel>,
+        client: StreamServiceClient<RequestFrameMonitor>,
         stream: impl Into<String>,
         req: types::ReadSessionRequest,
     ) -> Self {
@@ -177,16 +182,20 @@ impl StreamingResponse for ReadSessionStreamingResponse {
     }
 }
 
+impl RetryableRequest for AppendServiceRequest {
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
+}
+
 #[derive(Debug, Clone)]
 pub struct AppendServiceRequest {
-    client: StreamServiceClient<Channel>,
+    client: StreamServiceClient<RequestFrameMonitor>,
     stream: String,
     req: types::AppendInput,
 }
 
 impl AppendServiceRequest {
     pub fn new(
-        client: StreamServiceClient<Channel>,
+        client: StreamServiceClient<RequestFrameMonitor>,
         stream: impl Into<String>,
         req: types::AppendInput,
     ) -> Self {
@@ -229,7 +238,7 @@ pub struct AppendSessionServiceRequest<S>
 where
     S: Send + futures::Stream<Item = types::AppendInput> + Unpin,
 {
-    client: StreamServiceClient<Channel>,
+    client: StreamServiceClient<RequestFrameMonitor>,
     stream: String,
     req: Option<S>,
 }
@@ -238,7 +247,11 @@ impl<S> AppendSessionServiceRequest<S>
 where
     S: Send + futures::Stream<Item = types::AppendInput> + Unpin,
 {
-    pub fn new(client: StreamServiceClient<Channel>, stream: impl Into<String>, req: S) -> Self {
+    pub fn new(
+        client: StreamServiceClient<RequestFrameMonitor>,
+        stream: impl Into<String>,
+        req: S,
+    ) -> Self {
         Self {
             client,
             stream: stream.into(),

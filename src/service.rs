@@ -12,6 +12,7 @@ use prost_types::method_options::IdempotencyLevel;
 use secrecy::{ExposeSecret, SecretString};
 use tonic::metadata::{AsciiMetadataKey, AsciiMetadataValue, MetadataMap};
 
+use crate::client::NO_FRAMES_TAG;
 use crate::{client::ClientError, types};
 
 pub async fn send_request<T: ServiceRequest>(
@@ -83,14 +84,18 @@ pub trait RetryableRequest: ServiceRequest + Clone {
     /// Return true if the request should be retried based on the error returned.
     fn should_retry(&self, err: &ClientError) -> bool {
         if Self::IDEMPOTENCY_LEVEL == IdempotencyLevel::IdempotencyUnknown {
-            return false;
-        }
+            return if let ClientError::Service(status) = err {
+                status.metadata().contains_key(NO_FRAMES_TAG)
+            } else {
+                false
+            };
+        };
 
         // The request is definitely idempotent.
         if let ClientError::Service(status) = err {
             matches!(
                 status.code(),
-                tonic::Code::Unavailable | tonic::Code::DeadlineExceeded
+                tonic::Code::Unavailable | tonic::Code::DeadlineExceeded | tonic::Code::Unknown
             )
         } else {
             false

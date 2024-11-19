@@ -11,6 +11,7 @@ use tonic::{
     metadata::AsciiMetadataValue,
     transport::{Channel, ClientTlsConfig, Endpoint},
 };
+use tonic_side_effect::RequestFrameMonitor;
 
 use crate::{
     api::{
@@ -37,6 +38,7 @@ use crate::{
 };
 
 const DEFAULT_CONNECTOR: Option<HttpConnector> = None;
+pub const NO_FRAMES_TAG: &str = "s2-sdk-no-request-frames";
 
 /// S2 cloud environment to connect with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -536,7 +538,7 @@ impl StreamClient {
         req: types::AppendInput,
     ) -> Result<types::AppendOutput, ClientError> {
         self.inner
-            .send(AppendServiceRequest::new(
+            .send_retryable(AppendServiceRequest::new(
                 self.inner.stream_service_client(),
                 &self.stream,
                 req,
@@ -697,8 +699,11 @@ impl ClientInner {
         BasinServiceClient::new(self.channel.clone())
     }
 
-    fn stream_service_client(&self) -> StreamServiceClient<Channel> {
-        StreamServiceClient::new(self.channel.clone())
+    fn stream_service_client(&self) -> StreamServiceClient<RequestFrameMonitor> {
+        StreamServiceClient::new(RequestFrameMonitor::new(
+            self.channel.clone(),
+            NO_FRAMES_TAG,
+        ))
     }
 }
 

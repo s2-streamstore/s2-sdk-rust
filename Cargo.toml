@@ -26,6 +26,7 @@ sync_docs = { path = "sync_docs" }
 thiserror = "1.0.67"
 tokio = { version = "1.41.1", features = ["time"] }
 tonic = { version = "0.12.3", features = ["tls", "tls-webpki-roots"] }
+tonic-side-effect = { git = "https://github.com/s2-streamstore/tonic-side-effect.git", rev = "15eb454dd596517820dd31d8f3fef1cb2d9f1e78" }
 tower-service = "0.3.3"
 
 [build-dependencies]
