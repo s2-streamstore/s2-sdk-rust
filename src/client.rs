@@ -235,8 +235,11 @@ impl HostEndpoints {
         };
 
         Self {
-            cell: cell_endpoint.parse().unwrap(),
-            basin_zone: basin_endpoint.map(|b| b.parse().unwrap()),
+            cell: cell_endpoint
+                .parse()
+                .expect("previously validated cell endpoint"),
+            basin_zone: basin_endpoint
+                .map(|b| b.parse().expect("previously validated basin endpoint")),
         }
     }
 }
@@ -272,7 +275,7 @@ impl ClientConfig {
             host_endpoints: HostEndpoints::default(),
             connection_timeout: Duration::from_secs(3),
             request_timeout: Duration::from_secs(5),
-            user_agent: "s2-sdk-rust".parse().unwrap(),
+            user_agent: "s2-sdk-rust".parse().expect("valid user agent"),
             #[cfg(feature = "connector")]
             uri_scheme: http::uri::Scheme::HTTPS,
             retry_backoff_duration: Duration::from_millis(100),
@@ -663,7 +666,9 @@ impl ClientInner {
     fn new_basin(&self, basin: types::BasinName) -> Self {
         match self.config.host_endpoints.basin_zone.clone() {
             Some(endpoint) => {
-                let basin_endpoint: Authority = format!("{basin}.{endpoint}").parse().unwrap();
+                let basin_endpoint: Authority = format!("{basin}.{endpoint}")
+                    .parse()
+                    .expect("previously validated basin name and endpoint");
                 ClientInner::new(self.config.clone(), basin_endpoint, DEFAULT_HTTP_CONNECTOR)
             }
             None => Self {
@@ -687,16 +692,16 @@ impl ClientInner {
 
         let endpoint = format!("{scheme}://{endpoint}")
             .parse::<Endpoint>()
-            .unwrap()
+            .expect("previously validated endpoint scheme and authority")
             .user_agent(config.user_agent.clone())
-            .unwrap()
+            .expect("converting HeaderValue into HeaderValue")
             .http2_adaptive_window(true)
             .tls_config(
                 ClientTlsConfig::default()
                     .with_webpki_roots()
                     .assume_http2(true),
             )
-            .unwrap()
+            .expect("valid TLS config")
             .connect_timeout(config.connection_timeout)
             .timeout(config.request_timeout);
 
