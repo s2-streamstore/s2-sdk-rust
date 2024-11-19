@@ -235,8 +235,11 @@ impl HostEndpoints {
         };
 
         Self {
-            cell: cell_endpoint.parse().unwrap(),
-            basin_zone: basin_endpoint.map(|b| b.parse().unwrap()),
+            cell: cell_endpoint
+                .parse()
+                .expect("should be a valid cell endpoint"),
+            basin_zone: basin_endpoint
+                .map(|b| b.parse().expect("should be a valid basin endpoint")),
         }
     }
 }
@@ -272,7 +275,9 @@ impl ClientConfig {
             host_endpoints: HostEndpoints::default(),
             connection_timeout: Duration::from_secs(3),
             request_timeout: Duration::from_secs(5),
-            user_agent: "s2-sdk-rust".parse().unwrap(),
+            user_agent: "s2-sdk-rust"
+                .parse()
+                .expect("should be a valid user agent ascii string"),
             #[cfg(feature = "connector")]
             uri_scheme: http::uri::Scheme::HTTPS,
             retry_backoff_duration: Duration::from_millis(100),
@@ -663,7 +668,9 @@ impl ClientInner {
     fn new_basin(&self, basin: types::BasinName) -> Self {
         match self.config.host_endpoints.basin_zone.clone() {
             Some(endpoint) => {
-                let basin_endpoint: Authority = format!("{basin}.{endpoint}").parse().unwrap();
+                let basin_endpoint: Authority = format!("{basin}.{endpoint}")
+                    .parse()
+                    .expect("should be a valid basin endpoint since basin name is valid");
                 ClientInner::new(self.config.clone(), basin_endpoint, DEFAULT_HTTP_CONNECTOR)
             }
             None => Self {
@@ -687,16 +694,16 @@ impl ClientInner {
 
         let endpoint = format!("{scheme}://{endpoint}")
             .parse::<Endpoint>()
-            .unwrap()
+            .expect("valid scheme and authority should result in a valid endpoint uri")
             .user_agent(config.user_agent.clone())
-            .unwrap()
+            .expect("should be safe to convert HeaderValue into HeaderValue")
             .http2_adaptive_window(true)
             .tls_config(
                 ClientTlsConfig::default()
                     .with_webpki_roots()
                     .assume_http2(true),
             )
-            .unwrap()
+            .expect("TLS config should be valid")
             .connect_timeout(config.connection_timeout)
             .timeout(config.request_timeout);
 
