@@ -5,8 +5,9 @@ use streamstore::{
     batching::AppendRecordsBatchingStream,
     client::{Client, ClientConfig, ClientError, HostEndpoints},
     types::{
-        AppendInput, AppendRecord, CreateBasinRequest, CreateStreamRequest, DeleteBasinRequest,
-        DeleteStreamRequest, ListBasinsRequest, ListStreamsRequest, ReadSessionRequest,
+        AppendInput, AppendRecord, BasinName, CreateBasinRequest, CreateStreamRequest,
+        DeleteBasinRequest, DeleteStreamRequest, ListBasinsRequest, ListStreamsRequest,
+        ReadSessionRequest,
     },
 };
 
@@ -22,11 +23,11 @@ async fn main() {
 
     println!("Connecting with {config:#?}");
 
-    let client = Client::new(config).unwrap();
+    let client = Client::new(config);
 
-    let basin = "s2-sdk-example-basin";
+    let basin: BasinName = "s2-sdk-example-basin".parse().unwrap();
 
-    let create_basin_req = CreateBasinRequest::new(basin);
+    let create_basin_req = CreateBasinRequest::new(basin.clone());
 
     match client.create_basin(create_basin_req).await {
         Ok(created_basin) => {
@@ -57,7 +58,7 @@ async fn main() {
         Err(err) => exit_with_err(err),
     };
 
-    match client.get_basin_config(basin).await {
+    match client.get_basin_config(basin.clone()).await {
         Ok(config) => {
             println!("Basin config: {config:#?}");
         }
@@ -68,7 +69,7 @@ async fn main() {
 
     let create_stream_req = CreateStreamRequest::new(stream);
 
-    let basin_client = client.basin_client(basin).unwrap();
+    let basin_client = client.basin_client(basin.clone());
 
     match basin_client.create_stream(create_stream_req).await {
         Ok(()) => {

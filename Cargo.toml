@@ -19,6 +19,7 @@ hyper = "1.5.0"
 hyper-util = "0.1.10"
 prost = "0.13.3"
 prost-types = "0.13.3"
+regex = "1.11.1"
 secrecy = "0.8.0"
 serde = { version = "1.0.214", optional = true, features = ["derive"] }
 sync_docs = { path = "sync_docs" }
