@@ -6,6 +6,7 @@ use http::uri::Authority;
 use hyper_util::client::legacy::connect::HttpConnector;
 use secrecy::SecretString;
 use sync_docs::sync_docs;
+use tokio::time::sleep;
 use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
 
 use crate::{
@@ -728,14 +729,8 @@ impl ClientInner {
         &self,
         service_req: T,
     ) -> Result<T::Response, ClientError> {
-        self.send_retryable_with_backoff(
-            service_req,
-            ConstantBuilder::default()
-                .with_delay(Duration::from_millis(100))
-                .with_max_times(3)
-                .with_jitter(),
-        )
-        .await
+        self.send_retryable_with_backoff(service_req, backoff_builder())
+            .await
     }
 
     fn account_service_client(&self) -> AccountServiceClient<Channel> {
@@ -765,17 +760,29 @@ fn read_resumption_stream(
     mut responses: ServiceStreamingResponse<ReadSessionStreamingResponse>,
     client: ClientInner,
 ) -> impl Send + futures::Stream<Item = Result<types::ReadOutput, ClientError>> {
+    let mut backoff = None;
     async_stream::stream! {
         while let Some(item) = responses.next().await {
             match item {
                 Err(e) if request.should_retry(&e) => {
-                    if let Ok(new_responses) = client.send_retryable(request.clone()).await {
-                        responses = new_responses;
+                    if backoff.is_none() {
+                        backoff = Some(backoff_builder().build());
+                    }
+                    if let Some(duration) = backoff.as_mut().and_then(|b| b.next()) {
+                        sleep(duration).await;
+                        if let Ok(new_responses) = client.send_retryable(request.clone()).await {
+                            responses = new_responses;
+                        } else {
+                            yield Err(e);
+                        }
                     } else {
                         yield Err(e);
                     }
                 }
                 item => {
+                    if item.is_ok() {
+                        backoff = None;
+                    }
                     if let Ok(types::ReadOutput::Batch(types::SequencedRecordBatch { records })) = &item {
                         if let Some(record) = records.last() {
                             request.set_start_seq_num(Some(record.seq_num + 1));
@@ -786,4 +793,11 @@ fn read_resumption_stream(
             }
         }
     }
+}
+
+fn backoff_builder() -> ConstantBuilder {
+    ConstantBuilder::default()
+        .with_delay(Duration::from_millis(100))
+        .with_max_times(3)
+        .with_jitter()
 }
