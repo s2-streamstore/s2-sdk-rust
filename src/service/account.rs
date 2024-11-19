@@ -1,6 +1,7 @@
+use prost_types::method_options::IdempotencyLevel;
 use tonic::{transport::Channel, IntoRequest};
 
-use super::{IdempotentRequest, ServiceRequest};
+use super::{RetryableRequest, ServiceRequest};
 use crate::{
     api::{self, account_service_client::AccountServiceClient},
     types,
@@ -80,8 +81,8 @@ impl ServiceRequest for ListBasinsServiceRequest {
     }
 }
 
-impl IdempotentRequest for ListBasinsServiceRequest {
-    const NO_SIDE_EFFECTS: bool = true;
+impl RetryableRequest for ListBasinsServiceRequest {
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 }
 
 #[derive(Debug, Clone)]
@@ -121,8 +122,8 @@ impl ServiceRequest for DeleteBasinServiceRequest {
     }
 }
 
-impl IdempotentRequest for DeleteBasinServiceRequest {
-    const NO_SIDE_EFFECTS: bool = false;
+impl RetryableRequest for DeleteBasinServiceRequest {
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 }
 
 #[derive(Debug, Clone)]
@@ -167,8 +168,8 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
     }
 }
 
-impl IdempotentRequest for GetBasinConfigServiceRequest {
-    const NO_SIDE_EFFECTS: bool = true;
+impl RetryableRequest for GetBasinConfigServiceRequest {
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 }
 
 #[derive(Debug, Clone)]
@@ -208,6 +209,6 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
     }
 }
 
-impl IdempotentRequest for ReconfigureBasinServiceRequest {
-    const NO_SIDE_EFFECTS: bool = false;
+impl RetryableRequest for ReconfigureBasinServiceRequest {
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 }

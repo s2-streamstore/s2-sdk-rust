@@ -1,7 +1,8 @@
+use prost_types::method_options::IdempotencyLevel;
 use tonic::{transport::Channel, IntoRequest};
 
 use super::{
-    ClientError, IdempotentRequest, ServiceRequest, ServiceStreamingRequest,
+    ClientError, RetryableRequest, ServiceRequest, ServiceStreamingRequest,
     ServiceStreamingResponse, StreamingRequest, StreamingResponse,
 };
 use crate::{
@@ -51,8 +52,8 @@ impl ServiceRequest for CheckTailServiceRequest {
     }
 }
 
-impl IdempotentRequest for CheckTailServiceRequest {
-    const NO_SIDE_EFFECTS: bool = true;
+impl RetryableRequest for CheckTailServiceRequest {
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 }
 
 #[derive(Debug, Clone)]
@@ -101,8 +102,8 @@ impl ServiceRequest for ReadServiceRequest {
     }
 }
 
-impl IdempotentRequest for ReadServiceRequest {
-    const NO_SIDE_EFFECTS: bool = true;
+impl RetryableRequest for ReadServiceRequest {
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 }
 
 #[derive(Debug, Clone)]
@@ -158,8 +159,8 @@ impl ServiceRequest for ReadSessionServiceRequest {
     }
 }
 
-impl IdempotentRequest for ReadSessionServiceRequest {
-    const NO_SIDE_EFFECTS: bool = true;
+impl RetryableRequest for ReadSessionServiceRequest {
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 }
 
 pub struct ReadSessionStreamingResponse;
