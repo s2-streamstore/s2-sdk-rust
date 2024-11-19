@@ -6,6 +6,7 @@ use http::uri::Authority;
 use hyper_util::client::legacy::connect::HttpConnector;
 use secrecy::SecretString;
 use sync_docs::sync_docs;
+use tokio::time::sleep;
 use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
 
 use crate::{
@@ -256,6 +257,10 @@ pub struct ClientConfig {
     /// URI scheme to use to connect.
     #[cfg(feature = "connector")]
     pub uri_scheme: http::uri::Scheme,
+    /// Backoff duration for retries.
+    pub retry_backoff_duration: Duration,
+    /// Maximum number of retries.
+    pub max_retries: usize,
 }
 
 impl ClientConfig {
@@ -270,6 +275,8 @@ impl ClientConfig {
             user_agent: "s2-sdk-rust".to_string(),
             #[cfg(feature = "connector")]
             uri_scheme: http::uri::Scheme::HTTPS,
+            retry_backoff_duration: Duration::from_millis(100),
+            max_retries: 3,
         }
     }
 
@@ -311,6 +318,22 @@ impl ClientConfig {
     pub fn with_uri_scheme(self, uri_scheme: impl Into<http::uri::Scheme>) -> Self {
         Self {
             uri_scheme: uri_scheme.into(),
+            ..self
+        }
+    }
+
+    /// Construct from an existing configuration with the retry backoff duration.
+    pub fn with_retry_backoff_duration(self, retry_backoff_duration: impl Into<Duration>) -> Self {
+        Self {
+            retry_backoff_duration: retry_backoff_duration.into(),
+            ..self
+        }
+    }
+
+    /// Construct from an existing configuration with maximum number of retries.
+    pub fn with_max_retries(self, max_retries: usize) -> Self {
+        Self {
+            max_retries,
             ..self
         }
     }
@@ -728,14 +751,15 @@ impl ClientInner {
         &self,
         service_req: T,
     ) -> Result<T::Response, ClientError> {
-        self.send_retryable_with_backoff(
-            service_req,
-            ConstantBuilder::default()
-                .with_delay(Duration::from_millis(100))
-                .with_max_times(3)
-                .with_jitter(),
-        )
-        .await
+        self.send_retryable_with_backoff(service_req, self.backoff_builder())
+            .await
+    }
+
+    fn backoff_builder(&self) -> impl BackoffBuilder {
+        ConstantBuilder::default()
+            .with_delay(self.config.retry_backoff_duration)
+            .with_max_times(self.config.max_retries)
+            .with_jitter()
     }
 
     fn account_service_client(&self) -> AccountServiceClient<Channel> {
@@ -765,17 +789,29 @@ fn read_resumption_stream(
     mut responses: ServiceStreamingResponse<ReadSessionStreamingResponse>,
     client: ClientInner,
 ) -> impl Send + futures::Stream<Item = Result<types::ReadOutput, ClientError>> {
+    let mut backoff = None;
     async_stream::stream! {
         while let Some(item) = responses.next().await {
             match item {
                 Err(e) if request.should_retry(&e) => {
-                    if let Ok(new_responses) = client.send_retryable(request.clone()).await {
-                        responses = new_responses;
+                    if backoff.is_none() {
+                        backoff = Some(client.backoff_builder().build());
+                    }
+                    if let Some(duration) = backoff.as_mut().and_then(|b| b.next()) {
+                        sleep(duration).await;
+                        if let Ok(new_responses) = client.send_retryable(request.clone()).await {
+                            responses = new_responses;
+                        } else {
+                            yield Err(e);
+                        }
                     } else {
                         yield Err(e);
                     }
                 }
                 item => {
+                    if item.is_ok() {
+                        backoff = None;
+                    }
                     if let Ok(types::ReadOutput::Batch(types::SequencedRecordBatch { records })) = &item {
                         if let Some(record) = records.last() {
                             request.set_start_seq_num(Some(record.seq_num + 1));
