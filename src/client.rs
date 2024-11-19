@@ -694,7 +694,7 @@ impl ClientInner {
             .parse::<Endpoint>()
             .expect("previously validated endpoint scheme and authority")
             .user_agent(config.user_agent.clone())
-            .expect("previously validated user agent")
+            .expect("converting HeaderValue into HeaderValue")
             .http2_adaptive_window(true)
             .tls_config(
                 ClientTlsConfig::default()
