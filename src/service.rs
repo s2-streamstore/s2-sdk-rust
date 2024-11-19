@@ -8,6 +8,7 @@ use std::{
 };
 
 use futures::StreamExt;
+use prost_types::method_options::IdempotencyLevel;
 use secrecy::{ExposeSecret, SecretString};
 use tonic::metadata::{AsciiMetadataValue, MetadataMap};
 
@@ -85,26 +86,23 @@ pub trait ServiceRequest {
 }
 
 pub trait RetryableRequest: ServiceRequest + Clone {
+    /// Idempotency level for the request.
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel;
+
     /// Return true if the request should be retried based on the error returned.
-    fn should_retry(&self, err: &ClientError) -> bool;
-}
-
-pub trait IdempotentRequest: ServiceRequest + Clone {
-    /// The request does not have any side effects (for sure).
-    const NO_SIDE_EFFECTS: bool;
-}
-
-impl<T: IdempotentRequest> RetryableRequest for T {
     fn should_retry(&self, err: &ClientError) -> bool {
-        match err {
-            // Always retry on unavailable (if the request doesn't have any
-            // side effects).
-            ClientError::Service(status) => match status.code() {
-                tonic::Code::Unavailable => true,
-                tonic::Code::Internal => T::NO_SIDE_EFFECTS,
-                _ => false,
-            },
-            _ => false,
+        if Self::IDEMPOTENCY_LEVEL == IdempotencyLevel::IdempotencyUnknown {
+            return false;
+        }
+
+        // The request is definitely idempotent.
+        if let ClientError::Service(status) = err {
+            matches!(
+                status.code(),
+                tonic::Code::Unavailable | tonic::Code::DeadlineExceeded
+            )
+        } else {
+            false
         }
     }
 }

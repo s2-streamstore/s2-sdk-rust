@@ -1,6 +1,7 @@
+use prost_types::method_options::IdempotencyLevel;
 use tonic::{transport::Channel, IntoRequest};
 
-use super::{IdempotentRequest, ServiceRequest};
+use super::{RetryableRequest, ServiceRequest};
 use crate::{
     api::{self, basin_service_client::BasinServiceClient},
     types,
@@ -43,8 +44,8 @@ impl ServiceRequest for ListStreamsServiceRequest {
     }
 }
 
-impl IdempotentRequest for ListStreamsServiceRequest {
-    const NO_SIDE_EFFECTS: bool = true;
+impl RetryableRequest for ListStreamsServiceRequest {
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 }
 
 #[derive(Debug, Clone)]
@@ -89,8 +90,8 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
     }
 }
 
-impl IdempotentRequest for GetStreamConfigServiceRequest {
-    const NO_SIDE_EFFECTS: bool = true;
+impl RetryableRequest for GetStreamConfigServiceRequest {
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 }
 
 #[derive(Debug, Clone)]
@@ -167,8 +168,8 @@ impl ServiceRequest for DeleteStreamServiceRequest {
     }
 }
 
-impl IdempotentRequest for DeleteStreamServiceRequest {
-    const NO_SIDE_EFFECTS: bool = false;
+impl RetryableRequest for DeleteStreamServiceRequest {
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 }
 
 #[derive(Debug, Clone)]
