@@ -129,15 +129,12 @@ impl RetryableRequest for DeleteBasinServiceRequest {
 #[derive(Debug, Clone)]
 pub struct GetBasinConfigServiceRequest {
     client: AccountServiceClient<Channel>,
-    basin: String,
+    basin: types::BasinName,
 }
 
 impl GetBasinConfigServiceRequest {
-    pub fn new(client: AccountServiceClient<Channel>, basin: impl Into<String>) -> Self {
-        Self {
-            client,
-            basin: basin.into(),
-        }
+    pub fn new(client: AccountServiceClient<Channel>, basin: types::BasinName) -> Self {
+        Self { client, basin }
     }
 }
 
@@ -148,7 +145,7 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = api::GetBasinConfigRequest {
-            basin: self.basin.clone(),
+            basin: self.basin.to_string(),
         };
         Ok(req.into_request())
     }

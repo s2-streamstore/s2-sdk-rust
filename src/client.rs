@@ -2,7 +2,7 @@ use std::{fmt::Display, str::FromStr, time::Duration};
 
 use backon::{BackoffBuilder, ConstantBuilder, Retryable};
 use futures::StreamExt;
-use http::uri::Authority;
+use http::{uri::Authority, HeaderValue};
 use hyper_util::client::legacy::connect::HttpConnector;
 use secrecy::SecretString;
 use sync_docs::sync_docs;
@@ -166,8 +166,8 @@ impl ParseError {
 /// Endpoints for the hosted S2 environment.
 #[derive(Debug, Clone)]
 pub struct HostEndpoints {
-    pub cell: Authority,
-    pub basin_zone: Option<Authority>,
+    cell: Authority,
+    basin_zone: Option<Authority>,
 }
 
 impl From<HostCloud> for HostEndpoints {
@@ -253,7 +253,7 @@ pub struct ClientConfig {
     /// Timeout for a particular request.
     pub request_timeout: Duration,
     /// User agent to be used for the client.
-    pub user_agent: String,
+    pub user_agent: HeaderValue,
     /// URI scheme to use to connect.
     #[cfg(feature = "connector")]
     pub uri_scheme: http::uri::Scheme,
@@ -272,7 +272,7 @@ impl ClientConfig {
             host_endpoints: HostEndpoints::default(),
             connection_timeout: Duration::from_secs(3),
             request_timeout: Duration::from_secs(5),
-            user_agent: "s2-sdk-rust".to_string(),
+            user_agent: "s2-sdk-rust".parse().unwrap(),
             #[cfg(feature = "connector")]
             uri_scheme: http::uri::Scheme::HTTPS,
             retry_backoff_duration: Duration::from_millis(100),
@@ -306,7 +306,7 @@ impl ClientConfig {
     }
 
     /// Construct from an existing configuration with the new user agent.
-    pub fn with_user_agent(self, user_agent: impl Into<String>) -> Self {
+    pub fn with_user_agent(self, user_agent: impl Into<HeaderValue>) -> Self {
         Self {
             user_agent: user_agent.into(),
             ..self
@@ -355,33 +355,30 @@ pub struct Client {
 
 impl Client {
     /// Create the client to connect with the S2 API.
-    pub fn new(config: ClientConfig) -> Result<Self, ConnectionError> {
-        Ok(Self {
-            inner: ClientInner::new_cell(config, DEFAULT_HTTP_CONNECTOR)?,
-        })
+    pub fn new(config: ClientConfig) -> Self {
+        Self {
+            inner: ClientInner::new_cell(config, DEFAULT_HTTP_CONNECTOR),
+        }
     }
 
     #[cfg(feature = "connector")]
-    pub fn new_with_connector<C>(
-        config: ClientConfig,
-        connector: C,
-    ) -> Result<Self, ConnectionError>
+    pub fn new_with_connector<C>(config: ClientConfig, connector: C) -> Self
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
         C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
         C::Future: Send,
         C::Error: std::error::Error + Send + Sync + 'static,
     {
-        Ok(Self {
-            inner: ClientInner::new_cell(config, Some(connector))?,
-        })
+        Self {
+            inner: ClientInner::new_cell(config, Some(connector)),
+        }
     }
 
     /// Get the client to interact with the S2 basin service API.
-    pub fn basin_client(&self, basin: impl Into<String>) -> Result<BasinClient, ConnectionError> {
-        Ok(BasinClient {
-            inner: self.inner.new_basin(basin)?,
-        })
+    pub fn basin_client(&self, basin: types::BasinName) -> BasinClient {
+        BasinClient {
+            inner: self.inner.new_basin(basin),
+        }
     }
 
     #[sync_docs]
@@ -423,7 +420,7 @@ impl Client {
     #[sync_docs]
     pub async fn get_basin_config(
         &self,
-        basin: impl Into<String>,
+        basin: types::BasinName,
     ) -> Result<types::BasinConfig, ClientError> {
         self.inner
             .send_retryable(GetBasinConfigServiceRequest::new(
@@ -455,25 +452,23 @@ pub struct BasinClient {
 
 impl BasinClient {
     /// Create the client to connect with the S2 basin service API.
-    pub fn new(config: ClientConfig, basin: impl Into<String>) -> Result<Self, ConnectionError> {
-        let client = Client::new(config)?;
-        client.basin_client(basin)
+    pub fn new(config: ClientConfig, basin: types::BasinName) -> Self {
+        Client::new(config).basin_client(basin)
     }
 
     #[cfg(feature = "connector")]
     pub fn new_with_connector<C>(
         config: ClientConfig,
-        basin: impl Into<String>,
+        basin: types::BasinName,
         connector: C,
-    ) -> Result<Self, ConnectionError>
+    ) -> Self
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
         C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
         C::Future: Send,
         C::Error: std::error::Error + Send + Sync + 'static,
     {
-        let client = Client::new_with_connector(config, connector)?;
-        client.basin_client(basin)
+        Client::new_with_connector(config, connector).basin_client(basin)
     }
 
     /// Get the client to interact with the S2 stream service API.
@@ -553,29 +548,24 @@ pub struct StreamClient {
 
 impl StreamClient {
     /// Create the client to connect with the S2 stream service API.
-    pub fn new(
-        config: ClientConfig,
-        basin: impl Into<String>,
-        stream: impl Into<String>,
-    ) -> Result<Self, ConnectionError> {
-        BasinClient::new(config, basin).map(|client| client.stream_client(stream))
+    pub fn new(config: ClientConfig, basin: types::BasinName, stream: impl Into<String>) -> Self {
+        BasinClient::new(config, basin).stream_client(stream)
     }
 
     #[cfg(feature = "connector")]
     pub fn new_with_connector<C>(
         config: ClientConfig,
-        basin: impl Into<String>,
+        basin: types::BasinName,
         stream: impl Into<String>,
         connector: C,
-    ) -> Result<Self, ConnectionError>
+    ) -> Self
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
         C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
         C::Future: Send,
         C::Error: std::error::Error + Send + Sync + 'static,
     {
-        BasinClient::new_with_connector(config, basin, connector)
-            .map(|client| client.stream_client(stream))
+        BasinClient::new_with_connector(config, basin, connector).stream_client(stream)
     }
 
     #[sync_docs]
@@ -654,12 +644,12 @@ impl StreamClient {
 #[derive(Debug, Clone)]
 struct ClientInner {
     channel: Channel,
-    basin: Option<String>,
+    basin: Option<types::BasinName>,
     config: ClientConfig,
 }
 
 impl ClientInner {
-    fn new_cell<C>(config: ClientConfig, connector: Option<C>) -> Result<Self, ConnectionError>
+    fn new_cell<C>(config: ClientConfig, connector: Option<C>) -> Self
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
         C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
@@ -670,26 +660,20 @@ impl ClientInner {
         Self::new(config, cell_endpoint, connector)
     }
 
-    fn new_basin(&self, basin: impl Into<String>) -> Result<Self, ConnectionError> {
-        let basin = basin.into();
-
+    fn new_basin(&self, basin: types::BasinName) -> Self {
         match self.config.host_endpoints.basin_zone.clone() {
             Some(endpoint) => {
-                let basin_endpoint: Authority = format!("{basin}.{endpoint}").parse()?;
+                let basin_endpoint: Authority = format!("{basin}.{endpoint}").parse().unwrap();
                 ClientInner::new(self.config.clone(), basin_endpoint, DEFAULT_HTTP_CONNECTOR)
             }
-            None => Ok(Self {
+            None => Self {
                 basin: Some(basin),
                 ..self.clone()
-            }),
+            },
         }
     }
 
-    fn new<C>(
-        config: ClientConfig,
-        endpoint: Authority,
-        connector: Option<C>,
-    ) -> Result<Self, ConnectionError>
+    fn new<C>(config: ClientConfig, endpoint: Authority, connector: Option<C>) -> Self
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
         C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
@@ -702,14 +686,17 @@ impl ClientInner {
         let scheme = config.uri_scheme.as_str();
 
         let endpoint = format!("{scheme}://{endpoint}")
-            .parse::<Endpoint>()?
-            .user_agent(config.user_agent.clone())?
+            .parse::<Endpoint>()
+            .unwrap()
+            .user_agent(config.user_agent.clone())
+            .unwrap()
             .http2_adaptive_window(true)
             .tls_config(
                 ClientTlsConfig::default()
                     .with_webpki_roots()
                     .assume_http2(true),
-            )?
+            )
+            .unwrap()
             .connect_timeout(config.connection_timeout)
             .timeout(config.request_timeout);
 
@@ -723,15 +710,15 @@ impl ClientInner {
             endpoint.connect_lazy()
         };
 
-        Ok(Self {
+        Self {
             channel,
             basin: None,
             config,
-        })
+        }
     }
 
     async fn send<T: ServiceRequest>(&self, service_req: T) -> Result<T::Response, ClientError> {
-        send_request(service_req, &self.config.token, self.basin.as_deref()).await
+        send_request(service_req, &self.config.token, self.basin.as_ref()).await
     }
 
     async fn send_retryable_with_backoff<T: RetryableRequest>(
@@ -773,15 +760,6 @@ impl ClientInner {
     fn stream_service_client(&self) -> StreamServiceClient<Channel> {
         StreamServiceClient::new(self.channel.clone())
     }
-}
-
-/// Error connecting to S2 endpoint.
-#[derive(Debug, thiserror::Error)]
-pub enum ConnectionError {
-    #[error(transparent)]
-    TonicTransportError(#[from] tonic::transport::Error),
-    #[error(transparent)]
-    UriParseError(#[from] http::uri::InvalidUri),
 }
 
 fn read_resumption_stream(

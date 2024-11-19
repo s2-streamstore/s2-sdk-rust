@@ -17,7 +17,7 @@ use crate::{client::ClientError, types};
 pub async fn send_request<T: ServiceRequest>(
     mut service: T,
     token: &SecretString,
-    basin: Option<&str>,
+    basin: Option<&types::BasinName>,
 ) -> Result<T::Response, ClientError> {
     let req = prepare_request(&mut service, token, basin)?;
     match service.send(req).await {
@@ -29,7 +29,7 @@ pub async fn send_request<T: ServiceRequest>(
 fn prepare_request<T: ServiceRequest>(
     service: &mut T,
     token: &SecretString,
-    basin: Option<&str>,
+    basin: Option<&types::BasinName>,
 ) -> Result<tonic::Request<T::ApiRequest>, types::ConvertError> {
     let mut req = service.prepare_request()?;
     add_authorization_header(req.metadata_mut(), token)?;
@@ -51,7 +51,10 @@ fn add_authorization_header(
     Ok(())
 }
 
-fn add_basin_header(meta: &mut MetadataMap, basin: &str) -> Result<(), types::ConvertError> {
+fn add_basin_header(
+    meta: &mut MetadataMap,
+    basin: &types::BasinName,
+) -> Result<(), types::ConvertError> {
     meta.insert(
         "s2-basin",
         basin

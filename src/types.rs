@@ -1,6 +1,7 @@
-use std::{str::FromStr, time::Duration};
+use std::{ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
 
 use bytesize::ByteSize;
+use regex::Regex;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use sync_docs::sync_docs;
@@ -50,15 +51,15 @@ macro_rules! metered_impl {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct CreateBasinRequest {
-    pub basin: String,
+    pub basin: BasinName,
     pub config: Option<BasinConfig>,
     // TODO: Add assignment (when it's supported).
 }
 
 impl CreateBasinRequest {
-    pub fn new(basin: impl Into<String>) -> Self {
+    pub fn new(basin: BasinName) -> Self {
         Self {
-            basin: basin.into(),
+            basin,
             config: None,
         }
     }
@@ -76,7 +77,7 @@ impl TryFrom<CreateBasinRequest> for api::CreateBasinRequest {
     fn try_from(value: CreateBasinRequest) -> Result<Self, Self::Error> {
         let CreateBasinRequest { basin, config } = value;
         Ok(Self {
-            basin,
+            basin: basin.0,
             config: config.map(TryInto::try_into).transpose()?,
             assignment: None,
         })
@@ -584,14 +585,14 @@ impl TryFrom<api::ListBasinsResponse> for ListBasinsResponse {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct DeleteBasinRequest {
-    pub basin: String,
+    pub basin: BasinName,
     pub if_exists: bool,
 }
 
 impl DeleteBasinRequest {
-    pub fn new(basin: impl Into<String>) -> Self {
+    pub fn new(basin: BasinName) -> Self {
         Self {
-            basin: basin.into(),
+            basin,
             if_exists: false,
         }
     }
@@ -604,7 +605,7 @@ impl DeleteBasinRequest {
 impl From<DeleteBasinRequest> for api::DeleteBasinRequest {
     fn from(value: DeleteBasinRequest) -> Self {
         let DeleteBasinRequest { basin, .. } = value;
-        Self { basin }
+        Self { basin: basin.0 }
     }
 }
 
@@ -640,15 +641,15 @@ impl From<DeleteStreamRequest> for api::DeleteStreamRequest {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct ReconfigureBasinRequest {
-    pub basin: String,
+    pub basin: BasinName,
     pub config: Option<BasinConfig>,
     pub mask: Option<Vec<String>>,
 }
 
 impl ReconfigureBasinRequest {
-    pub fn new(basin: impl Into<String>) -> Self {
+    pub fn new(basin: BasinName) -> Self {
         Self {
-            basin: basin.into(),
+            basin,
             config: None,
             mask: None,
         }
@@ -678,7 +679,7 @@ impl TryFrom<ReconfigureBasinRequest> for api::ReconfigureBasinRequest {
             mask,
         } = value;
         Ok(Self {
-            basin,
+            basin: basin.0,
             config: config.map(TryInto::try_into).transpose()?,
             mask: mask.map(|paths| prost_types::FieldMask { paths }),
         })
@@ -1158,5 +1159,62 @@ impl TryFrom<api::ReadSessionResponse> for ReadOutput {
         let api::ReadSessionResponse { output } = value;
         let output = output.ok_or("missing output in read session response")?;
         output.try_into()
+    }
+}
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone)]
+pub struct BasinName(String);
+
+impl AsRef<str> for BasinName {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Deref for BasinName {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl TryFrom<String> for BasinName {
+    type Error = ConvertError;
+
+    fn try_from(name: String) -> Result<Self, Self::Error> {
+        if name.len() < 8 || name.len() > 48 {
+            return Err("Basin name must be between 8 and 48 characters in length".into());
+        }
+
+        static BASIN_NAME_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = BASIN_NAME_REGEX.get_or_init(|| {
+            Regex::new(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")
+                .expect("Failed to compile basin name regex")
+        });
+
+        if !regex.is_match(&name) {
+            return Err(
+                "Basin name must comprise lowercase letters, numbers, and hyphens. \
+                It cannot begin or end with a hyphen."
+                    .into(),
+            );
+        }
+
+        Ok(Self(name))
+    }
+}
+
+impl FromStr for BasinName {
+    type Err = ConvertError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.to_string().try_into()
+    }
+}
+
+impl std::fmt::Display for BasinName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
     }
 }
