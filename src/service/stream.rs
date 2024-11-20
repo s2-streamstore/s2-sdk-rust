@@ -43,18 +43,18 @@ impl ServiceRequest for CheckTailServiceRequest {
         Ok(req.into_request())
     }
 
-    fn parse_response(
-        &self,
-        resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        Ok(resp.into_inner().into())
-    }
-
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.check_tail(req).await
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(resp.into_inner().into())
     }
 }
 
@@ -90,18 +90,18 @@ impl ServiceRequest for ReadServiceRequest {
         Ok(req.into_request())
     }
 
-    fn parse_response(
-        &self,
-        resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        resp.into_inner().try_into().map_err(Into::into)
-    }
-
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.read(req).await
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into().map_err(Into::into)
     }
 }
 
@@ -141,6 +141,13 @@ impl ServiceRequest for ReadSessionServiceRequest {
         Ok(req.into_request())
     }
 
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.read_session(req).await
+    }
+
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
@@ -149,13 +156,6 @@ impl ServiceRequest for ReadSessionServiceRequest {
             ReadSessionStreamingResponse,
             resp.into_inner(),
         ))
-    }
-
-    async fn send(
-        &mut self,
-        req: tonic::Request<Self::ApiRequest>,
-    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
-        self.client.read_session(req).await
     }
 }
 
@@ -207,18 +207,18 @@ impl ServiceRequest for AppendServiceRequest {
         .into_request())
     }
 
-    fn parse_response(
-        &self,
-        resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        resp.into_inner().try_into().map_err(Into::into)
-    }
-
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.append(req).await
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into().map_err(Into::into)
     }
 }
 
@@ -256,12 +256,21 @@ where
     type Response = ServiceStreamingResponse<AppendSessionStreamingResponse>;
     type ApiResponse = tonic::Streaming<api::AppendSessionResponse>;
 
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
+
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = ServiceStreamingRequest::new(
             AppendSessionStreamingRequest::new(&self.stream),
             self.req.take().ok_or("missing streaming append request")?,
         );
         Ok(req.into_request())
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.append_session(req).await
     }
 
     fn parse_response(
@@ -273,15 +282,6 @@ where
             resp.into_inner(),
         ))
     }
-
-    async fn send(
-        &mut self,
-        req: tonic::Request<Self::ApiRequest>,
-    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
-        self.client.append_session(req).await
-    }
-
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 }
 
 pub struct AppendSessionStreamingRequest {

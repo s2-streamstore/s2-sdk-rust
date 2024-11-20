@@ -30,18 +30,18 @@ impl ServiceRequest for CreateBasinServiceRequest {
         Ok(req.into_request())
     }
 
-    fn parse_response(
-        &self,
-        resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        resp.into_inner().try_into()
-    }
-
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.create_basin(req).await
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
     }
 }
 
@@ -68,18 +68,18 @@ impl ServiceRequest for ListBasinsServiceRequest {
         Ok(req.into_request())
     }
 
-    fn parse_response(
-        &self,
-        resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        resp.into_inner().try_into()
-    }
-
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.list_basins(req).await
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
     }
 }
 
@@ -106,18 +106,18 @@ impl ServiceRequest for DeleteBasinServiceRequest {
         Ok(req.into_request())
     }
 
-    fn parse_response(
-        &self,
-        _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        Ok(())
-    }
-
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.delete_basin(req).await
+    }
+
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(())
     }
 }
 
@@ -146,18 +146,18 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
         Ok(req.into_request())
     }
 
-    fn parse_response(
-        &self,
-        resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        resp.into_inner().try_into()
-    }
-
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.get_basin_config(req).await
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
     }
 }
 
@@ -184,17 +184,17 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
         Ok(req.into_request())
     }
 
-    fn parse_response(
-        &self,
-        _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        Ok(())
-    }
-
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.reconfigure_basin(req).await
+    }
+
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(())
     }
 }

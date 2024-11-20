@@ -30,18 +30,18 @@ impl ServiceRequest for ListStreamsServiceRequest {
         Ok(req.into_request())
     }
 
-    fn parse_response(
-        &self,
-        resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        Ok(resp.into_inner().into())
-    }
-
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.list_streams(req).await
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(resp.into_inner().into())
     }
 }
 
@@ -73,18 +73,18 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
         Ok(req.into_request())
     }
 
-    fn parse_response(
-        &self,
-        resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        resp.into_inner().try_into()
-    }
-
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.get_stream_config(req).await
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
     }
 }
 
@@ -111,18 +111,18 @@ impl ServiceRequest for CreateStreamServiceRequest {
         Ok(req.into_request())
     }
 
-    fn parse_response(
-        &self,
-        _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        Ok(())
-    }
-
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.create_stream(req).await
+    }
+
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(())
     }
 
 }
@@ -150,18 +150,18 @@ impl ServiceRequest for DeleteStreamServiceRequest {
         Ok(req.into_request())
     }
 
-    fn parse_response(
-        &self,
-        _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        Ok(())
-    }
-
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.delete_stream(req).await
+    }
+
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(())
     }
 }
 
@@ -188,17 +188,17 @@ impl ServiceRequest for ReconfigureStreamServiceRequest {
         Ok(req.into_request())
     }
 
-    fn parse_response(
-        &self,
-        _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        Ok(())
-    }
-
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.reconfigure_stream(req).await
+    }
+
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(())
     }
 }
