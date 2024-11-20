@@ -3,8 +3,8 @@ use tonic::IntoRequest;
 use tonic_side_effect::RequestFrameMonitor;
 
 use super::{
-    ClientError, ServiceRequest, ServiceStreamingRequest,
-    ServiceStreamingResponse, StreamingRequest, StreamingResponse,
+    ClientError, ServiceRequest, ServiceStreamingRequest, ServiceStreamingResponse,
+    StreamingRequest, StreamingResponse,
 };
 
 use crate::{

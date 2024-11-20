@@ -15,7 +15,10 @@ pub struct ListStreamsServiceRequest {
 }
 
 impl ListStreamsServiceRequest {
-    pub fn new(client: BasinServiceClient<RequestFrameMonitor>, req: types::ListStreamsRequest) -> Self {
+    pub fn new(
+        client: BasinServiceClient<RequestFrameMonitor>,
+        req: types::ListStreamsRequest,
+    ) -> Self {
         Self { client, req }
     }
 }
@@ -96,7 +99,10 @@ pub struct CreateStreamServiceRequest {
 }
 
 impl CreateStreamServiceRequest {
-    pub fn new(client: BasinServiceClient<RequestFrameMonitor>, req: types::CreateStreamRequest) -> Self {
+    pub fn new(
+        client: BasinServiceClient<RequestFrameMonitor>,
+        req: types::CreateStreamRequest,
+    ) -> Self {
         Self { client, req }
     }
 }
@@ -125,7 +131,6 @@ impl ServiceRequest for CreateStreamServiceRequest {
     ) -> Result<Self::Response, types::ConvertError> {
         Ok(())
     }
-
 }
 
 #[derive(Debug, Clone)]
@@ -135,7 +140,10 @@ pub struct DeleteStreamServiceRequest {
 }
 
 impl DeleteStreamServiceRequest {
-    pub fn new(client: BasinServiceClient<RequestFrameMonitor>, req: types::DeleteStreamRequest) -> Self {
+    pub fn new(
+        client: BasinServiceClient<RequestFrameMonitor>,
+        req: types::DeleteStreamRequest,
+    ) -> Self {
         Self { client, req }
     }
 }
@@ -173,7 +181,10 @@ pub struct ReconfigureStreamServiceRequest {
 }
 
 impl ReconfigureStreamServiceRequest {
-    pub fn new(client: BasinServiceClient<RequestFrameMonitor>, req: types::ReconfigureStreamRequest) -> Self {
+    pub fn new(
+        client: BasinServiceClient<RequestFrameMonitor>,
+        req: types::ReconfigureStreamRequest,
+    ) -> Self {
         Self { client, req }
     }
 }

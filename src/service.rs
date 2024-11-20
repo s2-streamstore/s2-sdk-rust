@@ -73,14 +73,6 @@ pub trait ServiceRequest {
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status>;
 
-    /// Take the tonic response and generate the response to be returned.
-    fn parse_response(
-        &self,
-        resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError>;
-}
-
-pub trait RetryableRequest: ServiceRequest + Clone {
     /// Return true if the request should be retried based on the error returned.
     fn should_retry(&self, err: &ClientError) -> bool {
         if Self::IDEMPOTENCY_LEVEL == IdempotencyLevel::IdempotencyUnknown {
@@ -101,9 +93,13 @@ pub trait RetryableRequest: ServiceRequest + Clone {
             false
         }
     }
-}
 
-impl<I: ServiceRequest + Clone> RetryableRequest for I {}
+    /// Take the tonic response and generate the response to be returned.
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError>;
+}
 
 pub trait StreamingRequest: Unpin {
     type RequestItem;

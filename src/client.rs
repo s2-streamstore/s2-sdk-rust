@@ -32,7 +32,7 @@ use crate::{
             AppendServiceRequest, AppendSessionServiceRequest, CheckTailServiceRequest,
             ReadServiceRequest, ReadSessionServiceRequest, ReadSessionStreamingResponse,
         },
-        RetryableRequest, ServiceRequest, ServiceStreamingResponse, Streaming,
+        ServiceRequest, ServiceStreamingResponse, Streaming,
     },
     types,
 };
@@ -663,7 +663,7 @@ impl ClientInner {
         send_request(service_req, &self.config.token, basin_header).await
     }
 
-    async fn send_retryable_with_backoff<T: RetryableRequest>(
+    async fn send_retryable_with_backoff<T: ServiceRequest + Clone>(
         &self,
         service_req: T,
         backoff_builder: impl BackoffBuilder,
@@ -676,7 +676,7 @@ impl ClientInner {
             .await
     }
 
-    async fn send_retryable<T: RetryableRequest>(
+    async fn send_retryable<T: ServiceRequest + Clone>(
         &self,
         service_req: T,
     ) -> Result<T::Response, ClientError> {
@@ -692,11 +692,17 @@ impl ClientInner {
     }
 
     fn account_service_client(&self) -> AccountServiceClient<RequestFrameMonitor> {
-        AccountServiceClient::new(RequestFrameMonitor::new(self.channel.clone(), NO_FRAMES_TAG))
+        AccountServiceClient::new(RequestFrameMonitor::new(
+            self.channel.clone(),
+            NO_FRAMES_TAG,
+        ))
     }
 
     fn basin_service_client(&self) -> BasinServiceClient<RequestFrameMonitor> {
-        BasinServiceClient::new(RequestFrameMonitor::new(self.channel.clone(), NO_FRAMES_TAG))
+        BasinServiceClient::new(RequestFrameMonitor::new(
+            self.channel.clone(),
+            NO_FRAMES_TAG,
+        ))
     }
 
     fn stream_service_client(&self) -> StreamServiceClient<RequestFrameMonitor> {

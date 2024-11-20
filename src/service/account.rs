@@ -15,7 +15,10 @@ pub struct CreateBasinServiceRequest {
 }
 
 impl CreateBasinServiceRequest {
-    pub fn new(client: AccountServiceClient<RequestFrameMonitor>, req: types::CreateBasinRequest) -> Self {
+    pub fn new(
+        client: AccountServiceClient<RequestFrameMonitor>,
+        req: types::CreateBasinRequest,
+    ) -> Self {
         Self { client, req }
     }
 }
@@ -53,7 +56,10 @@ pub struct ListBasinsServiceRequest {
 }
 
 impl ListBasinsServiceRequest {
-    pub fn new(client: AccountServiceClient<RequestFrameMonitor>, req: types::ListBasinsRequest) -> Self {
+    pub fn new(
+        client: AccountServiceClient<RequestFrameMonitor>,
+        req: types::ListBasinsRequest,
+    ) -> Self {
         Self { client, req }
     }
 }
@@ -91,7 +97,10 @@ pub struct DeleteBasinServiceRequest {
 }
 
 impl DeleteBasinServiceRequest {
-    pub fn new(client: AccountServiceClient<RequestFrameMonitor>, req: types::DeleteBasinRequest) -> Self {
+    pub fn new(
+        client: AccountServiceClient<RequestFrameMonitor>,
+        req: types::DeleteBasinRequest,
+    ) -> Self {
         Self { client, req }
     }
 }
@@ -169,7 +178,10 @@ pub struct ReconfigureBasinServiceRequest {
 }
 
 impl ReconfigureBasinServiceRequest {
-    pub fn new(client: AccountServiceClient<RequestFrameMonitor>, req: types::ReconfigureBasinRequest) -> Self {
+    pub fn new(
+        client: AccountServiceClient<RequestFrameMonitor>,
+        req: types::ReconfigureBasinRequest,
+    ) -> Self {
         Self { client, req }
     }
 }
