@@ -80,8 +80,9 @@ pub enum BasinEndpoint {
     /// DNS is used to route to the correct cell for the basin.
     ParentZone(Authority),
     /// Direct cell endpoint.
-    /// The `S2-Basin` header is included in requests to specify the basin.
-    CellKnown(Authority),
+    /// The `S2-Basin` header is included in requests to specify the basin,
+    /// which is expected to be hosted by this cell.
+    Direct(Authority),
 }
 
 /// Endpoints for the S2 environment.
@@ -115,7 +116,7 @@ impl S2Endpoints {
         let cell_endpoint: Authority = format!("{}.o.{cloud}.s2.dev", cell_id.into()).try_into()?;
         Ok(Self {
             account: cell_endpoint.clone(),
-            basin: BasinEndpoint::CellKnown(cell_endpoint),
+            basin: BasinEndpoint::Direct(cell_endpoint),
         })
     }
 }
@@ -529,7 +530,7 @@ impl ClientKind {
                 BasinEndpoint::ParentZone(zone) => format!("{basin}.{zone}")
                     .try_into()
                     .expect("valid authority as basin pre-validated"),
-                BasinEndpoint::CellKnown(endpoint) => endpoint.clone(),
+                BasinEndpoint::Direct(endpoint) => endpoint.clone(),
             },
         }
     }
@@ -574,7 +575,7 @@ impl ClientInner {
 
         let channel = if let Some(connector) = connector {
             assert!(
-                matches!(config.endpoints.basin, BasinEndpoint::CellKnown(_)),
+                matches!(config.endpoints.basin, BasinEndpoint::Direct(_)),
                 "custom connector only supported when connecting directly to a cell"
             );
             endpoint.connect_with_connector_lazy(connector)
@@ -607,7 +608,7 @@ impl ClientInner {
             &self.kind,
             &self.config.endpoints.basin,
         ) {
-            (true, ClientKind::Basin(basin), BasinEndpoint::CellKnown(_)) => {
+            (true, ClientKind::Basin(basin), BasinEndpoint::Direct(_)) => {
                 Some(AsciiMetadataValue::from_str(basin).expect("valid"))
             }
             _ => None,
