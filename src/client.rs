@@ -575,8 +575,8 @@ impl ClientInner {
 
         let channel = if let Some(connector) = connector {
             assert!(
-                matches!(config.endpoints.basin, BasinEndpoint::Direct(_)),
-                "custom connector only supported when connecting directly to a cell"
+                matches!(&config.endpoints.basin, BasinEndpoint::Direct(a) if a == &config.endpoints.account),
+                "Connector only supported when connecting directly to a cell for account as well as basins"
             );
             endpoint.connect_with_connector_lazy(connector)
         } else {
@@ -597,7 +597,6 @@ impl ClientInner {
         if current_authority == new_authority {
             self.clone()
         } else {
-            // TODO: what if connector was used
             Self::new(new_kind, self.config.clone(), DEFAULT_CONNECTOR)
         }
     }
