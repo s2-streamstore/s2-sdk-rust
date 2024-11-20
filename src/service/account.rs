@@ -1,7 +1,7 @@
 use prost_types::method_options::IdempotencyLevel;
 use tonic::{transport::Channel, IntoRequest};
 
-use super::{RetryableRequest, ServiceRequest};
+use super::ServiceRequest;
 use crate::{
     api::{self, account_service_client::AccountServiceClient},
     types,
@@ -23,6 +23,7 @@ impl ServiceRequest for CreateBasinServiceRequest {
     type ApiRequest = api::CreateBasinRequest;
     type Response = types::BasinMetadata;
     type ApiResponse = api::CreateBasinResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::CreateBasinRequest = self.req.clone().try_into()?;
@@ -60,6 +61,7 @@ impl ServiceRequest for ListBasinsServiceRequest {
     type ApiRequest = api::ListBasinsRequest;
     type Response = types::ListBasinsResponse;
     type ApiResponse = api::ListBasinsResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ListBasinsRequest = self.req.clone().try_into()?;
@@ -81,10 +83,6 @@ impl ServiceRequest for ListBasinsServiceRequest {
     }
 }
 
-impl RetryableRequest for ListBasinsServiceRequest {
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
-}
-
 #[derive(Debug, Clone)]
 pub struct DeleteBasinServiceRequest {
     client: AccountServiceClient<Channel>,
@@ -101,6 +99,7 @@ impl ServiceRequest for DeleteBasinServiceRequest {
     type ApiRequest = api::DeleteBasinRequest;
     type Response = ();
     type ApiResponse = api::DeleteBasinResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::DeleteBasinRequest = self.req.clone().into();
@@ -122,10 +121,6 @@ impl ServiceRequest for DeleteBasinServiceRequest {
     }
 }
 
-impl RetryableRequest for DeleteBasinServiceRequest {
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
-}
-
 #[derive(Debug, Clone)]
 pub struct GetBasinConfigServiceRequest {
     client: AccountServiceClient<Channel>,
@@ -142,6 +137,7 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
     type ApiRequest = api::GetBasinConfigRequest;
     type Response = types::BasinConfig;
     type ApiResponse = api::GetBasinConfigResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = api::GetBasinConfigRequest {
@@ -165,10 +161,6 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
     }
 }
 
-impl RetryableRequest for GetBasinConfigServiceRequest {
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
-}
-
 #[derive(Debug, Clone)]
 pub struct ReconfigureBasinServiceRequest {
     client: AccountServiceClient<Channel>,
@@ -185,6 +177,7 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
     type ApiRequest = api::ReconfigureBasinRequest;
     type Response = ();
     type ApiResponse = api::ReconfigureBasinResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ReconfigureBasinRequest = self.req.clone().try_into()?;
@@ -204,8 +197,4 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.reconfigure_basin(req).await
     }
-}
-
-impl RetryableRequest for ReconfigureBasinServiceRequest {
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 }

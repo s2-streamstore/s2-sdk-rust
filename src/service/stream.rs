@@ -3,7 +3,7 @@ use tonic::IntoRequest;
 use tonic_side_effect::RequestFrameMonitor;
 
 use super::{
-    ClientError, RetryableRequest, ServiceRequest, ServiceStreamingRequest,
+    ClientError, ServiceRequest, ServiceStreamingRequest,
     ServiceStreamingResponse, StreamingRequest, StreamingResponse,
 };
 
@@ -34,6 +34,7 @@ impl ServiceRequest for CheckTailServiceRequest {
     type ApiRequest = api::CheckTailRequest;
     type Response = u64;
     type ApiResponse = api::CheckTailResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = api::CheckTailRequest {
@@ -55,10 +56,6 @@ impl ServiceRequest for CheckTailServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.check_tail(req).await
     }
-}
-
-impl RetryableRequest for CheckTailServiceRequest {
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 }
 
 #[derive(Debug, Clone)]
@@ -86,6 +83,7 @@ impl ServiceRequest for ReadServiceRequest {
     type ApiRequest = api::ReadRequest;
     type Response = types::ReadOutput;
     type ApiResponse = api::ReadResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = self.req.clone().try_into_api_type(self.stream.clone())?;
@@ -105,10 +103,6 @@ impl ServiceRequest for ReadServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.read(req).await
     }
-}
-
-impl RetryableRequest for ReadServiceRequest {
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 }
 
 #[derive(Debug, Clone)]
@@ -140,6 +134,7 @@ impl ServiceRequest for ReadSessionServiceRequest {
     type ApiRequest = api::ReadSessionRequest;
     type Response = ServiceStreamingResponse<ReadSessionStreamingResponse>;
     type ApiResponse = tonic::Streaming<api::ReadSessionResponse>;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = self.req.clone().into_api_type(self.stream.clone());
@@ -164,10 +159,6 @@ impl ServiceRequest for ReadSessionServiceRequest {
     }
 }
 
-impl RetryableRequest for ReadSessionServiceRequest {
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
-}
-
 pub struct ReadSessionStreamingResponse;
 
 impl StreamingResponse for ReadSessionStreamingResponse {
@@ -180,10 +171,6 @@ impl StreamingResponse for ReadSessionStreamingResponse {
     ) -> Result<Self::ResponseItem, ClientError> {
         resp.try_into().map_err(Into::into)
     }
-}
-
-impl RetryableRequest for AppendServiceRequest {
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 }
 
 #[derive(Debug, Clone)]
@@ -211,6 +198,7 @@ impl ServiceRequest for AppendServiceRequest {
     type ApiRequest = api::AppendRequest;
     type Response = types::AppendOutput;
     type ApiResponse = api::AppendResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         Ok(api::AppendRequest {
@@ -292,6 +280,8 @@ where
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.append_session(req).await
     }
+
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 }
 
 pub struct AppendSessionStreamingRequest {
