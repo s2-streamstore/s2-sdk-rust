@@ -3,7 +3,7 @@ use std::time::Duration;
 use futures::StreamExt;
 use streamstore::{
     batching::AppendRecordsBatchingStream,
-    client::{Client, ClientConfig, ClientError, S2Endpoints},
+    client::{Client, ClientConfig, ClientError},
     types::{
         AppendInput, AppendRecord, AppendRecordBatch, BasinName, CreateBasinRequest,
         CreateStreamRequest, DeleteBasinRequest, DeleteStreamRequest, ListBasinsRequest,
@@ -15,11 +15,7 @@ use streamstore::{
 async fn main() {
     let token = std::env::var("S2_AUTH_TOKEN").unwrap();
 
-    let endpoints = S2Endpoints::from_env().unwrap();
-
-    let config = ClientConfig::new(token)
-        .with_endpoints(endpoints)
-        .with_request_timeout(Duration::from_secs(10));
+    let config = ClientConfig::new(token).with_request_timeout(Duration::from_secs(10));
 
     println!("Connecting with {config:#?}");
 

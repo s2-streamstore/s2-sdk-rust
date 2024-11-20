@@ -24,6 +24,8 @@ impl ServiceRequest for ListStreamsServiceRequest {
     type Response = types::ListStreamsResponse;
     type ApiResponse = api::ListStreamsResponse;
 
+    const IS_BASIN_REQUEST: bool = true;
+
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ListStreamsRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
@@ -68,6 +70,8 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
     type Response = types::StreamConfig;
     type ApiResponse = api::GetStreamConfigResponse;
 
+    const IS_BASIN_REQUEST: bool = true;
+
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = api::GetStreamConfigRequest {
             stream: self.stream.clone(),
@@ -111,6 +115,8 @@ impl ServiceRequest for CreateStreamServiceRequest {
     type Response = ();
     type ApiResponse = api::CreateStreamResponse;
 
+    const IS_BASIN_REQUEST: bool = true;
+
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::CreateStreamRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
@@ -147,6 +153,8 @@ impl ServiceRequest for DeleteStreamServiceRequest {
     type ApiRequest = api::DeleteStreamRequest;
     type Response = ();
     type ApiResponse = api::DeleteStreamResponse;
+
+    const IS_BASIN_REQUEST: bool = true;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::DeleteStreamRequest = self.req.clone().into();
@@ -188,6 +196,8 @@ impl ServiceRequest for ReconfigureStreamServiceRequest {
     type ApiRequest = api::ReconfigureStreamRequest;
     type Response = ();
     type ApiResponse = api::ReconfigureStreamResponse;
+
+    const IS_BASIN_REQUEST: bool = true;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ReconfigureStreamRequest = self.req.clone().try_into()?;

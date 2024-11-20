@@ -24,6 +24,8 @@ impl ServiceRequest for CreateBasinServiceRequest {
     type Response = types::BasinMetadata;
     type ApiResponse = api::CreateBasinResponse;
 
+    const IS_BASIN_REQUEST: bool = true;
+
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::CreateBasinRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
@@ -60,6 +62,8 @@ impl ServiceRequest for ListBasinsServiceRequest {
     type ApiRequest = api::ListBasinsRequest;
     type Response = types::ListBasinsResponse;
     type ApiResponse = api::ListBasinsResponse;
+
+    const IS_BASIN_REQUEST: bool = true;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ListBasinsRequest = self.req.clone().try_into()?;
@@ -102,6 +106,8 @@ impl ServiceRequest for DeleteBasinServiceRequest {
     type Response = ();
     type ApiResponse = api::DeleteBasinResponse;
 
+    const IS_BASIN_REQUEST: bool = true;
+
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::DeleteBasinRequest = self.req.clone().into();
         Ok(req.into_request())
@@ -142,6 +148,8 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
     type ApiRequest = api::GetBasinConfigRequest;
     type Response = types::BasinConfig;
     type ApiResponse = api::GetBasinConfigResponse;
+
+    const IS_BASIN_REQUEST: bool = true;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = api::GetBasinConfigRequest {
@@ -185,6 +193,8 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
     type ApiRequest = api::ReconfigureBasinRequest;
     type Response = ();
     type ApiResponse = api::ReconfigureBasinResponse;
+
+    const IS_BASIN_REQUEST: bool = true;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ReconfigureBasinRequest = self.req.clone().try_into()?;
