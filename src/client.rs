@@ -328,7 +328,7 @@ impl ClientConfig {
     /// Maximum number of attempts per request.
     /// Setting it to 1 disables retrying.
     /// The default is to make 3 attempts.
-    pub fn max_attempts(self, max_attempts: usize) -> Self {
+    pub fn with_max_attempts(self, max_attempts: usize) -> Self {
         assert!(max_attempts > 0, "max attempts must be greater than 0");
         Self {
             max_attempts,
