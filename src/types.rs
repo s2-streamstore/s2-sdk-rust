@@ -855,10 +855,140 @@ impl From<CommandRecord> for AppendRecord {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct AppendRecordBatch {
+    batch: Vec<AppendRecord>,
+    batch_size: ByteSize,
+    max_capacity: usize,
+    max_size: ByteSize,
+}
+
+impl Default for AppendRecordBatch {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AppendRecordBatch {
+    pub const MAX_BATCH_SIZE: ByteSize = ByteSize::mib(1);
+    pub const MAX_BATCH_CAPACITY: usize = 1000;
+
+    pub fn new() -> Self {
+        Self::with_max_capacity_and_size_inner(Self::MAX_BATCH_CAPACITY, Self::MAX_BATCH_SIZE)
+            .expect("valid default max capacity and size")
+    }
+
+    pub fn with_max_capacity(max_capacity: usize) -> Result<Self, ConvertError> {
+        Self::with_max_capacity_and_size_inner(max_capacity, Self::MAX_BATCH_SIZE)
+    }
+
+    #[cfg(test)]
+    pub fn with_max_capacity_and_size(
+        max_capacity: usize,
+        max_size: ByteSize,
+    ) -> Result<Self, ConvertError> {
+        Self::with_max_capacity_and_size_inner(max_capacity, max_size)
+    }
+
+    fn with_max_capacity_and_size_inner(
+        max_capacity: usize,
+        max_size: ByteSize,
+    ) -> Result<Self, ConvertError> {
+        if max_capacity == 0 || max_capacity > Self::MAX_BATCH_CAPACITY {
+            return Err("max capacity must be greater than 0 not be greater than 1000".into());
+        }
+
+        if max_size == ByteSize(0) || max_size > Self::MAX_BATCH_SIZE {
+            return Err("max size must be greater than 0 and not be greater than 1 MiB".into());
+        }
+
+        Ok(Self {
+            batch: Vec::with_capacity(max_capacity),
+            batch_size: ByteSize(0),
+            max_capacity,
+            max_size,
+        })
+    }
+
+    pub fn try_from_iter<R, T>(iter: T) -> Result<Self, ConvertError>
+    where
+        R: Into<AppendRecord>,
+        T: IntoIterator<Item = R>,
+    {
+        let mut records = Self::new();
+        for record in iter {
+            if records.push(record).is_err() {
+                return Err("iterator values do not fit into batch limits".into());
+            }
+        }
+        Ok(records)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        if self.batch.is_empty() {
+            assert_eq!(self.batch_size, ByteSize(0));
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.batch.len()
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.batch.len() >= self.max_capacity || self.batch_size >= self.max_size
+    }
+
+    pub fn push(&mut self, record: impl Into<AppendRecord>) -> Result<(), AppendRecord> {
+        assert!(self.batch.len() <= self.max_capacity);
+        assert!(self.batch_size <= self.max_size);
+
+        let record = record.into();
+        let record_size = record.metered_size();
+        if self.batch.len() >= self.max_capacity || self.batch_size + record_size > self.max_size {
+            Err(record)
+        } else {
+            self.batch.push(record);
+            self.batch_size += record_size;
+            Ok(())
+        }
+    }
+}
+
+impl MeteredSize for AppendRecordBatch {
+    fn metered_size(&self) -> ByteSize {
+        self.batch_size
+    }
+}
+
+impl IntoIterator for AppendRecordBatch {
+    type Item = AppendRecord;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.batch.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a AppendRecordBatch {
+    type Item = &'a AppendRecord;
+    type IntoIter = std::slice::Iter<'a, AppendRecord>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.batch.iter()
+    }
+}
+
+impl AsRef<[AppendRecord]> for AppendRecordBatch {
+    fn as_ref(&self) -> &[AppendRecord] {
+        &self.batch
+    }
+}
+
 #[sync_docs]
 #[derive(Debug, Clone)]
 pub struct AppendInput {
-    pub records: Vec<AppendRecord>,
+    pub records: AppendRecordBatch,
     pub match_seq_num: Option<u64>,
     pub fencing_token: Option<Vec<u8>>,
 }
@@ -870,7 +1000,7 @@ impl MeteredSize for AppendInput {
 }
 
 impl AppendInput {
-    pub fn new(records: impl Into<Vec<AppendRecord>>) -> Self {
+    pub fn new(records: impl Into<AppendRecordBatch>) -> Self {
         Self {
             records: records.into(),
             match_seq_num: None,
@@ -892,30 +1022,19 @@ impl AppendInput {
         }
     }
 
-    pub fn try_into_api_type(
-        self,
-        stream: impl Into<String>,
-    ) -> Result<api::AppendInput, ConvertError> {
+    pub fn into_api_type(self, stream: impl Into<String>) -> api::AppendInput {
         let Self {
             records,
             match_seq_num,
             fencing_token,
         } = self;
 
-        if records.len() > 1000 {
-            return Err("Batch exceeds limit of 1000 records".into());
-        }
-
-        if records.metered_size() > ByteSize::mib(1) {
-            return Err("Batch exceeds limit of 1 MiB metered size".into());
-        }
-
-        Ok(api::AppendInput {
+        api::AppendInput {
             stream: stream.into(),
             records: records.into_iter().map(Into::into).collect(),
             match_seq_num,
             fencing_token: fencing_token.map(Into::into),
-        })
+        }
     }
 }
 

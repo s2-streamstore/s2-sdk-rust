@@ -4,16 +4,16 @@ use std::{
     time::Duration,
 };
 
-use bytesize::ByteSize;
 use futures::{Stream, StreamExt};
 
-use crate::types::{self, MeteredSize as _};
+use crate::types;
 
 /// Options to configure append records batching scheme.
 #[derive(Debug, Clone)]
 pub struct AppendRecordsBatchingOpts {
     max_batch_records: usize,
-    max_batch_size: ByteSize,
+    #[cfg(test)]
+    max_batch_size: bytesize::ByteSize,
     match_seq_num: Option<u64>,
     fencing_token: Option<Vec<u8>>,
     linger_duration: Duration,
@@ -23,7 +23,8 @@ impl Default for AppendRecordsBatchingOpts {
     fn default() -> Self {
         Self {
             max_batch_records: 1000,
-            max_batch_size: ByteSize::mib(1),
+            #[cfg(test)]
+            max_batch_size: bytesize::ByteSize::mib(1),
             match_seq_num: None,
             fencing_token: None,
             linger_duration: Duration::from_millis(5),
@@ -38,31 +39,36 @@ impl AppendRecordsBatchingOpts {
     }
 
     /// Maximum number of records in a batch.
-    pub fn with_max_batch_records(self, max_batch_records: usize) -> Self {
-        assert!(
-            max_batch_records > 0 && max_batch_records <= 1000,
-            "max_batch_records should be between (0, 1000]"
-        );
-
-        Self {
-            max_batch_records,
-            ..self
+    pub fn with_max_batch_records(self, max_batch_records: usize) -> Result<Self, String> {
+        if max_batch_records == 0
+            || max_batch_records > types::AppendRecordBatch::MAX_BATCH_CAPACITY
+        {
+            Err("max capacity must be greater than 0 not be greater than 1000".to_string())
+        } else {
+            Ok(Self {
+                max_batch_records,
+                ..self
+            })
         }
     }
 
     /// Maximum size of a batch in bytes.
     #[cfg(test)]
-    pub fn with_max_batch_size(self, max_batch_size: impl Into<ByteSize>) -> Self {
+    pub fn with_max_batch_size(
+        self,
+        max_batch_size: impl Into<bytesize::ByteSize>,
+    ) -> Result<Self, String> {
         let max_batch_size = max_batch_size.into();
 
-        assert!(
-            max_batch_size > ByteSize(0) && max_batch_size <= ByteSize::mib(1),
-            "max_batch_size should be between (0, 1] MiB"
-        );
-
-        Self {
-            max_batch_size,
-            ..self
+        if max_batch_size == bytesize::ByteSize(0)
+            || max_batch_size > types::AppendRecordBatch::MAX_BATCH_SIZE
+        {
+            Err("max size must be greater than 0 and not be greater than 1 MiB".to_string())
+        } else {
+            Ok(Self {
+                max_batch_size,
+                ..self
+            })
         }
     }
 
@@ -158,17 +164,9 @@ where
                 };
             }
 
-            if !batch_builder.is_empty() {
-                yield batch_builder.flush();
+            if let Some(input) = batch_builder.flush() {
+                yield input;
             }
-
-            // Now that we have flushed (if required), the batch builder should
-            // definitely not be full. It might not be empty since the peeked
-            // record might have been pushed into the batch.
-            assert!(
-                !batch_builder.is_full(),
-                "dangling peeked record does not fit into size limits",
-            );
         }
     }
 }
@@ -177,8 +175,7 @@ struct BatchBuilder<'a> {
     opts: &'a AppendRecordsBatchingOpts,
     peeked_record: Option<types::AppendRecord>,
     next_match_seq_num: Option<u64>,
-    batch: Vec<types::AppendRecord>,
-    batch_size: ByteSize,
+    batch: types::AppendRecordBatch,
 }
 
 impl<'a> BatchBuilder<'a> {
@@ -186,32 +183,35 @@ impl<'a> BatchBuilder<'a> {
         Self {
             peeked_record: None,
             next_match_seq_num: opts.match_seq_num,
-            batch: Vec::with_capacity(opts.max_batch_records),
-            batch_size: ByteSize(0),
+            batch: Self::new_batch(opts),
             opts,
         }
     }
 
+    #[cfg(not(test))]
+    fn new_batch(opts: &AppendRecordsBatchingOpts) -> types::AppendRecordBatch {
+        types::AppendRecordBatch::with_max_capacity(opts.max_batch_records)
+            .expect("previously validated max capacity")
+    }
+
+    #[cfg(test)]
+    fn new_batch(opts: &AppendRecordsBatchingOpts) -> types::AppendRecordBatch {
+        types::AppendRecordBatch::with_max_capacity_and_size(
+            opts.max_batch_records,
+            opts.max_batch_size,
+        )
+        .expect("previously validated max capacity and size parameters")
+    }
+
     pub fn push(&mut self, record: impl Into<types::AppendRecord>) {
-        assert!(!self.is_full());
-        let record = record.into();
-        let record_size = record.metered_size();
-        if self.batch_size + record_size > self.opts.max_batch_size {
+        if let Err(record) = self.batch.push(record) {
             let ret = self.peeked_record.replace(record);
             assert!(ret.is_none());
-        } else {
-            self.batch_size += record_size;
-            self.batch.push(record);
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        if self.batch.is_empty() {
-            assert_eq!(self.batch_size, ByteSize(0));
-            true
-        } else {
-            false
-        }
+        self.batch.is_empty()
     }
 
     pub fn len(&self) -> usize {
@@ -219,36 +219,37 @@ impl<'a> BatchBuilder<'a> {
     }
 
     pub fn is_full(&self) -> bool {
-        assert!(self.batch.len() <= self.opts.max_batch_records);
-        self.batch.len() == self.opts.max_batch_records || self.peeked_record.is_some()
+        self.batch.is_full() || self.peeked_record.is_some()
     }
 
-    pub fn flush(&mut self) -> types::AppendInput {
-        assert!(!self.is_empty());
+    pub fn flush(&mut self) -> Option<types::AppendInput> {
+        let ret = if self.batch.is_empty() {
+            None
+        } else {
+            let match_seq_num = self.next_match_seq_num;
+            if let Some(next_match_seq_num) = self.next_match_seq_num.as_mut() {
+                *next_match_seq_num += self.batch.len() as u64;
+            }
 
-        let match_seq_num = self.next_match_seq_num;
-        if let Some(next_match_seq_num) = self.next_match_seq_num.as_mut() {
-            *next_match_seq_num += self.batch.len() as u64;
-        }
-
-        // Reset the inner batch, batch_size and push back the peeked record
-        // into the batch.
-        let records = {
-            self.batch_size = ByteSize(0);
-            std::mem::replace(
-                &mut self.batch,
-                Vec::with_capacity(self.opts.max_batch_records),
-            )
+            let records = std::mem::replace(&mut self.batch, Self::new_batch(self.opts));
+            Some(types::AppendInput {
+                records,
+                match_seq_num,
+                fencing_token: self.opts.fencing_token.clone(),
+            })
         };
+
         if let Some(record) = self.peeked_record.take() {
             self.push(record);
         }
 
-        types::AppendInput {
-            records,
-            match_seq_num,
-            fencing_token: self.opts.fencing_token.clone(),
-        }
+        // If the peeked record could not be moved into the batch, it doesn't fit size limits.
+        assert!(
+            self.peeked_record.is_none(),
+            "dangling peeked record does not fit into size limits"
+        );
+
+        ret
     }
 }
 
@@ -280,10 +281,10 @@ mod tests {
 
         let mut opts = AppendRecordsBatchingOpts::new().with_linger(Duration::ZERO);
         if let Some(max_batch_records) = max_batch_records {
-            opts = opts.with_max_batch_records(max_batch_records);
+            opts = opts.with_max_batch_records(max_batch_records).unwrap();
         }
         if let Some(max_batch_size) = max_batch_size {
-            opts = opts.with_max_batch_size(max_batch_size);
+            opts = opts.with_max_batch_size(max_batch_size).unwrap();
         }
 
         let batch_stream = AppendRecordsBatchingStream::new(stream, opts);
@@ -314,7 +315,9 @@ mod tests {
                 AppendRecordsBatchingOpts::new()
                     .with_linger(Duration::from_secs(2))
                     .with_max_batch_records(3)
-                    .with_max_batch_size(ByteSize::b(40)),
+                    .unwrap()
+                    .with_max_batch_size(ByteSize::b(40))
+                    .unwrap(),
             );
 
             batch_stream
@@ -398,9 +401,12 @@ mod tests {
 
         let mut batch_stream = AppendRecordsBatchingStream::new(
             stream,
-            AppendRecordsBatchingOpts::new().with_max_batch_size(ByteSize::b(1)),
+            AppendRecordsBatchingOpts::new()
+                .with_max_batch_size(ByteSize::b(1))
+                .unwrap(),
         );
 
-        let _ = batch_stream.next().await;
+        let rec = batch_stream.next().await;
+        println!("{rec:#?}");
     }
 }
