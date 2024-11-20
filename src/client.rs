@@ -595,7 +595,10 @@ impl ClientInner {
         let new_kind = ClientKind::Basin(basin);
         let new_authority = new_kind.to_authority(&self.config.endpoints);
         if current_authority == new_authority {
-            self.clone()
+            Self {
+                kind: new_kind,
+                ..self.clone()
+            }
         } else {
             Self::new(new_kind, self.config.clone(), DEFAULT_CONNECTOR)
         }
