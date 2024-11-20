@@ -910,18 +910,29 @@ impl AppendRecordBatch {
         })
     }
 
-    pub fn try_from_iter<R, T>(iter: T) -> Result<Self, ConvertError>
+    pub fn try_from_iter<R, T>(iter: T) -> Result<Self, (Self, Vec<AppendRecord>)>
     where
         R: Into<AppendRecord>,
         T: IntoIterator<Item = R>,
     {
         let mut records = Self::new();
-        for record in iter {
-            if records.push(record).is_err() {
-                return Err("iterator values do not fit into batch limits".into());
+        let mut pending = Vec::new();
+
+        let mut iter = iter.into_iter();
+
+        for record in iter.by_ref() {
+            if let Err(record) = records.push(record) {
+                pending.push(record);
+                break;
             }
         }
-        Ok(records)
+
+        if pending.is_empty() {
+            Ok(records)
+        } else {
+            pending.extend(iter.map(Into::into));
+            Err((records, pending))
+        }
     }
 
     pub fn is_empty(&self) -> bool {
