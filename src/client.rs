@@ -603,12 +603,8 @@ impl ClientInner {
     }
 
     async fn send<T: ServiceRequest>(&self, service_req: T) -> Result<T::Response, ClientError> {
-        let basin_header = match (
-            T::IS_BASIN_REQUEST,
-            &self.kind,
-            &self.config.endpoints.basin,
-        ) {
-            (true, ClientKind::Basin(basin), BasinEndpoint::Direct(_)) => {
+        let basin_header = match (&self.kind, &self.config.endpoints.basin) {
+            (ClientKind::Basin(basin), BasinEndpoint::Direct(_)) => {
                 Some(AsciiMetadataValue::from_str(basin).expect("valid"))
             }
             _ => None,

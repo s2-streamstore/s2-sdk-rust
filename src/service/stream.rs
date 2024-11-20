@@ -30,8 +30,6 @@ impl ServiceRequest for CheckTailServiceRequest {
     type Response = u64;
     type ApiResponse = api::CheckTailResponse;
 
-    const IS_BASIN_REQUEST: bool = true;
-
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = api::CheckTailRequest {
             stream: self.stream.clone(),
@@ -83,8 +81,6 @@ impl ServiceRequest for ReadServiceRequest {
     type ApiRequest = api::ReadRequest;
     type Response = types::ReadOutput;
     type ApiResponse = api::ReadResponse;
-
-    const IS_BASIN_REQUEST: bool = true;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = self.req.clone().try_into_api_type(self.stream.clone())?;
@@ -139,8 +135,6 @@ impl ServiceRequest for ReadSessionServiceRequest {
     type ApiRequest = api::ReadSessionRequest;
     type Response = ServiceStreamingResponse<ReadSessionStreamingResponse>;
     type ApiResponse = tonic::Streaming<api::ReadSessionResponse>;
-
-    const IS_BASIN_REQUEST: bool = true;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = self.req.clone().into_api_type(self.stream.clone());
@@ -209,8 +203,6 @@ impl ServiceRequest for AppendServiceRequest {
     type Response = types::AppendOutput;
     type ApiResponse = api::AppendResponse;
 
-    const IS_BASIN_REQUEST: bool = true;
-
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         Ok(api::AppendRequest {
             input: Some(self.req.clone().into_api_type(self.stream.clone())),
@@ -262,8 +254,6 @@ where
     type ApiRequest = ServiceStreamingRequest<AppendSessionStreamingRequest, S>;
     type Response = ServiceStreamingResponse<AppendSessionStreamingResponse>;
     type ApiResponse = tonic::Streaming<api::AppendSessionResponse>;
-
-    const IS_BASIN_REQUEST: bool = true;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = ServiceStreamingRequest::new(
