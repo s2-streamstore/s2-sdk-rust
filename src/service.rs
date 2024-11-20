@@ -10,16 +10,16 @@ use std::{
 use futures::StreamExt;
 use prost_types::method_options::IdempotencyLevel;
 use secrecy::{ExposeSecret, SecretString};
-use tonic::metadata::{AsciiMetadataValue, MetadataMap};
+use tonic::metadata::{AsciiMetadataKey, AsciiMetadataValue, MetadataMap};
 
 use crate::{client::ClientError, types};
 
 pub async fn send_request<T: ServiceRequest>(
     mut service: T,
     token: &SecretString,
-    basin: Option<&types::BasinName>,
+    basin_header: Option<AsciiMetadataValue>,
 ) -> Result<T::Response, ClientError> {
-    let req = prepare_request(&mut service, token, basin)?;
+    let req = prepare_request(&mut service, token, basin_header)?;
     match service.send(req).await {
         Ok(resp) => Ok(service.parse_response(resp)?),
         Err(status) => Err(ClientError::Service(status)),
@@ -29,12 +29,13 @@ pub async fn send_request<T: ServiceRequest>(
 fn prepare_request<T: ServiceRequest>(
     service: &mut T,
     token: &SecretString,
-    basin: Option<&types::BasinName>,
+    basin_header: Option<AsciiMetadataValue>,
 ) -> Result<tonic::Request<T::ApiRequest>, types::ConvertError> {
     let mut req = service.prepare_request()?;
     add_authorization_header(req.metadata_mut(), token)?;
-    if let Some(basin) = basin {
-        add_basin_header(req.metadata_mut(), basin)?;
+    if let Some(basin) = basin_header {
+        req.metadata_mut()
+            .insert(AsciiMetadataKey::from_static("s2-basin"), basin);
     }
     Ok(req)
 }
@@ -48,19 +49,6 @@ fn add_authorization_header(
         .map_err(|_| "failed to parse token as metadata value")?;
     val.set_sensitive(true);
     meta.insert("authorization", val);
-    Ok(())
-}
-
-fn add_basin_header(
-    meta: &mut MetadataMap,
-    basin: &types::BasinName,
-) -> Result<(), types::ConvertError> {
-    meta.insert(
-        "s2-basin",
-        basin
-            .parse()
-            .map_err(|_| "failed to parse basin as metadata value")?,
-    );
     Ok(())
 }
 

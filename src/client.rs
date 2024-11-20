@@ -7,7 +7,10 @@ use hyper_util::client::legacy::connect::HttpConnector;
 use secrecy::SecretString;
 use sync_docs::sync_docs;
 use tokio::time::sleep;
-use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
+use tonic::{
+    metadata::AsciiMetadataValue,
+    transport::{Channel, ClientTlsConfig, Endpoint},
+};
 
 use crate::{
     api::{
@@ -33,17 +36,16 @@ use crate::{
     types,
 };
 
-const DEFAULT_HTTP_CONNECTOR: Option<HttpConnector> = None;
+const DEFAULT_CONNECTOR: Option<HttpConnector> = None;
 
 /// S2 cloud environment to connect with.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum HostCloud {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum S2Cloud {
     /// S2 running on AWS.
-    #[default]
     Aws,
 }
 
-impl HostCloud {
+impl S2Cloud {
     const AWS: &'static str = "aws";
 
     fn as_str(&self) -> &'static str {
@@ -53,194 +55,69 @@ impl HostCloud {
     }
 }
 
-impl Display for HostCloud {
+impl Display for S2Cloud {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_str())
     }
 }
 
-impl FromStr for HostCloud {
-    type Err = ParseError;
+impl FromStr for S2Cloud {
+    type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.eq_ignore_ascii_case(Self::AWS) {
             Ok(Self::Aws)
         } else {
-            Err(ParseError::new("host", s))
+            Err(s.to_owned())
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum HostEnv {
-    #[default]
-    Prod,
-    Staging,
-    Sandbox,
-}
-
-impl HostEnv {
-    const PROD: &'static str = "prod";
-    const STAGING: &'static str = "staging";
-    const SANDBOX: &'static str = "sandbox";
-
-    fn as_str(&self) -> &'static str {
-        match self {
-            Self::Prod => Self::PROD,
-            Self::Staging => Self::STAGING,
-            Self::Sandbox => Self::SANDBOX,
-        }
-    }
-}
-
-impl Display for HostEnv {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-impl FromStr for HostEnv {
-    type Err = ParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.eq_ignore_ascii_case(Self::PROD) {
-            Ok(Self::Prod)
-        } else if s.eq_ignore_ascii_case(Self::STAGING) {
-            Ok(Self::Staging)
-        } else if s.eq_ignore_ascii_case(Self::SANDBOX) {
-            Ok(Self::Sandbox)
-        } else {
-            Err(ParseError::new("env", s))
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BasinZone {
-    CloudEnv,
-    Static,
-}
-
-impl BasinZone {
-    const CLOUD_ENV: &'static str = "cloud-env";
-    const STATIC: &'static str = "static";
-
-    fn as_str(&self) -> &'static str {
-        match self {
-            Self::CloudEnv => Self::CLOUD_ENV,
-            Self::Static => Self::STATIC,
-        }
-    }
-}
-
-impl Display for BasinZone {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-impl FromStr for BasinZone {
-    type Err = ParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.eq_ignore_ascii_case(Self::CLOUD_ENV) {
-            Ok(Self::CloudEnv)
-        } else if s.eq_ignore_ascii_case(Self::STATIC) {
-            Ok(Self::Static)
-        } else {
-            Err(ParseError::new("basin zone", s))
-        }
-    }
-}
-
-#[derive(Debug, Clone, thiserror::Error)]
-#[error("Invalid {0}: {1}")]
-pub struct ParseError(String, String);
-
-impl ParseError {
-    fn new(what: impl Into<String>, details: impl Display) -> Self {
-        Self(what.into(), details.to_string())
-    }
+/// Endpoint for connecting to an S2 basin.
+#[derive(Debug, Clone)]
+pub enum BasinEndpoint {
+    /// Parent zone for basins.
+    /// DNS is used to route to the correct cell for the basin.
+    ParentZone(Authority),
+    /// Direct cell endpoint.
+    /// The `S2-Basin` header is included in requests to specify the basin,
+    /// which is expected to be hosted by this cell.
+    Direct(Authority),
 }
 
 /// Endpoints for the S2 environment.
 #[derive(Debug, Clone)]
 pub struct S2Endpoints {
-    cell: Authority,
-    basin_zone: Option<Authority>,
-}
-
-impl From<HostCloud> for S2Endpoints {
-    fn from(cloud: HostCloud) -> Self {
-        S2Endpoints::for_cloud(cloud)
-    }
-}
-
-impl Default for S2Endpoints {
-    fn default() -> Self {
-        Self::for_cloud(HostCloud::default())
-    }
+    /// Used by `AccountService` requests.
+    pub account: Authority,
+    /// Used by `BasinService` and `StreamService` requests.
+    pub basin: BasinEndpoint,
 }
 
 impl S2Endpoints {
-    pub fn for_cloud(cloud: HostCloud) -> Self {
-        Self::from_parts(cloud, HostEnv::default(), None, None)
-    }
-
-    pub fn from_env() -> Result<Self, ParseError> {
-        fn env_var<T>(
-            name: &str,
-            parse: impl FnOnce(String) -> Result<T, ParseError>,
-        ) -> Result<Option<T>, ParseError> {
-            match std::env::var(name) {
-                Ok(value) => Ok(Some(parse(value)?)),
-                Err(std::env::VarError::NotPresent) => Ok(None),
-                Err(std::env::VarError::NotUnicode(value)) => Err(ParseError::new(
-                    format!("{name} env var"),
-                    value.to_string_lossy(),
-                )),
-            }
-        }
-
-        let cloud = env_var("S2_CLOUD", |s| HostCloud::from_str(&s))?.unwrap_or_default();
-        let env = env_var("S2_ENV", |s| HostEnv::from_str(&s))?.unwrap_or_default();
-        let basin_zone = env_var("S2_BASIN_ZONE", |s| BasinZone::from_str(&s))?;
-        let cell_id = env_var("S2_CELL_ID", Ok)?;
-
-        Ok(Self::from_parts(cloud, env, basin_zone, cell_id.as_deref()))
-    }
-
-    pub fn from_parts(
-        cloud: HostCloud,
-        env: HostEnv,
-        basin_zone: Option<BasinZone>,
-        cell_id: Option<&str>,
-    ) -> Self {
-        let env_suffix = match env {
-            HostEnv::Prod => String::new(),
-            env => format!("-{env}"),
-        };
-
-        let (cell_endpoint, default_basin_zone) = match cell_id {
-            None => (format!("{cloud}.s2.dev"), BasinZone::CloudEnv),
-            Some(cell_id) => (
-                format!("{cell_id}.o{env_suffix}.{cloud}.s2.dev"),
-                BasinZone::Static,
-            ),
-        };
-
-        let basin_endpoint = match basin_zone.unwrap_or(default_basin_zone) {
-            BasinZone::CloudEnv => Some(format!("b{env_suffix}.{cloud}.s2.dev")),
-            BasinZone::Static => None,
-        };
-
+    pub fn for_cloud(cloud: S2Cloud) -> Self {
         Self {
-            cell: cell_endpoint
-                .parse()
-                .expect("previously validated cell endpoint"),
-            basin_zone: basin_endpoint
-                .map(|b| b.parse().expect("previously validated basin endpoint")),
+            account: format!("{cloud}.s2.dev")
+                .try_into()
+                .expect("valid authority"),
+            basin: BasinEndpoint::ParentZone(
+                format!("b.{cloud}.s2.dev")
+                    .try_into()
+                    .expect("valid authority"),
+            ),
         }
+    }
+
+    pub fn for_cell(
+        &self,
+        cloud: S2Cloud,
+        cell_id: impl Into<String>,
+    ) -> Result<Self, http::uri::InvalidUri> {
+        let cell_endpoint: Authority = format!("{}.o.{cloud}.s2.dev", cell_id.into()).try_into()?;
+        Ok(Self {
+            account: cell_endpoint.clone(),
+            basin: BasinEndpoint::Direct(cell_endpoint),
+        })
     }
 }
 
@@ -263,7 +140,7 @@ impl ClientConfig {
     pub fn new(token: impl Into<String>) -> Self {
         Self {
             token: token.into().into(),
-            endpoints: S2Endpoints::default(),
+            endpoints: S2Endpoints::for_cloud(S2Cloud::Aws),
             connection_timeout: Duration::from_secs(3),
             request_timeout: Duration::from_secs(5),
             user_agent: "s2-sdk-rust".parse().expect("valid user agent"),
@@ -354,7 +231,7 @@ pub struct Client {
 impl Client {
     pub fn new(config: ClientConfig) -> Self {
         Self {
-            inner: ClientInner::new_cell(config, DEFAULT_HTTP_CONNECTOR),
+            inner: ClientInner::new(ClientKind::Account, config, DEFAULT_CONNECTOR),
         }
     }
 
@@ -367,13 +244,13 @@ impl Client {
         C::Error: std::error::Error + Send + Sync + 'static,
     {
         Self {
-            inner: ClientInner::new_cell(config, Some(connector)),
+            inner: ClientInner::new(ClientKind::Account, config, Some(connector)),
         }
     }
 
     pub fn basin_client(&self, basin: types::BasinName) -> BasinClient {
         BasinClient {
-            inner: self.inner.new_basin(basin),
+            inner: self.inner.for_basin(basin),
         }
     }
 
@@ -448,7 +325,9 @@ pub struct BasinClient {
 
 impl BasinClient {
     pub fn new(config: ClientConfig, basin: types::BasinName) -> Self {
-        Client::new(config).basin_client(basin)
+        Self {
+            inner: ClientInner::new(ClientKind::Basin(basin), config, DEFAULT_CONNECTOR),
+        }
     }
 
     #[cfg(feature = "connector")]
@@ -463,10 +342,12 @@ impl BasinClient {
         C::Future: Send,
         C::Error: std::error::Error + Send + Sync + 'static,
     {
-        Client::new_with_connector(config, connector).basin_client(basin)
+        Self {
+            inner: ClientInner::new(ClientKind::Basin(basin), config, Some(connector)),
+        }
     }
 
-    /// Get the client to interact with the S2 stream service API.
+    /// Create a new client for stream-level operations.
     pub fn stream_client(&self, stream: impl Into<String>) -> StreamClient {
         StreamClient {
             inner: self.inner.clone(),
@@ -636,52 +517,48 @@ impl StreamClient {
 }
 
 #[derive(Debug, Clone)]
+enum ClientKind {
+    Account,
+    Basin(types::BasinName),
+}
+
+impl ClientKind {
+    fn to_authority(&self, endpoints: &S2Endpoints) -> Authority {
+        match self {
+            ClientKind::Account => endpoints.account.clone(),
+            ClientKind::Basin(basin) => match &endpoints.basin {
+                BasinEndpoint::ParentZone(zone) => format!("{basin}.{zone}")
+                    .try_into()
+                    .expect("valid authority as basin pre-validated"),
+                BasinEndpoint::Direct(endpoint) => endpoint.clone(),
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 struct ClientInner {
+    kind: ClientKind,
     channel: Channel,
-    basin: Option<types::BasinName>,
     config: ClientConfig,
 }
 
 impl ClientInner {
-    fn new_cell<C>(config: ClientConfig, connector: Option<C>) -> Self
+    fn new<C>(kind: ClientKind, config: ClientConfig, connector: Option<C>) -> Self
     where
         C: tower_service::Service<http::Uri> + Send + 'static,
         C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
         C::Future: Send,
         C::Error: std::error::Error + Send + Sync + 'static,
     {
-        let cell_endpoint = config.endpoints.cell.clone();
-        Self::new(config, cell_endpoint, connector)
-    }
+        let authority = kind.to_authority(&config.endpoints);
 
-    fn new_basin(&self, basin: types::BasinName) -> Self {
-        match self.config.endpoints.basin_zone.clone() {
-            Some(endpoint) => {
-                let basin_endpoint: Authority = format!("{basin}.{endpoint}")
-                    .parse()
-                    .expect("previously validated basin name and endpoint");
-                ClientInner::new(self.config.clone(), basin_endpoint, DEFAULT_HTTP_CONNECTOR)
-            }
-            None => Self {
-                basin: Some(basin),
-                ..self.clone()
-            },
-        }
-    }
-
-    fn new<C>(config: ClientConfig, endpoint: Authority, connector: Option<C>) -> Self
-    where
-        C: tower_service::Service<http::Uri> + Send + 'static,
-        C::Response: hyper::rt::Read + hyper::rt::Write + Send + Unpin,
-        C::Future: Send,
-        C::Error: std::error::Error + Send + Sync + 'static,
-    {
         #[cfg(not(feature = "connector"))]
         let scheme = "https";
         #[cfg(feature = "connector")]
         let scheme = config.uri_scheme.as_str();
 
-        let endpoint = format!("{scheme}://{endpoint}")
+        let endpoint = format!("{scheme}://{authority}")
             .parse::<Endpoint>()
             .expect("previously validated endpoint scheme and authority")
             .user_agent(config.user_agent.clone())
@@ -698,8 +575,8 @@ impl ClientInner {
 
         let channel = if let Some(connector) = connector {
             assert!(
-                config.endpoints.basin_zone.is_none(),
-                "cannot connect with connector if basin zone is provided"
+                matches!(&config.endpoints.basin, BasinEndpoint::Direct(a) if a == &config.endpoints.account),
+                "Connector only supported when connecting directly to a cell for account as well as basins"
             );
             endpoint.connect_with_connector_lazy(connector)
         } else {
@@ -707,14 +584,34 @@ impl ClientInner {
         };
 
         Self {
+            kind,
             channel,
-            basin: None,
             config,
         }
     }
 
+    fn for_basin(&self, basin: types::BasinName) -> ClientInner {
+        let current_authority = self.kind.to_authority(&self.config.endpoints);
+        let new_kind = ClientKind::Basin(basin);
+        let new_authority = new_kind.to_authority(&self.config.endpoints);
+        if current_authority == new_authority {
+            Self {
+                kind: new_kind,
+                ..self.clone()
+            }
+        } else {
+            Self::new(new_kind, self.config.clone(), DEFAULT_CONNECTOR)
+        }
+    }
+
     async fn send<T: ServiceRequest>(&self, service_req: T) -> Result<T::Response, ClientError> {
-        send_request(service_req, &self.config.token, self.basin.as_ref()).await
+        let basin_header = match (&self.kind, &self.config.endpoints.basin) {
+            (ClientKind::Basin(basin), BasinEndpoint::Direct(_)) => {
+                Some(AsciiMetadataValue::from_str(basin).expect("valid"))
+            }
+            _ => None,
+        };
+        send_request(service_req, &self.config.token, basin_header).await
     }
 
     async fn send_retryable_with_backoff<T: RetryableRequest>(
