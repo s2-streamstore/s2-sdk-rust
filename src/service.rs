@@ -64,17 +64,18 @@ pub trait ServiceRequest {
     /// Take the request parameters and generate the corresponding tonic request.
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError>;
 
+    /// Actually send the tonic request to receive a raw response and the parsed error.
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status>;
+
     /// Take the tonic response and generate the response to be returned.
     fn parse_response(
         &self,
         resp: tonic::Response<Self::ApiResponse>,
     ) -> Result<Self::Response, types::ConvertError>;
 
-    /// Actually send the tonic request to receive a raw response and the parsed error.
-    async fn send(
-        &mut self,
-        req: tonic::Request<Self::ApiRequest>,
-    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status>;
 }
 
 pub trait RetryableRequest: ServiceRequest + Clone {
