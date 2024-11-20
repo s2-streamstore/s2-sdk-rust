@@ -5,9 +5,9 @@ use streamstore::{
     batching::AppendRecordsBatchingStream,
     client::{Client, ClientConfig, ClientError, HostEndpoints},
     types::{
-        AppendInput, AppendRecord, BasinName, CreateBasinRequest, CreateStreamRequest,
-        DeleteBasinRequest, DeleteStreamRequest, ListBasinsRequest, ListStreamsRequest,
-        ReadSessionRequest,
+        AppendInput, AppendRecord, AppendRecordBatch, BasinName, CreateBasinRequest,
+        CreateStreamRequest, DeleteBasinRequest, DeleteStreamRequest, ListBasinsRequest,
+        ListStreamsRequest, ReadSessionRequest,
     },
 };
 
@@ -114,7 +114,7 @@ async fn main() {
         AppendRecord::new(b"bye world"),
     ];
 
-    let append_input = AppendInput::new(records.clone());
+    let append_input = AppendInput::new(AppendRecordBatch::try_from_iter(records.clone()).unwrap());
 
     match stream_client.append(append_input.clone()).await {
         Ok(resp) => {
