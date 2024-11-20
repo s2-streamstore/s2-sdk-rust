@@ -526,10 +526,10 @@ impl ClientKind {
         match self {
             ClientKind::Account => endpoints.account.clone(),
             ClientKind::Basin(basin) => match &endpoints.basin {
-                BasinEndpoint::CellKnown(endpoint) => endpoint.clone(),
                 BasinEndpoint::ParentZone(zone) => format!("{basin}.{zone}")
                     .try_into()
                     .expect("valid authority as basin pre-validated"),
+                BasinEndpoint::CellKnown(endpoint) => endpoint.clone(),
             },
         }
     }
