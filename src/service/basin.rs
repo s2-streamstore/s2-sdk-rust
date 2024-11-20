@@ -1,5 +1,6 @@
 use prost_types::method_options::IdempotencyLevel;
-use tonic::{transport::Channel, IntoRequest};
+use tonic::IntoRequest;
+use tonic_side_effect::RequestFrameMonitor;
 
 use super::ServiceRequest;
 use crate::{
@@ -9,12 +10,12 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct ListStreamsServiceRequest {
-    client: BasinServiceClient<Channel>,
+    client: BasinServiceClient<RequestFrameMonitor>,
     req: types::ListStreamsRequest,
 }
 
 impl ListStreamsServiceRequest {
-    pub fn new(client: BasinServiceClient<Channel>, req: types::ListStreamsRequest) -> Self {
+    pub fn new(client: BasinServiceClient<RequestFrameMonitor>, req: types::ListStreamsRequest) -> Self {
         Self { client, req }
     }
 }
@@ -47,12 +48,12 @@ impl ServiceRequest for ListStreamsServiceRequest {
 
 #[derive(Debug, Clone)]
 pub struct GetStreamConfigServiceRequest {
-    client: BasinServiceClient<Channel>,
+    client: BasinServiceClient<RequestFrameMonitor>,
     stream: String,
 }
 
 impl GetStreamConfigServiceRequest {
-    pub fn new(client: BasinServiceClient<Channel>, stream: impl Into<String>) -> Self {
+    pub fn new(client: BasinServiceClient<RequestFrameMonitor>, stream: impl Into<String>) -> Self {
         Self {
             client,
             stream: stream.into(),
@@ -90,12 +91,12 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
 
 #[derive(Debug, Clone)]
 pub struct CreateStreamServiceRequest {
-    client: BasinServiceClient<Channel>,
+    client: BasinServiceClient<RequestFrameMonitor>,
     req: types::CreateStreamRequest,
 }
 
 impl CreateStreamServiceRequest {
-    pub fn new(client: BasinServiceClient<Channel>, req: types::CreateStreamRequest) -> Self {
+    pub fn new(client: BasinServiceClient<RequestFrameMonitor>, req: types::CreateStreamRequest) -> Self {
         Self { client, req }
     }
 }
@@ -129,12 +130,12 @@ impl ServiceRequest for CreateStreamServiceRequest {
 
 #[derive(Debug, Clone)]
 pub struct DeleteStreamServiceRequest {
-    client: BasinServiceClient<Channel>,
+    client: BasinServiceClient<RequestFrameMonitor>,
     req: types::DeleteStreamRequest,
 }
 
 impl DeleteStreamServiceRequest {
-    pub fn new(client: BasinServiceClient<Channel>, req: types::DeleteStreamRequest) -> Self {
+    pub fn new(client: BasinServiceClient<RequestFrameMonitor>, req: types::DeleteStreamRequest) -> Self {
         Self { client, req }
     }
 }
@@ -167,12 +168,12 @@ impl ServiceRequest for DeleteStreamServiceRequest {
 
 #[derive(Debug, Clone)]
 pub struct ReconfigureStreamServiceRequest {
-    client: BasinServiceClient<Channel>,
+    client: BasinServiceClient<RequestFrameMonitor>,
     req: types::ReconfigureStreamRequest,
 }
 
 impl ReconfigureStreamServiceRequest {
-    pub fn new(client: BasinServiceClient<Channel>, req: types::ReconfigureStreamRequest) -> Self {
+    pub fn new(client: BasinServiceClient<RequestFrameMonitor>, req: types::ReconfigureStreamRequest) -> Self {
         Self { client, req }
     }
 }

@@ -691,12 +691,12 @@ impl ClientInner {
             .with_jitter()
     }
 
-    fn account_service_client(&self) -> AccountServiceClient<Channel> {
-        AccountServiceClient::new(self.channel.clone())
+    fn account_service_client(&self) -> AccountServiceClient<RequestFrameMonitor> {
+        AccountServiceClient::new(RequestFrameMonitor::new(self.channel.clone(), NO_FRAMES_TAG))
     }
 
-    fn basin_service_client(&self) -> BasinServiceClient<Channel> {
-        BasinServiceClient::new(self.channel.clone())
+    fn basin_service_client(&self) -> BasinServiceClient<RequestFrameMonitor> {
+        BasinServiceClient::new(RequestFrameMonitor::new(self.channel.clone(), NO_FRAMES_TAG))
     }
 
     fn stream_service_client(&self) -> StreamServiceClient<RequestFrameMonitor> {
