@@ -248,7 +248,7 @@ impl S2Endpoints {
 #[derive(Debug, Clone)]
 pub struct ClientConfig {
     pub(crate) token: SecretString,
-    pub(crate) host_endpoints: S2Endpoints,
+    pub(crate) endpoints: S2Endpoints,
     pub(crate) connection_timeout: Duration,
     pub(crate) request_timeout: Duration,
     pub(crate) user_agent: HeaderValue,
@@ -263,7 +263,7 @@ impl ClientConfig {
     pub fn new(token: impl Into<String>) -> Self {
         Self {
             token: token.into().into(),
-            host_endpoints: S2Endpoints::default(),
+            endpoints: S2Endpoints::default(),
             connection_timeout: Duration::from_secs(3),
             request_timeout: Duration::from_secs(5),
             user_agent: "s2-sdk-rust".parse().expect("valid user agent"),
@@ -277,7 +277,7 @@ impl ClientConfig {
     /// S2 endpoints to connect to.
     pub fn with_endpoints(self, host_endpoints: impl Into<S2Endpoints>) -> Self {
         Self {
-            host_endpoints: host_endpoints.into(),
+            endpoints: host_endpoints.into(),
             ..self
         }
     }
@@ -650,12 +650,12 @@ impl ClientInner {
         C::Future: Send,
         C::Error: std::error::Error + Send + Sync + 'static,
     {
-        let cell_endpoint = config.host_endpoints.cell.clone();
+        let cell_endpoint = config.endpoints.cell.clone();
         Self::new(config, cell_endpoint, connector)
     }
 
     fn new_basin(&self, basin: types::BasinName) -> Self {
-        match self.config.host_endpoints.basin_zone.clone() {
+        match self.config.endpoints.basin_zone.clone() {
             Some(endpoint) => {
                 let basin_endpoint: Authority = format!("{basin}.{endpoint}")
                     .parse()
@@ -698,7 +698,7 @@ impl ClientInner {
 
         let channel = if let Some(connector) = connector {
             assert!(
-                config.host_endpoints.basin_zone.is_none(),
+                config.endpoints.basin_zone.is_none(),
                 "cannot connect with connector if basin zone is provided"
             );
             endpoint.connect_with_connector_lazy(connector)
