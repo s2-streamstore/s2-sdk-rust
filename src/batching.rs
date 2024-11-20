@@ -43,7 +43,7 @@ impl AppendRecordsBatchingOpts {
         if max_batch_records == 0
             || max_batch_records > types::AppendRecordBatch::MAX_BATCH_CAPACITY
         {
-            Err("max capacity must be greater than 0 not be greater than 1000".to_string())
+            Err("Batch capacity must be between 1 and 1000".to_string())
         } else {
             Ok(Self {
                 max_batch_records,
@@ -61,9 +61,9 @@ impl AppendRecordsBatchingOpts {
         let max_batch_size = max_batch_size.into();
 
         if max_batch_size == bytesize::ByteSize(0)
-            || max_batch_size > types::AppendRecordBatch::MAX_BATCH_SIZE
+            || max_batch_size > types::AppendRecordBatch::MAX_METERED_SIZE
         {
-            Err("max size must be greater than 0 and not be greater than 1 MiB".to_string())
+            Err("Batch size must be between 1 byte and 1000 MiB".to_string())
         } else {
             Ok(Self {
                 max_batch_size,
@@ -119,6 +119,7 @@ impl AppendRecordsBatchingStream {
 
 impl Stream for AppendRecordsBatchingStream {
     type Item = types::AppendInput;
+
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.0.poll_next_unpin(cx)
     }
@@ -406,7 +407,6 @@ mod tests {
                 .unwrap(),
         );
 
-        let rec = batch_stream.next().await;
-        println!("{rec:#?}");
+        let _ = batch_stream.next().await;
     }
 }

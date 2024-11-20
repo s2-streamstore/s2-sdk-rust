@@ -857,8 +857,8 @@ impl From<CommandRecord> for AppendRecord {
 
 #[derive(Debug, Clone)]
 pub struct AppendRecordBatch {
-    batch: Vec<AppendRecord>,
-    batch_size: ByteSize,
+    records: Vec<AppendRecord>,
+    metered_size: ByteSize,
     max_capacity: usize,
     max_size: ByteSize,
 }
@@ -870,16 +870,16 @@ impl Default for AppendRecordBatch {
 }
 
 impl AppendRecordBatch {
-    pub const MAX_BATCH_SIZE: ByteSize = ByteSize::mib(1);
+    pub const MAX_METERED_SIZE: ByteSize = ByteSize::mib(1);
     pub const MAX_BATCH_CAPACITY: usize = 1000;
 
     pub fn new() -> Self {
-        Self::with_max_capacity_and_size_inner(Self::MAX_BATCH_CAPACITY, Self::MAX_BATCH_SIZE)
+        Self::with_max_capacity_and_size_inner(Self::MAX_BATCH_CAPACITY, Self::MAX_METERED_SIZE)
             .expect("valid default max capacity and size")
     }
 
     pub fn with_max_capacity(max_capacity: usize) -> Result<Self, ConvertError> {
-        Self::with_max_capacity_and_size_inner(max_capacity, Self::MAX_BATCH_SIZE)
+        Self::with_max_capacity_and_size_inner(max_capacity, Self::MAX_METERED_SIZE)
     }
 
     #[cfg(test)]
@@ -895,16 +895,16 @@ impl AppendRecordBatch {
         max_size: ByteSize,
     ) -> Result<Self, ConvertError> {
         if max_capacity == 0 || max_capacity > Self::MAX_BATCH_CAPACITY {
-            return Err("max capacity must be greater than 0 not be greater than 1000".into());
+            return Err("Batch capacity must be between 1 and 1000".into());
         }
 
-        if max_size == ByteSize(0) || max_size > Self::MAX_BATCH_SIZE {
-            return Err("max size must be greater than 0 and not be greater than 1 MiB".into());
+        if max_size == ByteSize(0) || max_size > Self::MAX_METERED_SIZE {
+            return Err("Batch size must be between 1 byte and 1000 MiB".into());
         }
 
         Ok(Self {
-            batch: Vec::with_capacity(max_capacity),
-            batch_size: ByteSize(0),
+            records: Vec::with_capacity(max_capacity),
+            metered_size: ByteSize(0),
             max_capacity,
             max_size,
         })
@@ -925,8 +925,8 @@ impl AppendRecordBatch {
     }
 
     pub fn is_empty(&self) -> bool {
-        if self.batch.is_empty() {
-            assert_eq!(self.batch_size, ByteSize(0));
+        if self.records.is_empty() {
+            assert_eq!(self.metered_size, ByteSize(0));
             true
         } else {
             false
@@ -934,24 +934,26 @@ impl AppendRecordBatch {
     }
 
     pub fn len(&self) -> usize {
-        self.batch.len()
+        self.records.len()
     }
 
     pub fn is_full(&self) -> bool {
-        self.batch.len() >= self.max_capacity || self.batch_size >= self.max_size
+        self.records.len() >= self.max_capacity || self.metered_size >= self.max_size
     }
 
     pub fn push(&mut self, record: impl Into<AppendRecord>) -> Result<(), AppendRecord> {
-        assert!(self.batch.len() <= self.max_capacity);
-        assert!(self.batch_size <= self.max_size);
+        assert!(self.records.len() <= self.max_capacity);
+        assert!(self.metered_size <= self.max_size);
 
         let record = record.into();
         let record_size = record.metered_size();
-        if self.batch.len() >= self.max_capacity || self.batch_size + record_size > self.max_size {
+        if self.records.len() >= self.max_capacity
+            || self.metered_size + record_size > self.max_size
+        {
             Err(record)
         } else {
-            self.batch.push(record);
-            self.batch_size += record_size;
+            self.records.push(record);
+            self.metered_size += record_size;
             Ok(())
         }
     }
@@ -959,29 +961,31 @@ impl AppendRecordBatch {
 
 impl MeteredSize for AppendRecordBatch {
     fn metered_size(&self) -> ByteSize {
-        self.batch_size
+        self.metered_size
     }
 }
 
 impl IntoIterator for AppendRecordBatch {
     type Item = AppendRecord;
     type IntoIter = std::vec::IntoIter<Self::Item>;
+
     fn into_iter(self) -> Self::IntoIter {
-        self.batch.into_iter()
+        self.records.into_iter()
     }
 }
 
 impl<'a> IntoIterator for &'a AppendRecordBatch {
     type Item = &'a AppendRecord;
     type IntoIter = std::slice::Iter<'a, AppendRecord>;
+
     fn into_iter(self) -> Self::IntoIter {
-        self.batch.iter()
+        self.records.iter()
     }
 }
 
 impl AsRef<[AppendRecord]> for AppendRecordBatch {
     fn as_ref(&self) -> &[AppendRecord] {
-        &self.batch
+        &self.records
     }
 }
 
