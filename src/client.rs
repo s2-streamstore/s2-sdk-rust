@@ -263,7 +263,7 @@ pub struct ClientConfig {
     /// Backoff duration for retries.
     pub retry_backoff_duration: Duration,
     /// Maximum number of retries.
-    pub max_retries: usize,
+    pub max_attempts: usize,
 }
 
 impl ClientConfig {
@@ -279,7 +279,7 @@ impl ClientConfig {
             #[cfg(feature = "connector")]
             uri_scheme: http::uri::Scheme::HTTPS,
             retry_backoff_duration: Duration::from_millis(100),
-            max_retries: 3,
+            max_attempts: 3,
         }
     }
 
@@ -334,9 +334,10 @@ impl ClientConfig {
     }
 
     /// Construct from an existing configuration with maximum number of retries.
-    pub fn with_max_retries(self, max_retries: usize) -> Self {
+    pub fn max_attempts(self, max_attempts: usize) -> Self {
+        assert!(max_attempts > 0, "max attempts must be greater than 0");
         Self {
-            max_retries,
+            max_attempts,
             ..self
         }
     }
@@ -750,7 +751,7 @@ impl ClientInner {
     fn backoff_builder(&self) -> impl BackoffBuilder {
         ConstantBuilder::default()
             .with_delay(self.config.retry_backoff_duration)
-            .with_max_times(self.config.max_retries)
+            .with_max_times(self.config.max_attempts)
             .with_jitter()
     }
 
