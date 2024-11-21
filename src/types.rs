@@ -743,7 +743,7 @@ impl From<api::CheckTailResponse> for u64 {
 }
 
 #[sync_docs]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Header {
     pub name: Vec<u8>,
     pub value: Vec<u8>,
@@ -808,7 +808,7 @@ impl CommandRecord {
 }
 
 #[sync_docs]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppendRecord {
     pub headers: Vec<Header>,
     pub body: Vec<u8>,
@@ -862,6 +862,19 @@ pub struct AppendRecordBatch {
     max_capacity: usize,
     max_size: ByteSize,
 }
+
+impl PartialEq for AppendRecordBatch {
+    fn eq(&self, other: &Self) -> bool {
+        if self.records.eq(&other.records) {
+            assert_eq!(self.metered_size, other.metered_size);
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl Eq for AppendRecordBatch {}
 
 impl Default for AppendRecordBatch {
     fn default() -> Self {
