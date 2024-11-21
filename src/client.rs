@@ -18,6 +18,7 @@ use crate::{
         account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient,
         stream_service_client::StreamServiceClient,
     },
+    append_session,
     service::{
         account::{
             CreateBasinServiceRequest, DeleteBasinServiceRequest, GetBasinConfigServiceRequest,
@@ -467,8 +468,8 @@ impl BasinClient {
 /// Client for stream-level operations.
 #[derive(Debug, Clone)]
 pub struct StreamClient {
-    inner: ClientInner,
-    stream: String,
+    pub(crate) inner: ClientInner,
+    pub(crate) stream: String,
 }
 
 impl StreamClient {
@@ -554,14 +555,16 @@ impl StreamClient {
     where
         S: 'static + Send + Unpin + futures::Stream<Item = types::AppendInput>,
     {
-        self.inner
-            .send(AppendSessionServiceRequest::new(
-                self.inner.stream_service_client(),
-                &self.stream,
-                req,
-            ))
-            .await
-            .map(|s| Box::pin(s) as _)
+        // probably want the machinery here actually
+        append_session::append_session(self, req).await
+        // self.inner
+        //     .send(AppendSessionServiceRequest::new(
+        //         self.inner.stream_service_client(),
+        //         &self.stream,
+        //         req,
+        //     ))
+        //     .await
+        //     .map(|s| Box::pin(s) as _)
     }
 }
 
@@ -586,7 +589,7 @@ impl ClientKind {
 }
 
 #[derive(Debug, Clone)]
-struct ClientInner {
+pub(crate) struct ClientInner {
     kind: ClientKind,
     channel: Channel,
     config: ClientConfig,
@@ -653,7 +656,10 @@ impl ClientInner {
         }
     }
 
-    async fn send<T: ServiceRequest>(&self, service_req: T) -> Result<T::Response, ClientError> {
+    pub(crate) async fn send<T: ServiceRequest>(
+        &self,
+        service_req: T,
+    ) -> Result<T::Response, ClientError> {
         let basin_header = match (&self.kind, &self.config.endpoints.basin) {
             (ClientKind::Basin(basin), BasinEndpoint::Direct(_)) => {
                 Some(AsciiMetadataValue::from_str(basin).expect("valid"))
@@ -705,7 +711,7 @@ impl ClientInner {
         ))
     }
 
-    fn stream_service_client(&self) -> StreamServiceClient<RequestFrameMonitor> {
+    pub(crate) fn stream_service_client(&self) -> StreamServiceClient<RequestFrameMonitor> {
         StreamServiceClient::new(RequestFrameMonitor::new(
             self.channel.clone(),
             NO_FRAMES_TAG,

@@ -1,6 +1,7 @@
 mod api;
 mod service;
 
+mod append_session;
 pub mod batching;
 pub mod client;
 pub mod types;
