@@ -870,44 +870,39 @@ impl Default for AppendRecordBatch {
 }
 
 impl AppendRecordBatch {
-    pub const MAX_METERED_SIZE: ByteSize = ByteSize::mib(1);
-    pub const MAX_BATCH_CAPACITY: usize = 1000;
+    pub const MAX_CAPACITY: usize = 1000;
+    pub const MAX_SIZE: ByteSize = ByteSize::mib(1);
 
     pub fn new() -> Self {
-        Self::with_max_capacity_and_size_inner(Self::MAX_BATCH_CAPACITY, Self::MAX_METERED_SIZE)
-            .expect("valid default max capacity and size")
+        Self::with_max_capacity_and_size_inner(Self::MAX_CAPACITY, Self::MAX_SIZE)
     }
 
-    pub fn with_max_capacity(max_capacity: usize) -> Result<Self, ConvertError> {
-        Self::with_max_capacity_and_size_inner(max_capacity, Self::MAX_METERED_SIZE)
+    pub fn with_max_capacity(max_capacity: usize) -> Self {
+        Self::with_max_capacity_and_size_inner(max_capacity, Self::MAX_SIZE)
     }
 
     #[cfg(test)]
-    pub fn with_max_capacity_and_size(
-        max_capacity: usize,
-        max_size: ByteSize,
-    ) -> Result<Self, ConvertError> {
+    pub fn with_max_capacity_and_size(max_capacity: usize, max_size: ByteSize) -> Self {
         Self::with_max_capacity_and_size_inner(max_capacity, max_size)
     }
 
-    fn with_max_capacity_and_size_inner(
-        max_capacity: usize,
-        max_size: ByteSize,
-    ) -> Result<Self, ConvertError> {
-        if max_capacity == 0 || max_capacity > Self::MAX_BATCH_CAPACITY {
-            return Err("Batch capacity must be between 1 and 1000".into());
-        }
+    fn with_max_capacity_and_size_inner(max_capacity: usize, max_size: ByteSize) -> Self {
+        assert!(
+            max_capacity > 0 && max_capacity <= Self::MAX_CAPACITY,
+            "Batch capacity must be between 1 and 1000"
+        );
 
-        if max_size == ByteSize(0) || max_size > Self::MAX_METERED_SIZE {
-            return Err("Batch size must be between 1 byte and 1000 MiB".into());
-        }
+        assert!(
+            max_size > ByteSize(0) || max_size <= Self::MAX_SIZE,
+            "Batch size must be between 1 byte and 1 MiB"
+        );
 
-        Ok(Self {
+        Self {
             records: Vec::with_capacity(max_capacity),
             metered_size: ByteSize(0),
             max_capacity,
             max_size,
-        })
+        }
     }
 
     pub fn try_from_iter<R, T>(iter: T) -> Result<Self, (Self, Vec<AppendRecord>)>

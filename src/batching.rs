@@ -4,6 +4,8 @@ use std::{
     time::Duration,
 };
 
+#[cfg(test)]
+use bytesize::ByteSize;
 use futures::{Stream, StreamExt};
 
 use crate::types;
@@ -13,7 +15,7 @@ use crate::types;
 pub struct AppendRecordsBatchingOpts {
     max_batch_records: usize,
     #[cfg(test)]
-    max_batch_size: bytesize::ByteSize,
+    max_batch_size: ByteSize,
     match_seq_num: Option<u64>,
     fencing_token: Option<Vec<u8>>,
     linger_duration: Duration,
@@ -24,7 +26,7 @@ impl Default for AppendRecordsBatchingOpts {
         Self {
             max_batch_records: 1000,
             #[cfg(test)]
-            max_batch_size: bytesize::ByteSize::mib(1),
+            max_batch_size: ByteSize::mib(1),
             match_seq_num: None,
             fencing_token: None,
             linger_duration: Duration::from_millis(5),
@@ -39,36 +41,28 @@ impl AppendRecordsBatchingOpts {
     }
 
     /// Maximum number of records in a batch.
-    pub fn with_max_batch_records(self, max_batch_records: usize) -> Result<Self, String> {
-        if max_batch_records == 0
-            || max_batch_records > types::AppendRecordBatch::MAX_BATCH_CAPACITY
-        {
-            Err("Batch capacity must be between 1 and 1000".to_string())
-        } else {
-            Ok(Self {
-                max_batch_records,
-                ..self
-            })
+    pub fn with_max_batch_records(self, max_batch_records: usize) -> Self {
+        assert!(
+            max_batch_records > 0 && max_batch_records <= types::AppendRecordBatch::MAX_CAPACITY,
+            "Batch capacity must be between 1 and 1000"
+        );
+        Self {
+            max_batch_records,
+            ..self
         }
     }
 
     /// Maximum size of a batch in bytes.
     #[cfg(test)]
-    pub fn with_max_batch_size(
-        self,
-        max_batch_size: impl Into<bytesize::ByteSize>,
-    ) -> Result<Self, String> {
+    pub fn with_max_batch_size(self, max_batch_size: impl Into<ByteSize>) -> Self {
         let max_batch_size = max_batch_size.into();
-
-        if max_batch_size == bytesize::ByteSize(0)
-            || max_batch_size > types::AppendRecordBatch::MAX_METERED_SIZE
-        {
-            Err("Batch size must be between 1 byte and 1000 MiB".to_string())
-        } else {
-            Ok(Self {
-                max_batch_size,
-                ..self
-            })
+        assert!(
+            max_batch_size > ByteSize::b(0) && max_batch_size <= types::AppendRecordBatch::MAX_SIZE,
+            "Batch capacity must be between 1 byte and 1 MiB"
+        );
+        Self {
+            max_batch_size,
+            ..self
         }
     }
 
@@ -192,7 +186,6 @@ impl<'a> BatchBuilder<'a> {
     #[cfg(not(test))]
     fn new_batch(opts: &AppendRecordsBatchingOpts) -> types::AppendRecordBatch {
         types::AppendRecordBatch::with_max_capacity(opts.max_batch_records)
-            .expect("previously validated max capacity")
     }
 
     #[cfg(test)]
@@ -201,7 +194,6 @@ impl<'a> BatchBuilder<'a> {
             opts.max_batch_records,
             opts.max_batch_size,
         )
-        .expect("previously validated max capacity and size parameters")
     }
 
     pub fn push(&mut self, record: impl Into<types::AppendRecord>) {
@@ -282,10 +274,10 @@ mod tests {
 
         let mut opts = AppendRecordsBatchingOpts::new().with_linger(Duration::ZERO);
         if let Some(max_batch_records) = max_batch_records {
-            opts = opts.with_max_batch_records(max_batch_records).unwrap();
+            opts = opts.with_max_batch_records(max_batch_records);
         }
         if let Some(max_batch_size) = max_batch_size {
-            opts = opts.with_max_batch_size(max_batch_size).unwrap();
+            opts = opts.with_max_batch_size(max_batch_size);
         }
 
         let batch_stream = AppendRecordsBatchingStream::new(stream, opts);
@@ -316,9 +308,7 @@ mod tests {
                 AppendRecordsBatchingOpts::new()
                     .with_linger(Duration::from_secs(2))
                     .with_max_batch_records(3)
-                    .unwrap()
-                    .with_max_batch_size(ByteSize::b(40))
-                    .unwrap(),
+                    .with_max_batch_size(ByteSize::b(40)),
             );
 
             batch_stream
@@ -402,9 +392,7 @@ mod tests {
 
         let mut batch_stream = AppendRecordsBatchingStream::new(
             stream,
-            AppendRecordsBatchingOpts::new()
-                .with_max_batch_size(ByteSize::b(1))
-                .unwrap(),
+            AppendRecordsBatchingOpts::new().with_max_batch_size(ByteSize::b(1)),
         );
 
         let _ = batch_stream.next().await;
