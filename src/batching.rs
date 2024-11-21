@@ -43,8 +43,7 @@ impl AppendRecordsBatchingOpts {
     /// Maximum number of records in a batch.
     pub fn with_max_batch_records(self, max_batch_records: usize) -> Self {
         assert!(
-            max_batch_records > 0
-                && max_batch_records <= types::AppendRecordBatch::MAX_BATCH_CAPACITY,
+            max_batch_records > 0 && max_batch_records <= types::AppendRecordBatch::MAX_CAPACITY,
             "Batch capacity must be between 1 and 1000"
         );
         Self {
@@ -58,8 +57,7 @@ impl AppendRecordsBatchingOpts {
     pub fn with_max_batch_size(self, max_batch_size: impl Into<ByteSize>) -> Self {
         let max_batch_size = max_batch_size.into();
         assert!(
-            max_batch_size > ByteSize::b(0)
-                && max_batch_size <= types::AppendRecordBatch::MAX_METERED_SIZE,
+            max_batch_size > ByteSize::b(0) && max_batch_size <= types::AppendRecordBatch::MAX_SIZE,
             "Batch capacity must be between 1 byte and 1 MiB"
         );
         Self {

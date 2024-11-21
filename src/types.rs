@@ -870,15 +870,15 @@ impl Default for AppendRecordBatch {
 }
 
 impl AppendRecordBatch {
-    pub const MAX_METERED_SIZE: ByteSize = ByteSize::mib(1);
-    pub const MAX_BATCH_CAPACITY: usize = 1000;
+    pub const MAX_CAPACITY: usize = 1000;
+    pub const MAX_SIZE: ByteSize = ByteSize::mib(1);
 
     pub fn new() -> Self {
-        Self::with_max_capacity_and_size_inner(Self::MAX_BATCH_CAPACITY, Self::MAX_METERED_SIZE)
+        Self::with_max_capacity_and_size_inner(Self::MAX_CAPACITY, Self::MAX_SIZE)
     }
 
     pub fn with_max_capacity(max_capacity: usize) -> Self {
-        Self::with_max_capacity_and_size_inner(max_capacity, Self::MAX_METERED_SIZE)
+        Self::with_max_capacity_and_size_inner(max_capacity, Self::MAX_SIZE)
     }
 
     #[cfg(test)]
@@ -888,12 +888,12 @@ impl AppendRecordBatch {
 
     fn with_max_capacity_and_size_inner(max_capacity: usize, max_size: ByteSize) -> Self {
         assert!(
-            max_capacity > 0 && max_capacity <= Self::MAX_BATCH_CAPACITY,
+            max_capacity > 0 && max_capacity <= Self::MAX_CAPACITY,
             "Batch capacity must be between 1 and 1000"
         );
 
         assert!(
-            max_size > ByteSize(0) || max_size <= Self::MAX_METERED_SIZE,
+            max_size > ByteSize(0) || max_size <= Self::MAX_SIZE,
             "Batch size must be between 1 byte and 1 MiB"
         );
 
