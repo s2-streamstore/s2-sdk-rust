@@ -5,13 +5,15 @@ use futures::StreamExt;
 use http::{uri::Authority, HeaderValue};
 use hyper_util::client::legacy::connect::HttpConnector;
 use secrecy::SecretString;
+use tokio::sync::mpsc;
 use sync_docs::sync_docs;
 use tokio::time::sleep;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::{
     metadata::AsciiMetadataValue,
     transport::{Channel, ClientTlsConfig, Endpoint},
 };
-use tonic_side_effect::RequestFrameMonitor;
+use tonic_side_effect::{FrameSignal, RequestFrameMonitor};
 
 use crate::{
     api::{
@@ -30,8 +32,8 @@ use crate::{
         },
         send_request,
         stream::{
-            AppendServiceRequest, AppendSessionServiceRequest, CheckTailServiceRequest,
-            ReadServiceRequest, ReadSessionServiceRequest, ReadSessionStreamingResponse,
+            AppendServiceRequest, CheckTailServiceRequest, ReadServiceRequest,
+            ReadSessionServiceRequest, ReadSessionStreamingResponse,
         },
         ServiceRequest, ServiceStreamingResponse, Streaming,
     },
@@ -95,6 +97,14 @@ pub struct S2Endpoints {
     pub account: Authority,
     /// Used by `BasinService` and `StreamService` requests.
     pub basin: BasinEndpoint,
+}
+
+#[derive(Debug, Clone)]
+pub enum AppendRetryPolicy {
+    /// Retry all eligible failures. "At least once" semantics; duplicates are possible.
+    All,
+    /// Retry only failures with no side effects. "At most once" semantics.
+    NoSideEffects,
 }
 
 impl S2Endpoints {
@@ -179,10 +189,12 @@ pub struct ClientConfig {
     pub(crate) connection_timeout: Duration,
     pub(crate) request_timeout: Duration,
     pub(crate) user_agent: HeaderValue,
+    pub(crate) append_retry_policy: AppendRetryPolicy,
     #[cfg(feature = "connector")]
     pub(crate) uri_scheme: http::uri::Scheme,
     pub(crate) retry_backoff_duration: Duration,
     pub(crate) max_attempts: usize,
+    pub(crate) max_append_batches_inflight: usize,
 }
 
 impl ClientConfig {
@@ -194,10 +206,12 @@ impl ClientConfig {
             connection_timeout: Duration::from_secs(3),
             request_timeout: Duration::from_secs(5),
             user_agent: "s2-sdk-rust".parse().expect("valid user agent"),
+            append_retry_policy: AppendRetryPolicy::All,
             #[cfg(feature = "connector")]
             uri_scheme: http::uri::Scheme::HTTPS,
             retry_backoff_duration: Duration::from_millis(100),
             max_attempts: 3,
+            max_append_batches_inflight: 1000,
         }
     }
 
@@ -229,6 +243,29 @@ impl ClientConfig {
     pub fn with_user_agent(self, user_agent: impl Into<HeaderValue>) -> Self {
         Self {
             user_agent: user_agent.into(),
+            ..self
+        }
+    }
+
+    /// Retry policy for appends.
+    /// Only relevant if `max_retries > 1`.
+    /// Determines if appends follow "at most once" or "at least once" semantics.
+    /// Defaults to retries of all failures ("at least once").
+    pub fn with_append_retry_policy(
+        self,
+        append_retry_policy: impl Into<AppendRetryPolicy>,
+    ) -> Self {
+        Self {
+            append_retry_policy: append_retry_policy.into(),
+            ..self
+        }
+    }
+
+    /// Number of append batches, regardless of their size, that can be
+    /// inflight (pending acknowledgment) within an append session.
+    pub fn with_max_append_batches_inflight(self, max_append_batches_inflight: usize) -> Self {
+        Self {
+            max_append_batches_inflight,
             ..self
         }
     }
@@ -270,6 +307,10 @@ pub enum ClientError {
     Conversion(#[from] types::ConvertError),
     #[error(transparent)]
     Service(#[from] tonic::Status),
+    #[error("Deadline expired: {0}")]
+    LocalDeadline(String),
+    #[error("Client user lost")]
+    LostUser,
 }
 
 /// Client for account-level operations.
@@ -538,9 +579,12 @@ impl StreamClient {
         &self,
         req: types::AppendInput,
     ) -> Result<types::AppendOutput, ClientError> {
+        let frame_signal = FrameSignal::new();
         self.inner
             .send_retryable(AppendServiceRequest::new(
-                self.inner.stream_service_client(),
+                self.inner
+                    .frame_monitoring_stream_service_client(frame_signal.clone()),
+                frame_signal,
                 &self.stream,
                 req,
             ))
@@ -548,6 +592,7 @@ impl StreamClient {
     }
 
     #[sync_docs]
+    #[allow(clippy::unused_async)]
     pub async fn append_session<S>(
         &self,
         req: S,
@@ -555,16 +600,10 @@ impl StreamClient {
     where
         S: 'static + Send + Unpin + futures::Stream<Item = types::AppendInput>,
     {
-        // probably want the machinery here actually
-        append_session::append_session(self, req).await
-        // self.inner
-        //     .send(AppendSessionServiceRequest::new(
-        //         self.inner.stream_service_client(),
-        //         &self.stream,
-        //         req,
-        //     ))
-        //     .await
-        //     .map(|s| Box::pin(s) as _)
+        let (response_tx, response_rx) = mpsc::channel(10);
+        _ = tokio::spawn(append_session::manage_session(self.clone(), req, response_tx));
+
+        Ok(Box::pin(ReceiverStream::new(response_rx)))
     }
 }
 
@@ -592,7 +631,7 @@ impl ClientKind {
 pub(crate) struct ClientInner {
     kind: ClientKind,
     channel: Channel,
-    config: ClientConfig,
+    pub(crate) config: ClientConfig,
 }
 
 impl ClientInner {
@@ -682,7 +721,7 @@ impl ClientInner {
             .await
     }
 
-    async fn send_retryable<T: ServiceRequest + Clone>(
+    pub(crate) async fn send_retryable<T: ServiceRequest + Clone>(
         &self,
         service_req: T,
     ) -> Result<T::Response, ClientError> {
@@ -690,32 +729,29 @@ impl ClientInner {
             .await
     }
 
-    fn backoff_builder(&self) -> impl BackoffBuilder {
+    pub fn backoff_builder(&self) -> impl BackoffBuilder {
         ConstantBuilder::default()
             .with_delay(self.config.retry_backoff_duration)
             .with_max_times(self.config.max_attempts)
             .with_jitter()
     }
 
-    fn account_service_client(&self) -> AccountServiceClient<RequestFrameMonitor> {
-        AccountServiceClient::new(RequestFrameMonitor::new(
-            self.channel.clone(),
-            NO_FRAMES_TAG,
-        ))
+    fn account_service_client(&self) -> AccountServiceClient<Channel> {
+        AccountServiceClient::new(self.channel.clone())
     }
 
-    fn basin_service_client(&self) -> BasinServiceClient<RequestFrameMonitor> {
-        BasinServiceClient::new(RequestFrameMonitor::new(
-            self.channel.clone(),
-            NO_FRAMES_TAG,
-        ))
+    fn basin_service_client(&self) -> BasinServiceClient<Channel> {
+        BasinServiceClient::new(self.channel.clone())
     }
 
-    pub(crate) fn stream_service_client(&self) -> StreamServiceClient<RequestFrameMonitor> {
-        StreamServiceClient::new(RequestFrameMonitor::new(
-            self.channel.clone(),
-            NO_FRAMES_TAG,
-        ))
+    pub(crate) fn stream_service_client(&self) -> StreamServiceClient<Channel> {
+        StreamServiceClient::new(self.channel.clone())
+    }
+    pub(crate) fn frame_monitoring_stream_service_client(
+        &self,
+        frame_signal: FrameSignal,
+    ) -> StreamServiceClient<RequestFrameMonitor> {
+        StreamServiceClient::new(RequestFrameMonitor::new(self.channel.clone(), frame_signal))
     }
 }
 

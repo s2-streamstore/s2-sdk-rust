@@ -1,6 +1,6 @@
 use prost_types::method_options::IdempotencyLevel;
+use tonic::transport::Channel;
 use tonic::IntoRequest;
-use tonic_side_effect::RequestFrameMonitor;
 
 use super::ServiceRequest;
 use crate::{
@@ -10,15 +10,12 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct CreateBasinServiceRequest {
-    client: AccountServiceClient<RequestFrameMonitor>,
+    client: AccountServiceClient<Channel>,
     req: types::CreateBasinRequest,
 }
 
 impl CreateBasinServiceRequest {
-    pub fn new(
-        client: AccountServiceClient<RequestFrameMonitor>,
-        req: types::CreateBasinRequest,
-    ) -> Self {
+    pub fn new(client: AccountServiceClient<Channel>, req: types::CreateBasinRequest) -> Self {
         Self { client, req }
     }
 }
@@ -51,15 +48,12 @@ impl ServiceRequest for CreateBasinServiceRequest {
 
 #[derive(Debug, Clone)]
 pub struct ListBasinsServiceRequest {
-    client: AccountServiceClient<RequestFrameMonitor>,
+    client: AccountServiceClient<Channel>,
     req: types::ListBasinsRequest,
 }
 
 impl ListBasinsServiceRequest {
-    pub fn new(
-        client: AccountServiceClient<RequestFrameMonitor>,
-        req: types::ListBasinsRequest,
-    ) -> Self {
+    pub fn new(client: AccountServiceClient<Channel>, req: types::ListBasinsRequest) -> Self {
         Self { client, req }
     }
 }
@@ -92,15 +86,12 @@ impl ServiceRequest for ListBasinsServiceRequest {
 
 #[derive(Debug, Clone)]
 pub struct DeleteBasinServiceRequest {
-    client: AccountServiceClient<RequestFrameMonitor>,
+    client: AccountServiceClient<Channel>,
     req: types::DeleteBasinRequest,
 }
 
 impl DeleteBasinServiceRequest {
-    pub fn new(
-        client: AccountServiceClient<RequestFrameMonitor>,
-        req: types::DeleteBasinRequest,
-    ) -> Self {
+    pub fn new(client: AccountServiceClient<Channel>, req: types::DeleteBasinRequest) -> Self {
         Self { client, req }
     }
 }
@@ -133,12 +124,12 @@ impl ServiceRequest for DeleteBasinServiceRequest {
 
 #[derive(Debug, Clone)]
 pub struct GetBasinConfigServiceRequest {
-    client: AccountServiceClient<RequestFrameMonitor>,
+    client: AccountServiceClient<Channel>,
     basin: types::BasinName,
 }
 
 impl GetBasinConfigServiceRequest {
-    pub fn new(client: AccountServiceClient<RequestFrameMonitor>, basin: types::BasinName) -> Self {
+    pub fn new(client: AccountServiceClient<Channel>, basin: types::BasinName) -> Self {
         Self { client, basin }
     }
 }
@@ -173,15 +164,12 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
 
 #[derive(Debug, Clone)]
 pub struct ReconfigureBasinServiceRequest {
-    client: AccountServiceClient<RequestFrameMonitor>,
+    client: AccountServiceClient<Channel>,
     req: types::ReconfigureBasinRequest,
 }
 
 impl ReconfigureBasinServiceRequest {
-    pub fn new(
-        client: AccountServiceClient<RequestFrameMonitor>,
-        req: types::ReconfigureBasinRequest,
-    ) -> Self {
+    pub fn new(client: AccountServiceClient<Channel>, req: types::ReconfigureBasinRequest) -> Self {
         Self { client, req }
     }
 }
