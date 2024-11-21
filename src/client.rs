@@ -1,4 +1,4 @@
-use std::{fmt::Display, str::FromStr, time::Duration};
+use std::{env::VarError, fmt::Display, str::FromStr, time::Duration};
 
 use backon::{BackoffBuilder, ConstantBuilder, Retryable};
 use futures::StreamExt;
@@ -109,7 +109,6 @@ impl S2Endpoints {
     }
 
     pub fn for_cell(
-        &self,
         cloud: S2Cloud,
         cell_id: impl Into<String>,
     ) -> Result<Self, http::uri::InvalidUri> {
@@ -118,6 +117,54 @@ impl S2Endpoints {
             account: cell_endpoint.clone(),
             basin: BasinEndpoint::Direct(cell_endpoint),
         })
+    }
+
+    pub fn from_env() -> Result<Self, String> {
+        let cloud: S2Cloud = std::env::var("S2_CLOUD")
+            .ok()
+            .as_deref()
+            .unwrap_or(S2Cloud::AWS)
+            .parse()
+            .map_err(|cloud| format!("Invalid S2_CLOUD: {cloud}"))?;
+
+        let mut endpoints = Self::for_cloud(cloud);
+
+        match std::env::var("S2_ACCOUNT_ENDPOINT") {
+            Ok(spec) => {
+                endpoints.account = spec
+                    .as_str()
+                    .try_into()
+                    .map_err(|_| format!("Invalid S2_ACCOUNT_ENDPOINT: {spec}"))?;
+            }
+            Err(VarError::NotPresent) => {}
+            Err(VarError::NotUnicode(_)) => {
+                return Err("Invalid S2_ACCOUNT_ENDPOINT: not Unicode".to_owned());
+            }
+        }
+
+        match std::env::var("S2_BASIN_ENDPOINT") {
+            Ok(spec) => {
+                endpoints.basin = if let Some(parent_zone) = spec.strip_prefix("{basin}.") {
+                    BasinEndpoint::ParentZone(
+                        parent_zone
+                            .try_into()
+                            .map_err(|e| format!("Invalid S2_BASIN_ENDPOINT ({e}): {spec}"))?,
+                    )
+                } else {
+                    BasinEndpoint::Direct(
+                        spec.as_str()
+                            .try_into()
+                            .map_err(|e| format!("Invalid S2_BASIN_ENDPOINT ({e}): {spec}"))?,
+                    )
+                }
+            }
+            Err(VarError::NotPresent) => {}
+            Err(VarError::NotUnicode(_)) => {
+                return Err("Invalid S2_BASIN_ENDPOINT: not Unicode".to_owned());
+            }
+        }
+
+        Ok(endpoints)
     }
 }
 
