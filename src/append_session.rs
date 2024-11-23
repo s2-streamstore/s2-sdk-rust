@@ -1,8 +1,8 @@
 use crate::client::{AppendRetryPolicy, ClientError, StreamClient};
 use crate::service::stream::{AppendSessionServiceRequest, AppendSessionStreamingResponse};
 use crate::service::ServiceStreamingResponse;
-use crate::types::MeteredSize;
 use crate::types;
+use crate::types::MeteredSize;
 use bytesize::ByteSize;
 use enum_ordinalize::Ordinalize;
 use futures::StreamExt;
@@ -15,7 +15,7 @@ use tokio::time::Instant;
 use tokio_muxt::{CoalesceMode, MuxTimer};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic_side_effect::FrameSignal;
-use tracing::{trace, warn};
+use tracing::trace;
 
 async fn connect(
     stream_client: &StreamClient,
@@ -27,7 +27,6 @@ async fn connect(
     ),
     ClientError,
 > {
-    // Signal can be reset as we are creating a new connection anyway.
     frame_signal.reset();
     let (input_tx, input_rx) = mpsc::channel(10);
     let service_req = AppendSessionServiceRequest::new(
@@ -83,7 +82,6 @@ async fn recover(
     );
     let mut recovery_index = 0;
     let mut recovery_tx_finished = false;
-
     let timer = MuxTimer::<{ TimerEvent::VARIANT_COUNT }>::default();
     tokio::pin!(timer);
 
@@ -116,12 +114,12 @@ async fn recover(
                 assert_eq!(
                     n_acked_records as usize,
                     recovery_batch.inner.records.len(),
-                    "number of acknowledged should equal amount in recovery batch"
+                    "number of acknowledged records should equal amount in first recovery batch"
                 );
                 output_tx
                     .send(Ok(ack))
                     .await
-                    .map_err(|_| ClientError::LostUser)?;
+                    .map_err(|_| ClientError::SdkClientDisconnected)?;
 
                 // Adjust next timer.
                 match inflight.front() {
@@ -158,11 +156,9 @@ where
     } = lock.deref_mut();
 
     assert!(inflight.len() <= stream_client.inner.config.max_append_batches_inflight);
-
     let (input_tx, mut ack_stream) = connect(&stream_client, frame_signal.clone()).await?;
     let batch_ack_deadline = stream_client.inner.config.request_timeout;
 
-    // Recovery.
     if !inflight.is_empty() {
         recover(
             batch_ack_deadline,
@@ -173,95 +169,84 @@ where
             output_tx.clone(),
         )
         .await?;
-        frame_signal.reset();
 
         assert_eq!(inflight.len(), 0);
         assert_eq!(*inflight_size, 0);
+        frame_signal.reset();
+
         trace!("recovery finished");
     }
-
     let timer = MuxTimer::<{ TimerEvent::VARIANT_COUNT }>::default();
     tokio::pin!(timer);
-
-
     let mut input_terminated = false;
+
     while !input_terminated {
         tokio::select! {
-            (event_ord, deadline) = &mut timer,
+            (event_ord, _deadline) = &mut timer,
                 if timer.is_armed()
             => {
                 match TimerEvent::from_ordinal(event_ord as i8).expect("valid event ordinal") {
-                    TimerEvent::MetricUpdate => {
-                        //TODO
-                    }
-                    TimerEvent::BatchDeadline => {
-                        let first_batch_start = inflight.front().map(|s| s.start);
-                        warn!(?deadline, ?first_batch_start, "hitting batch deadline!");
+                    // TODO
+                    TimerEvent::MetricUpdate => {}
+                    TimerEvent::BatchDeadline =>
                         Err(ClientError::LocalDeadline("deadline for append acknowledgement hit".to_string()))?
-                    }
                 }
-
             }
             client_input = request_stream.next(),
                 if !input_terminated && inflight.len() < stream_client.inner.config.max_append_batches_inflight
             => {
                 match client_input {
-                    None => input_terminated = true,
                     Some(append_input) => {
                         let metered_size = append_input.metered_size();
                         *inflight_size += metered_size.0;
-                        let enqueue_time = Instant::now();
+                        let start = Instant::now();
                         inflight.push_back(InflightBatch {
-                            start: enqueue_time,
+                            start,
                             metered_size,
                             inner: append_input.clone()
                         });
-                        timer.as_mut().fire_at(TimerEvent::BatchDeadline, enqueue_time + batch_ack_deadline, CoalesceMode::Earliest);
+                        timer.as_mut().fire_at(TimerEvent::BatchDeadline, start + batch_ack_deadline, CoalesceMode::Earliest);
                         input_tx.send(append_input)
                             .await
                             .map_err(|_| ClientError::Service(tonic::Status::unavailable("frontend input_tx disconnected")))?;
                     }
+                    None => input_terminated = true,
                 }
             },
-            ack = ack_stream.next() => {
-                match ack  {
-                    Some(ack) => {
-                        let ack = ack?;
-                        let n_acked_records = ack.end_seq_num - ack.start_seq_num;
-                        let corresponding_batch = inflight.pop_front()
-                            .expect("inflight should not be empty");
-                        assert_eq!(
-                            n_acked_records as usize,
-                            corresponding_batch.inner.records.len(),
-                            "number of acknowledged should equal amount in recovery batch"
-                        );
-                        output_tx.send(Ok(ack)).await.map_err(|_| ClientError::LostUser)?;
+            Some(ack) = ack_stream.next() => {
+                let ack = ack?;
+                let n_acked_records = ack.end_seq_num - ack.start_seq_num;
+                let corresponding_batch = inflight.pop_front()
+                    .expect("inflight should not be empty");
+                assert_eq!(
+                    n_acked_records as usize,
+                    corresponding_batch.inner.records.len(),
+                    "number of acknowledged records should equal amount in first inflight batch"
+                );
+                output_tx.send(Ok(ack)).await.map_err(|_| ClientError::SdkClientDisconnected)?;
 
-                        if inflight.is_empty() {
-                           frame_signal.reset()
-                        }
-
-                        // Adjust next timer.
-                        match inflight.front() {
-                            Some(batch) => timer.as_mut().fire_at(
-                                TimerEvent::BatchDeadline,
-                                batch.start + batch_ack_deadline,
-                                CoalesceMode::Latest
-                            ),
-                            None => timer.as_mut().cancel(TimerEvent::BatchDeadline),
-                        };
-
-                        *inflight_size -= corresponding_batch.metered_size.0;
-                    }
-                    None => break,
+                if inflight.is_empty() {
+                   frame_signal.reset()
                 }
+
+                // Adjust next timer.
+                match inflight.front() {
+                    Some(batch) => timer.as_mut().fire_at(
+                        TimerEvent::BatchDeadline,
+                        batch.start + batch_ack_deadline,
+                        CoalesceMode::Latest
+                    ),
+                    None => timer.as_mut().cancel(TimerEvent::BatchDeadline),
+                };
+
+                *inflight_size -= corresponding_batch.metered_size.0;
             },
-            else => {
-                break;
-            }
+
+            else => break,
         }
     }
 
+    assert!(input_terminated);
     assert_eq!(inflight.len(), 0);
     assert_eq!(*inflight_size, 0);
 
@@ -318,7 +303,7 @@ pub(crate) async fn manage_session<S>(
                 }
                 ClientError::Conversion(_)
                 | ClientError::LocalDeadline(_)
-                | ClientError::LostUser => false,
+                | ClientError::SdkClientDisconnected => false,
             }
         };
         let policy_compliant = {

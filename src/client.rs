@@ -5,8 +5,8 @@ use futures::StreamExt;
 use http::{uri::Authority, HeaderValue};
 use hyper_util::client::legacy::connect::HttpConnector;
 use secrecy::SecretString;
-use tokio::sync::mpsc;
 use sync_docs::sync_docs;
+use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{
@@ -41,7 +41,6 @@ use crate::{
 };
 
 const DEFAULT_CONNECTOR: Option<HttpConnector> = None;
-pub const NO_FRAMES_TAG: &str = "s2-sdk-no-request-frames";
 
 /// S2 cloud environment to connect with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,9 +100,18 @@ pub struct S2Endpoints {
 
 #[derive(Debug, Clone)]
 pub enum AppendRetryPolicy {
-    /// Retry all eligible failures. "At least once" semantics; duplicates are possible.
+    /// Retry all eligible failures encountered during an append.
+    ///
+    /// This corresponds to "at least once" record durability semantics,
+    /// as duplicates are possible.
     All,
-    /// Retry only failures with no side effects. "At most once" semantics.
+
+    /// Retry only failures with no side effects.
+    ///
+    /// Will not attempt to retry failures that could have resulted in an append becoming durable,
+    /// in order to prevent duplicates.
+    ///
+    /// A successful append signifies "exactly once" record durability.
     NoSideEffects,
 }
 
@@ -249,8 +257,8 @@ impl ClientConfig {
 
     /// Retry policy for appends.
     /// Only relevant if `max_retries > 1`.
-    /// Determines if appends follow "at most once" or "at least once" semantics.
-    /// Defaults to retries of all failures ("at least once").
+    ///
+    /// Defaults to retries of all failures ("at least once" semantics).
     pub fn with_append_retry_policy(
         self,
         append_retry_policy: impl Into<AppendRetryPolicy>,
@@ -263,6 +271,8 @@ impl ClientConfig {
 
     /// Number of append batches, regardless of their size, that can be
     /// inflight (pending acknowledgment) within an append session.
+    ///
+    /// Defaults to 1000.
     pub fn with_max_append_batches_inflight(self, max_append_batches_inflight: usize) -> Self {
         Self {
             max_append_batches_inflight,
@@ -309,8 +319,8 @@ pub enum ClientError {
     Service(#[from] tonic::Status),
     #[error("Deadline expired: {0}")]
     LocalDeadline(String),
-    #[error("Client user lost")]
-    LostUser,
+    #[error("SDK client disconnected")]
+    SdkClientDisconnected,
 }
 
 /// Client for account-level operations.
@@ -584,6 +594,7 @@ impl StreamClient {
             .send_retryable(AppendServiceRequest::new(
                 self.inner
                     .frame_monitoring_stream_service_client(frame_signal.clone()),
+                self.inner.config.append_retry_policy.clone(),
                 frame_signal,
                 &self.stream,
                 req,
@@ -601,7 +612,11 @@ impl StreamClient {
         S: 'static + Send + Unpin + futures::Stream<Item = types::AppendInput>,
     {
         let (response_tx, response_rx) = mpsc::channel(10);
-        _ = tokio::spawn(append_session::manage_session(self.clone(), req, response_tx));
+        _ = tokio::spawn(append_session::manage_session(
+            self.clone(),
+            req,
+            response_tx,
+        ));
 
         Ok(Box::pin(ReceiverStream::new(response_rx)))
     }
@@ -661,6 +676,8 @@ impl ClientInner {
                     .assume_http2(true),
             )
             .expect("valid TLS config")
+            .http2_adaptive_window(true)
+            // TODO tcp and http2 keepalive settings
             .connect_timeout(config.connection_timeout)
             .timeout(config.request_timeout);
 

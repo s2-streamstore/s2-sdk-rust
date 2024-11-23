@@ -8,6 +8,7 @@ use super::{
     StreamingRequest, StreamingResponse,
 };
 
+use crate::client::AppendRetryPolicy;
 use crate::{
     api::{self, stream_service_client::StreamServiceClient},
     types,
@@ -174,6 +175,7 @@ impl StreamingResponse for ReadSessionStreamingResponse {
 #[derive(Debug, Clone)]
 pub struct AppendServiceRequest {
     client: StreamServiceClient<RequestFrameMonitor>,
+    append_retry_policy: AppendRetryPolicy,
     frame_signal: FrameSignal,
     stream: String,
     req: types::AppendInput,
@@ -182,12 +184,14 @@ pub struct AppendServiceRequest {
 impl AppendServiceRequest {
     pub fn new(
         client: StreamServiceClient<RequestFrameMonitor>,
+        append_retry_policy: AppendRetryPolicy,
         frame_signal: FrameSignal,
         stream: impl Into<String>,
         req: types::AppendInput,
     ) -> Self {
         Self {
             client,
+            append_retry_policy,
             frame_signal,
             stream: stream.into(),
             req,
@@ -222,8 +226,20 @@ impl ServiceRequest for AppendServiceRequest {
         resp.into_inner().try_into().map_err(Into::into)
     }
 
-    fn should_retry(&self, _err: &ClientError) -> bool {
-        !self.frame_signal.is_signalled()
+    fn should_retry(&self, err: &ClientError) -> bool {
+        if let ClientError::Service(status) = err {
+            let retryable_error = matches!(
+                status.code(),
+                tonic::Code::Unavailable | tonic::Code::DeadlineExceeded | tonic::Code::Unknown
+            );
+            let policy_compliant = match self.append_retry_policy {
+                AppendRetryPolicy::All => true,
+                AppendRetryPolicy::NoSideEffects => !self.frame_signal.is_signalled(),
+            };
+            retryable_error && policy_compliant
+        } else {
+            false
+        }
     }
 }
 
@@ -234,19 +250,6 @@ where
     client: StreamServiceClient<RequestFrameMonitor>,
     stream: String,
     req: Option<S>,
-}
-
-impl<S> Clone for AppendSessionServiceRequest<S>
-where
-    S: Send + futures::Stream<Item = types::AppendInput> + Unpin + Clone,
-{
-    fn clone(&self) -> Self {
-        Self {
-            client: self.client.clone(),
-            stream: self.stream.clone(),
-            req: self.req.clone(),
-        }
-    }
 }
 
 impl<S> AppendSessionServiceRequest<S>
