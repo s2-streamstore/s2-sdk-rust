@@ -868,6 +868,21 @@ impl AppendRecord {
     pub fn body(&self) -> &[u8] {
         &self.body
     }
+
+    pub fn headers(&self) -> &[Header] {
+        &self.headers
+    }
+
+    pub fn into_parts(self) -> AppendRecordParts {
+        AppendRecordParts {
+            headers: self.headers,
+            body: self.body,
+        }
+    }
+
+    pub fn try_from_parts(parts: AppendRecordParts) -> Result<Self, ConvertError> {
+        Self::new(parts.body)?.with_headers(parts.headers)
+    }
 }
 
 impl From<AppendRecord> for api::AppendRecord {
@@ -888,6 +903,26 @@ impl TryFrom<CommandRecord> for AppendRecord {
             CommandRecord::Trim { seq_num } => ("trim", seq_num.to_be_bytes().to_vec()),
         };
         Self::new(body)?.with_headers(vec![Header::from_value(header_value)])
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AppendRecordParts {
+    pub headers: Vec<Header>,
+    pub body: Vec<u8>,
+}
+
+impl From<AppendRecord> for AppendRecordParts {
+    fn from(value: AppendRecord) -> Self {
+        value.into_parts()
+    }
+}
+
+impl TryFrom<AppendRecordParts> for AppendRecord {
+    type Error = ConvertError;
+
+    fn try_from(value: AppendRecordParts) -> Result<Self, Self::Error> {
+        Self::try_from_parts(value)
     }
 }
 

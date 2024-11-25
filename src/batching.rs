@@ -300,7 +300,7 @@ mod tests {
         for batch in batches {
             assert_eq!(batch.len(), 2);
             for record in batch {
-                assert_eq!(record.body(), &format!("r_{i}").into_bytes());
+                assert_eq!(record.into_parts().body, format!("r_{i}").into_bytes());
                 i += 1;
             }
         }
@@ -327,7 +327,7 @@ mod tests {
                     batch
                         .records
                         .into_iter()
-                        .map(|rec| rec.body().to_vec())
+                        .map(|rec| rec.into_parts().body)
                         .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>()
