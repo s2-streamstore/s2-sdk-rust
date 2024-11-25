@@ -236,11 +236,10 @@ impl<'a> BatchBuilder<'a> {
             self.push(record);
         }
 
-        // If the peeked record could not be moved into the batch, it doesn't fit size limits.
-        assert_eq!(
-            self.peeked_record, None,
-            "dangling peeked record does not fit into size limits"
-        );
+        // If the peeked record could not be moved into the batch, it doesn't
+        // fit size limits. This shouldn't happen though, since each append
+        // record is validated for size before creating it.
+        assert_eq!(self.peeked_record, None);
 
         ret
     }
@@ -269,7 +268,17 @@ mod tests {
         #[case] max_batch_records: Option<usize>,
         #[case] max_batch_size: Option<ByteSize>,
     ) {
-        let stream_iter = (0..100).map(|i| types::AppendRecord::new(format!("r_{i}")));
+        let stream_iter = (0..100)
+            .map(|i| {
+                let body = format!("r_{i}");
+                if let Some(max_batch_size) = max_batch_size {
+                    types::AppendRecord::with_max_size(max_batch_size, body)
+                } else {
+                    types::AppendRecord::new(body)
+                }
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
         let stream = futures::stream::iter(stream_iter);
 
         let mut opts = AppendRecordsBatchingOpts::new().with_linger(Duration::ZERO);
@@ -291,7 +300,7 @@ mod tests {
         for batch in batches {
             assert_eq!(batch.len(), 2);
             for record in batch {
-                assert_eq!(record.body, format!("r_{i}").into_bytes());
+                assert_eq!(record.body(), &format!("r_{i}").into_bytes());
                 i += 1;
             }
         }
@@ -302,13 +311,15 @@ mod tests {
         let (stream_tx, stream_rx) = mpsc::unbounded_channel::<types::AppendRecord>();
         let mut i = 0;
 
+        let size_limit = ByteSize::b(40);
+
         let collect_batches_handle = tokio::spawn(async move {
             let batch_stream = AppendRecordsBatchingStream::new(
                 UnboundedReceiverStream::new(stream_rx),
                 AppendRecordsBatchingOpts::new()
                     .with_linger(Duration::from_secs(2))
                     .with_max_batch_records(3)
-                    .with_max_batch_size(ByteSize::b(40)),
+                    .with_max_batch_size(size_limit),
             );
 
             batch_stream
@@ -316,7 +327,7 @@ mod tests {
                     batch
                         .records
                         .into_iter()
-                        .map(|rec| rec.body)
+                        .map(|rec| rec.body().to_vec())
                         .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>()
@@ -324,11 +335,14 @@ mod tests {
         });
 
         let mut send_next = |padding: Option<&str>| {
-            let mut record = types::AppendRecord::new(format!("r_{i}"));
+            let mut record =
+                types::AppendRecord::with_max_size(size_limit, format!("r_{i}")).unwrap();
             if let Some(padding) = padding {
                 // The padding exists just to increase the size of record in
                 // order to test the size limits.
-                record = record.with_headers(vec![types::Header::new("padding", padding)]);
+                record = record
+                    .with_headers(vec![types::Header::new("padding", padding)])
+                    .unwrap();
             }
             stream_tx.send(record).unwrap();
             i += 1;
@@ -387,12 +401,14 @@ mod tests {
     #[tokio::test]
     #[should_panic]
     async fn test_append_record_batching_panic_size_limits() {
-        let stream =
-            futures::stream::iter([types::AppendRecord::new("too long to fit into size limits")]);
+        let size_limit = ByteSize::b(1);
+        let record =
+            types::AppendRecord::with_max_size(size_limit, "too long to fit into size limits")
+                .unwrap();
 
         let mut batch_stream = AppendRecordsBatchingStream::new(
-            stream,
-            AppendRecordsBatchingOpts::new().with_max_batch_size(ByteSize::b(1)),
+            futures::stream::iter([record]),
+            AppendRecordsBatchingOpts::new().with_max_batch_size(size_limit),
         );
 
         let _ = batch_stream.next().await;
@@ -400,7 +416,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_append_record_batching_append_input_opts() {
-        let test_record = types::AppendRecord::new("a");
+        let test_record = types::AppendRecord::new("a").unwrap();
 
         let total_records = 12;
         let test_records = (0..total_records)

@@ -810,48 +810,84 @@ impl CommandRecord {
 #[sync_docs]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppendRecord {
-    pub headers: Vec<Header>,
-    pub body: Vec<u8>,
+    headers: Vec<Header>,
+    body: Vec<u8>,
+    #[cfg(test)]
+    max_size: ByteSize,
 }
 
 metered_impl!(AppendRecord);
 
 impl AppendRecord {
-    pub fn new(body: impl Into<Vec<u8>>) -> Self {
-        Self {
-            headers: Vec::new(),
-            body: body.into(),
+    const MAX_SIZE: ByteSize = ByteSize::mib(1);
+
+    fn validated(self) -> Result<Self, ConvertError> {
+        #[cfg(test)]
+        let max_size = self.max_size;
+        #[cfg(not(test))]
+        let max_size = Self::MAX_SIZE;
+
+        if self.metered_size() > max_size {
+            Err("AppendRecord should have metered size less than 1 MiB".into())
+        } else {
+            Ok(self)
         }
     }
 
-    pub fn with_headers(self, headers: impl Into<Vec<Header>>) -> Self {
+    pub fn new(body: impl Into<Vec<u8>>) -> Result<Self, ConvertError> {
+        Self {
+            headers: Vec::new(),
+            body: body.into(),
+            #[cfg(test)]
+            max_size: Self::MAX_SIZE,
+        }
+        .validated()
+    }
+
+    #[cfg(test)]
+    pub fn with_max_size(
+        max_size: ByteSize,
+        body: impl Into<Vec<u8>>,
+    ) -> Result<Self, ConvertError> {
+        Self {
+            headers: Vec::new(),
+            body: body.into(),
+            max_size,
+        }
+        .validated()
+    }
+
+    pub fn with_headers(self, headers: impl Into<Vec<Header>>) -> Result<Self, ConvertError> {
         Self {
             headers: headers.into(),
             ..self
         }
+        .validated()
+    }
+
+    pub fn body(&self) -> &[u8] {
+        &self.body
     }
 }
 
 impl From<AppendRecord> for api::AppendRecord {
     fn from(value: AppendRecord) -> Self {
-        let AppendRecord { headers, body } = value;
         Self {
-            headers: headers.into_iter().map(Into::into).collect(),
-            body: body.into(),
+            headers: value.headers.into_iter().map(Into::into).collect(),
+            body: value.body.into(),
         }
     }
 }
 
-impl From<CommandRecord> for AppendRecord {
-    fn from(value: CommandRecord) -> Self {
+impl TryFrom<CommandRecord> for AppendRecord {
+    type Error = ConvertError;
+
+    fn try_from(value: CommandRecord) -> Result<Self, Self::Error> {
         let (header_value, body) = match value {
             CommandRecord::Fence { fencing_token } => ("fence", fencing_token),
             CommandRecord::Trim { seq_num } => ("trim", seq_num.to_be_bytes().to_vec()),
         };
-        Self {
-            headers: vec![Header::from_value(header_value)],
-            body,
-        }
+        Self::new(body)?.with_headers(vec![Header::from_value(header_value)])
     }
 }
 
@@ -860,6 +896,7 @@ pub struct AppendRecordBatch {
     records: Vec<AppendRecord>,
     metered_size: ByteSize,
     max_capacity: usize,
+    #[cfg(test)]
     max_size: ByteSize,
 }
 
@@ -887,34 +924,35 @@ impl AppendRecordBatch {
     pub const MAX_SIZE: ByteSize = ByteSize::mib(1);
 
     pub fn new() -> Self {
-        Self::with_max_capacity_and_size_inner(Self::MAX_CAPACITY, Self::MAX_SIZE)
+        Self::with_max_capacity(Self::MAX_CAPACITY)
     }
 
     pub fn with_max_capacity(max_capacity: usize) -> Self {
-        Self::with_max_capacity_and_size_inner(max_capacity, Self::MAX_SIZE)
-    }
-
-    #[cfg(test)]
-    pub fn with_max_capacity_and_size(max_capacity: usize, max_size: ByteSize) -> Self {
-        Self::with_max_capacity_and_size_inner(max_capacity, max_size)
-    }
-
-    fn with_max_capacity_and_size_inner(max_capacity: usize, max_size: ByteSize) -> Self {
         assert!(
             max_capacity > 0 && max_capacity <= Self::MAX_CAPACITY,
             "Batch capacity must be between 1 and 1000"
-        );
-
-        assert!(
-            max_size > ByteSize(0) || max_size <= Self::MAX_SIZE,
-            "Batch size must be between 1 byte and 1 MiB"
         );
 
         Self {
             records: Vec::with_capacity(max_capacity),
             metered_size: ByteSize(0),
             max_capacity,
+            #[cfg(test)]
+            max_size: Self::MAX_SIZE,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn with_max_capacity_and_size(max_capacity: usize, max_size: ByteSize) -> Self {
+        #[cfg(test)]
+        assert!(
+            max_size > ByteSize(0) || max_size <= Self::MAX_SIZE,
+            "Batch size must be between 1 byte and 1 MiB"
+        );
+
+        Self {
             max_size,
+            ..Self::with_max_capacity(max_capacity)
         }
     }
 
@@ -956,18 +994,28 @@ impl AppendRecordBatch {
         self.records.len()
     }
 
+    #[cfg(test)]
+    fn max_size(&self) -> ByteSize {
+        self.max_size
+    }
+
+    #[cfg(not(test))]
+    fn max_size(&self) -> ByteSize {
+        Self::MAX_SIZE
+    }
+
     pub fn is_full(&self) -> bool {
-        self.records.len() >= self.max_capacity || self.metered_size >= self.max_size
+        self.records.len() >= self.max_capacity || self.metered_size >= self.max_size()
     }
 
     pub fn push(&mut self, record: impl Into<AppendRecord>) -> Result<(), AppendRecord> {
         assert!(self.records.len() <= self.max_capacity);
-        assert!(self.metered_size <= self.max_size);
+        assert!(self.metered_size <= self.max_size());
 
         let record = record.into();
         let record_size = record.metered_size();
         if self.records.len() >= self.max_capacity
-            || self.metered_size + record_size > self.max_size
+            || self.metered_size + record_size > self.max_size()
         {
             Err(record)
         } else {

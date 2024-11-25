@@ -104,8 +104,8 @@ async fn main() {
     let stream_client = basin_client.stream_client(stream);
 
     let records = [
-        AppendRecord::new(b"hello world"),
-        AppendRecord::new(b"bye world"),
+        AppendRecord::new(b"hello world").unwrap(),
+        AppendRecord::new(b"bye world").unwrap(),
     ];
 
     let append_input = AppendInput::new(AppendRecordBatch::try_from_iter(records.clone()).unwrap());
