@@ -1,7 +1,8 @@
 use prost_types::method_options::IdempotencyLevel;
-use tonic::{transport::Channel, IntoRequest};
+use tonic::transport::Channel;
+use tonic::IntoRequest;
 
-use super::{RetryableRequest, ServiceRequest};
+use super::ServiceRequest;
 use crate::{
     api::{self, account_service_client::AccountServiceClient},
     types,
@@ -23,17 +24,11 @@ impl ServiceRequest for CreateBasinServiceRequest {
     type ApiRequest = api::CreateBasinRequest;
     type Response = types::BasinMetadata;
     type ApiResponse = api::CreateBasinResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::CreateBasinRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
-    }
-
-    fn parse_response(
-        &self,
-        resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        resp.into_inner().try_into()
     }
 
     async fn send(
@@ -41,6 +36,13 @@ impl ServiceRequest for CreateBasinServiceRequest {
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.create_basin(req).await
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
     }
 }
 
@@ -60,17 +62,11 @@ impl ServiceRequest for ListBasinsServiceRequest {
     type ApiRequest = api::ListBasinsRequest;
     type Response = types::ListBasinsResponse;
     type ApiResponse = api::ListBasinsResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ListBasinsRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
-    }
-
-    fn parse_response(
-        &self,
-        resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        resp.into_inner().try_into()
     }
 
     async fn send(
@@ -79,10 +75,13 @@ impl ServiceRequest for ListBasinsServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.list_basins(req).await
     }
-}
 
-impl RetryableRequest for ListBasinsServiceRequest {
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -101,17 +100,11 @@ impl ServiceRequest for DeleteBasinServiceRequest {
     type ApiRequest = api::DeleteBasinRequest;
     type Response = ();
     type ApiResponse = api::DeleteBasinResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::DeleteBasinRequest = self.req.clone().into();
         Ok(req.into_request())
-    }
-
-    fn parse_response(
-        &self,
-        _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        Ok(())
     }
 
     async fn send(
@@ -120,10 +113,13 @@ impl ServiceRequest for DeleteBasinServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.delete_basin(req).await
     }
-}
 
-impl RetryableRequest for DeleteBasinServiceRequest {
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -142,6 +138,7 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
     type ApiRequest = api::GetBasinConfigRequest;
     type Response = types::BasinConfig;
     type ApiResponse = api::GetBasinConfigResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = api::GetBasinConfigRequest {
@@ -150,23 +147,19 @@ impl ServiceRequest for GetBasinConfigServiceRequest {
         Ok(req.into_request())
     }
 
-    fn parse_response(
-        &self,
-        resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        resp.into_inner().try_into()
-    }
-
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.get_basin_config(req).await
     }
-}
 
-impl RetryableRequest for GetBasinConfigServiceRequest {
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -185,17 +178,11 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
     type ApiRequest = api::ReconfigureBasinRequest;
     type Response = ();
     type ApiResponse = api::ReconfigureBasinResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ReconfigureBasinRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
-    }
-
-    fn parse_response(
-        &self,
-        _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        Ok(())
     }
 
     async fn send(
@@ -204,8 +191,11 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.reconfigure_basin(req).await
     }
-}
 
-impl RetryableRequest for ReconfigureBasinServiceRequest {
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(())
+    }
 }
