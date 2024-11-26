@@ -378,8 +378,8 @@ impl TryFrom<api::CreateBasinResponse> for BasinInfo {
     type Error = ConvertError;
     fn try_from(value: api::CreateBasinResponse) -> Result<Self, Self::Error> {
         let api::CreateBasinResponse { info } = value;
-        let basin = info.ok_or("missing basin info")?;
-        basin.try_into()
+        let info = info.ok_or("missing basin info")?;
+        info.try_into()
     }
 }
 
