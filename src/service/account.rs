@@ -22,7 +22,7 @@ impl CreateBasinServiceRequest {
 
 impl ServiceRequest for CreateBasinServiceRequest {
     type ApiRequest = api::CreateBasinRequest;
-    type Response = types::BasinMetadata;
+    type Response = types::BasinInfo;
     type ApiResponse = api::CreateBasinResponse;
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 
@@ -176,7 +176,7 @@ impl ReconfigureBasinServiceRequest {
 
 impl ServiceRequest for ReconfigureBasinServiceRequest {
     type ApiRequest = api::ReconfigureBasinRequest;
-    type Response = ();
+    type Response = types::BasinConfig;
     type ApiResponse = api::ReconfigureBasinResponse;
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 
@@ -194,8 +194,8 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
 
     fn parse_response(
         &self,
-        _resp: tonic::Response<Self::ApiResponse>,
+        resp: tonic::Response<Self::ApiResponse>,
     ) -> Result<Self::Response, types::ConvertError> {
-        Ok(())
+        resp.into_inner().try_into()
     }
 }
