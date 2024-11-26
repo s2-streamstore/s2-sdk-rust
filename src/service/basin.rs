@@ -1,7 +1,8 @@
 use prost_types::method_options::IdempotencyLevel;
-use tonic::{transport::Channel, IntoRequest};
+use tonic::transport::Channel;
+use tonic::IntoRequest;
 
-use super::{RetryableRequest, ServiceRequest};
+use super::ServiceRequest;
 use crate::{
     api::{self, basin_service_client::BasinServiceClient},
     types,
@@ -23,17 +24,11 @@ impl ServiceRequest for ListStreamsServiceRequest {
     type ApiRequest = api::ListStreamsRequest;
     type Response = types::ListStreamsResponse;
     type ApiResponse = api::ListStreamsResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ListStreamsRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
-    }
-
-    fn parse_response(
-        &self,
-        resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        Ok(resp.into_inner().into())
     }
 
     async fn send(
@@ -42,10 +37,13 @@ impl ServiceRequest for ListStreamsServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.list_streams(req).await
     }
-}
 
-impl RetryableRequest for ListStreamsServiceRequest {
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(resp.into_inner().into())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -67,6 +65,7 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
     type ApiRequest = api::GetStreamConfigRequest;
     type Response = types::StreamConfig;
     type ApiResponse = api::GetStreamConfigResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req = api::GetStreamConfigRequest {
@@ -75,23 +74,19 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
         Ok(req.into_request())
     }
 
-    fn parse_response(
-        &self,
-        resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        resp.into_inner().try_into()
-    }
-
     async fn send(
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.get_stream_config(req).await
     }
-}
 
-impl RetryableRequest for GetStreamConfigServiceRequest {
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -110,17 +105,11 @@ impl ServiceRequest for CreateStreamServiceRequest {
     type ApiRequest = api::CreateStreamRequest;
     type Response = ();
     type ApiResponse = api::CreateStreamResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::CreateStreamRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
-    }
-
-    fn parse_response(
-        &self,
-        _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        Ok(())
     }
 
     async fn send(
@@ -128,6 +117,13 @@ impl ServiceRequest for CreateStreamServiceRequest {
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.create_stream(req).await
+    }
+
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(())
     }
 }
 
@@ -147,17 +143,11 @@ impl ServiceRequest for DeleteStreamServiceRequest {
     type ApiRequest = api::DeleteStreamRequest;
     type Response = ();
     type ApiResponse = api::DeleteStreamResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::DeleteStreamRequest = self.req.clone().into();
         Ok(req.into_request())
-    }
-
-    fn parse_response(
-        &self,
-        _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        Ok(())
     }
 
     async fn send(
@@ -166,10 +156,13 @@ impl ServiceRequest for DeleteStreamServiceRequest {
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.delete_stream(req).await
     }
-}
 
-impl RetryableRequest for DeleteStreamServiceRequest {
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -188,17 +181,11 @@ impl ServiceRequest for ReconfigureStreamServiceRequest {
     type ApiRequest = api::ReconfigureStreamRequest;
     type Response = ();
     type ApiResponse = api::ReconfigureStreamResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::ReconfigureStreamRequest = self.req.clone().try_into()?;
         Ok(req.into_request())
-    }
-
-    fn parse_response(
-        &self,
-        _resp: tonic::Response<Self::ApiResponse>,
-    ) -> Result<Self::Response, types::ConvertError> {
-        Ok(())
     }
 
     async fn send(
@@ -206,5 +193,12 @@ impl ServiceRequest for ReconfigureStreamServiceRequest {
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
         self.client.reconfigure_stream(req).await
+    }
+
+    fn parse_response(
+        &self,
+        _resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(())
     }
 }

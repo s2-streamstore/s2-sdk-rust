@@ -1,22 +1,27 @@
 use std::{env::VarError, fmt::Display, str::FromStr, time::Duration};
 
 use backon::{BackoffBuilder, ConstantBuilder, Retryable};
+use bytesize::ByteSize;
 use futures::StreamExt;
 use http::{uri::Authority, HeaderValue};
 use hyper_util::client::legacy::connect::HttpConnector;
 use secrecy::SecretString;
 use sync_docs::sync_docs;
+use tokio::sync::mpsc;
 use tokio::time::sleep;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::{
     metadata::AsciiMetadataValue,
     transport::{Channel, ClientTlsConfig, Endpoint},
 };
+use tonic_side_effect::{FrameSignal, RequestFrameMonitor};
 
 use crate::{
     api::{
         account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient,
         stream_service_client::StreamServiceClient,
     },
+    append_session,
     service::{
         account::{
             CreateBasinServiceRequest, DeleteBasinServiceRequest, GetBasinConfigServiceRequest,
@@ -28,10 +33,10 @@ use crate::{
         },
         send_request,
         stream::{
-            AppendServiceRequest, AppendSessionServiceRequest, CheckTailServiceRequest,
-            ReadServiceRequest, ReadSessionServiceRequest, ReadSessionStreamingResponse,
+            AppendServiceRequest, CheckTailServiceRequest, ReadServiceRequest,
+            ReadSessionServiceRequest, ReadSessionStreamingResponse,
         },
-        RetryableRequest, ServiceRequest, ServiceStreamingResponse, Streaming,
+        ServiceRequest, ServiceStreamingResponse, Streaming,
     },
     types,
 };
@@ -92,6 +97,20 @@ pub struct S2Endpoints {
     pub account: Authority,
     /// Used by `BasinService` and `StreamService` requests.
     pub basin: BasinEndpoint,
+}
+
+#[derive(Debug, Clone)]
+pub enum AppendRetryPolicy {
+    /// Retry all eligible failures encountered during an append.
+    ///
+    /// This could result in append batches being duplicated on the stream.
+    All,
+
+    /// Retry only failures with no side effects.
+    ///
+    /// Will not attempt to retry failures where it cannot be concluded whether
+    /// an append may become durable, in order to prevent duplicates.
+    NoSideEffects,
 }
 
 impl S2Endpoints {
@@ -176,10 +195,12 @@ pub struct ClientConfig {
     pub(crate) connection_timeout: Duration,
     pub(crate) request_timeout: Duration,
     pub(crate) user_agent: HeaderValue,
+    pub(crate) append_retry_policy: AppendRetryPolicy,
     #[cfg(feature = "connector")]
     pub(crate) uri_scheme: http::uri::Scheme,
     pub(crate) retry_backoff_duration: Duration,
     pub(crate) max_attempts: usize,
+    pub(crate) max_append_inflight_bytes: ByteSize,
 }
 
 impl ClientConfig {
@@ -191,10 +212,12 @@ impl ClientConfig {
             connection_timeout: Duration::from_secs(3),
             request_timeout: Duration::from_secs(5),
             user_agent: "s2-sdk-rust".parse().expect("valid user agent"),
+            append_retry_policy: AppendRetryPolicy::All,
             #[cfg(feature = "connector")]
             uri_scheme: http::uri::Scheme::HTTPS,
             retry_backoff_duration: Duration::from_millis(100),
             max_attempts: 3,
+            max_append_inflight_bytes: ByteSize::mib(256),
         }
     }
 
@@ -226,6 +249,36 @@ impl ClientConfig {
     pub fn with_user_agent(self, user_agent: impl Into<HeaderValue>) -> Self {
         Self {
             user_agent: user_agent.into(),
+            ..self
+        }
+    }
+
+    /// Retry policy for appends.
+    /// Only relevant if `max_attempts > 1`.
+    ///
+    /// Defaults to retries of all failures, meaning duplicates on a stream are possible.
+    pub fn with_append_retry_policy(
+        self,
+        append_retry_policy: impl Into<AppendRetryPolicy>,
+    ) -> Self {
+        Self {
+            append_retry_policy: append_retry_policy.into(),
+            ..self
+        }
+    }
+
+    /// Maximum total size of currently inflight (pending acknowledgment) append
+    /// batches within an append session, as measured by `MeteredSize` formula.
+    ///
+    /// Must be at least 1MiB. Defaults to 256MiB.
+    pub fn with_max_append_inflight_bytes(self, max_append_inflight_bytes: u64) -> Self {
+        let max_append_inflight_bytes = ByteSize::b(max_append_inflight_bytes);
+        assert!(
+            max_append_inflight_bytes >= ByteSize::mib(1),
+            "max_append_inflight_bytes must be at least 1MiB"
+        );
+        Self {
+            max_append_inflight_bytes,
             ..self
         }
     }
@@ -465,8 +518,8 @@ impl BasinClient {
 /// Client for stream-level operations.
 #[derive(Debug, Clone)]
 pub struct StreamClient {
-    inner: ClientInner,
-    stream: String,
+    pub(crate) inner: ClientInner,
+    pub(crate) stream: String,
 }
 
 impl StreamClient {
@@ -535,9 +588,13 @@ impl StreamClient {
         &self,
         req: types::AppendInput,
     ) -> Result<types::AppendOutput, ClientError> {
+        let frame_signal = FrameSignal::new();
         self.inner
-            .send(AppendServiceRequest::new(
-                self.inner.stream_service_client(),
+            .send_retryable(AppendServiceRequest::new(
+                self.inner
+                    .frame_monitoring_stream_service_client(frame_signal.clone()),
+                self.inner.config.append_retry_policy.clone(),
+                frame_signal,
                 &self.stream,
                 req,
             ))
@@ -545,6 +602,7 @@ impl StreamClient {
     }
 
     #[sync_docs]
+    #[allow(clippy::unused_async)]
     pub async fn append_session<S>(
         &self,
         req: S,
@@ -552,14 +610,14 @@ impl StreamClient {
     where
         S: 'static + Send + Unpin + futures::Stream<Item = types::AppendInput>,
     {
-        self.inner
-            .send(AppendSessionServiceRequest::new(
-                self.inner.stream_service_client(),
-                &self.stream,
-                req,
-            ))
-            .await
-            .map(|s| Box::pin(s) as _)
+        let (response_tx, response_rx) = mpsc::channel(10);
+        _ = tokio::spawn(append_session::manage_session(
+            self.clone(),
+            req,
+            response_tx,
+        ));
+
+        Ok(Box::pin(ReceiverStream::new(response_rx)))
     }
 }
 
@@ -584,10 +642,10 @@ impl ClientKind {
 }
 
 #[derive(Debug, Clone)]
-struct ClientInner {
+pub(crate) struct ClientInner {
     kind: ClientKind,
     channel: Channel,
-    config: ClientConfig,
+    pub(crate) config: ClientConfig,
 }
 
 impl ClientInner {
@@ -651,7 +709,10 @@ impl ClientInner {
         }
     }
 
-    async fn send<T: ServiceRequest>(&self, service_req: T) -> Result<T::Response, ClientError> {
+    pub(crate) async fn send<T: ServiceRequest>(
+        &self,
+        service_req: T,
+    ) -> Result<T::Response, ClientError> {
         let basin_header = match (&self.kind, &self.config.endpoints.basin) {
             (ClientKind::Basin(basin), BasinEndpoint::Direct(_)) => {
                 Some(AsciiMetadataValue::from_str(basin).expect("valid"))
@@ -661,7 +722,7 @@ impl ClientInner {
         send_request(service_req, &self.config.token, basin_header).await
     }
 
-    async fn send_retryable_with_backoff<T: RetryableRequest>(
+    async fn send_retryable_with_backoff<T: ServiceRequest + Clone>(
         &self,
         service_req: T,
         backoff_builder: impl BackoffBuilder,
@@ -674,7 +735,7 @@ impl ClientInner {
             .await
     }
 
-    async fn send_retryable<T: RetryableRequest>(
+    pub(crate) async fn send_retryable<T: ServiceRequest + Clone>(
         &self,
         service_req: T,
     ) -> Result<T::Response, ClientError> {
@@ -682,7 +743,7 @@ impl ClientInner {
             .await
     }
 
-    fn backoff_builder(&self) -> impl BackoffBuilder {
+    pub(crate) fn backoff_builder(&self) -> impl BackoffBuilder {
         ConstantBuilder::default()
             .with_delay(self.config.retry_backoff_duration)
             .with_max_times(self.config.max_attempts)
@@ -697,8 +758,14 @@ impl ClientInner {
         BasinServiceClient::new(self.channel.clone())
     }
 
-    fn stream_service_client(&self) -> StreamServiceClient<Channel> {
+    pub(crate) fn stream_service_client(&self) -> StreamServiceClient<Channel> {
         StreamServiceClient::new(self.channel.clone())
+    }
+    pub(crate) fn frame_monitoring_stream_service_client(
+        &self,
+        frame_signal: FrameSignal,
+    ) -> StreamServiceClient<RequestFrameMonitor> {
+        StreamServiceClient::new(RequestFrameMonitor::new(self.channel.clone(), frame_signal))
     }
 }
 

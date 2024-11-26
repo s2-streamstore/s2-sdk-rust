@@ -1,4 +1,5 @@
 mod api;
+mod append_session;
 mod service;
 
 pub mod batching;
