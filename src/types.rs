@@ -332,16 +332,16 @@ impl std::fmt::Display for BasinState {
 #[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
-pub struct BasinMetadata {
+pub struct BasinInfo {
     pub name: String,
     pub scope: String,
     pub cell: String,
     pub state: BasinState,
 }
 
-impl From<BasinMetadata> for api::BasinMetadata {
-    fn from(value: BasinMetadata) -> Self {
-        let BasinMetadata {
+impl From<BasinInfo> for api::BasinInfo {
+    fn from(value: BasinInfo) -> Self {
+        let BasinInfo {
             name,
             scope,
             cell,
@@ -356,10 +356,10 @@ impl From<BasinMetadata> for api::BasinMetadata {
     }
 }
 
-impl TryFrom<api::BasinMetadata> for BasinMetadata {
+impl TryFrom<api::BasinInfo> for BasinInfo {
     type Error = ConvertError;
-    fn try_from(value: api::BasinMetadata) -> Result<Self, Self::Error> {
-        let api::BasinMetadata {
+    fn try_from(value: api::BasinInfo) -> Result<Self, Self::Error> {
+        let api::BasinInfo {
             name,
             scope,
             cell,
@@ -374,12 +374,12 @@ impl TryFrom<api::BasinMetadata> for BasinMetadata {
     }
 }
 
-impl TryFrom<api::CreateBasinResponse> for BasinMetadata {
+impl TryFrom<api::CreateBasinResponse> for BasinInfo {
     type Error = ConvertError;
     fn try_from(value: api::CreateBasinResponse) -> Result<Self, Self::Error> {
-        let api::CreateBasinResponse { basin } = value;
-        let basin = basin.ok_or("missing basin metadata")?;
-        basin.try_into()
+        let api::CreateBasinResponse { info } = value;
+        let info = info.ok_or("missing basin info")?;
+        info.try_into()
     }
 }
 
@@ -440,14 +440,34 @@ impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
 #[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
+pub struct StreamInfo {
+    pub name: String,
+    pub created_at: u32,
+    pub deleted_at: Option<u32>,
+}
+
+impl From<api::StreamInfo> for StreamInfo {
+    fn from(value: api::StreamInfo) -> Self {
+        Self {
+            name: value.name,
+            created_at: value.created_at,
+            deleted_at: value.deleted_at,
+        }
+    }
+}
+
+#[sync_docs]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone)]
 pub struct ListStreamsResponse {
-    pub streams: Vec<String>,
+    pub streams: Vec<StreamInfo>,
     pub has_more: bool,
 }
 
 impl From<api::ListStreamsResponse> for ListStreamsResponse {
     fn from(value: api::ListStreamsResponse) -> Self {
         let api::ListStreamsResponse { streams, has_more } = value;
+        let streams = streams.into_iter().map(Into::into).collect();
         Self { streams, has_more }
     }
 }
@@ -563,7 +583,7 @@ impl TryFrom<ListBasinsRequest> for api::ListBasinsRequest {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct ListBasinsResponse {
-    pub basins: Vec<BasinMetadata>,
+    pub basins: Vec<BasinInfo>,
     pub has_more: bool,
 }
 
@@ -575,7 +595,7 @@ impl TryFrom<api::ListBasinsResponse> for ListBasinsResponse {
             basins: basins
                 .into_iter()
                 .map(TryInto::try_into)
-                .collect::<Result<Vec<BasinMetadata>, ConvertError>>()?,
+                .collect::<Result<Vec<BasinInfo>, ConvertError>>()?,
             has_more,
         })
     }
@@ -732,6 +752,15 @@ impl TryFrom<ReconfigureStreamRequest> for api::ReconfigureStreamRequest {
             config: config.map(TryInto::try_into).transpose()?,
             mask: mask.map(|paths| prost_types::FieldMask { paths }),
         })
+    }
+}
+
+impl TryFrom<api::ReconfigureBasinResponse> for BasinConfig {
+    type Error = ConvertError;
+    fn try_from(value: api::ReconfigureBasinResponse) -> Result<Self, Self::Error> {
+        let api::ReconfigureBasinResponse { config } = value;
+        let config = config.ok_or("missing basin config")?;
+        config.try_into()
     }
 }
 

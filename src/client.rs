@@ -371,7 +371,7 @@ impl Client {
     pub async fn create_basin(
         &self,
         req: types::CreateBasinRequest,
-    ) -> Result<types::BasinMetadata, ClientError> {
+    ) -> Result<types::BasinInfo, ClientError> {
         self.inner
             .send(CreateBasinServiceRequest::new(
                 self.inner.account_service_client(),
@@ -407,7 +407,7 @@ impl Client {
     pub async fn reconfigure_basin(
         &self,
         req: types::ReconfigureBasinRequest,
-    ) -> Result<(), ClientError> {
+    ) -> Result<types::BasinConfig, ClientError> {
         self.inner
             .send_retryable(ReconfigureBasinServiceRequest::new(
                 self.inner.account_service_client(),
