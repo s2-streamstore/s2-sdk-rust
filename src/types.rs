@@ -606,6 +606,7 @@ impl TryFrom<api::ListBasinsResponse> for ListBasinsResponse {
 #[derive(Debug, Clone)]
 pub struct DeleteBasinRequest {
     pub basin: BasinName,
+    /// Delete basin if it exists else do nothing.
     pub if_exists: bool,
 }
 
@@ -634,6 +635,7 @@ impl From<DeleteBasinRequest> for api::DeleteBasinRequest {
 #[derive(Debug, Clone)]
 pub struct DeleteStreamRequest {
     pub stream: String,
+    /// Delete stream if it exists else do nothing.
     pub if_exists: bool,
 }
 

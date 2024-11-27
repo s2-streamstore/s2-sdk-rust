@@ -154,7 +154,12 @@ impl ServiceRequest for DeleteStreamServiceRequest {
         &mut self,
         req: tonic::Request<Self::ApiRequest>,
     ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
-        self.client.delete_stream(req).await
+        match self.client.delete_stream(req).await {
+            Err(status) if self.req.if_exists && status.code() == tonic::Code::NotFound => {
+                Ok(tonic::Response::new(api::DeleteStreamResponse {}))
+            }
+            other => other,
+        }
     }
 
     fn parse_response(
