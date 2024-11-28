@@ -816,18 +816,66 @@ impl From<api::Header> for Header {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FencingToken(Vec<u8>);
+
+impl FencingToken {
+    const MAX_SIZE: usize = 16;
+
+    pub fn new(bytes: impl Into<Vec<u8>>) -> Result<Self, ConvertError> {
+        let bytes = bytes.into();
+        if bytes.len() > Self::MAX_SIZE {
+            Err(format!(
+                "size of a fencing token cannot exceed {} bytes",
+                Self::MAX_SIZE
+            )
+            .into())
+        } else {
+            Ok(Self(bytes))
+        }
+    }
+}
+
+impl AsRef<[u8]> for FencingToken {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl Deref for FencingToken {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<FencingToken> for Vec<u8> {
+    fn from(value: FencingToken) -> Self {
+        value.0
+    }
+}
+
+impl TryFrom<Vec<u8>> for FencingToken {
+    type Error = ConvertError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
 #[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub enum CommandRecord {
-    Fence { fencing_token: Vec<u8> },
+    Fence { fencing_token: FencingToken },
     Trim { seq_num: u64 },
 }
 
 impl CommandRecord {
-    pub fn fence<T: Into<Vec<u8>>>(fencing_token: Option<T>) -> Self {
+    pub fn fence(fencing_token: Option<FencingToken>) -> Self {
         Self::Fence {
-            fencing_token: fencing_token.map(Into::into).unwrap_or_default(),
+            fencing_token: fencing_token.unwrap_or_default(),
         }
     }
 
@@ -930,7 +978,7 @@ impl TryFrom<CommandRecord> for AppendRecord {
 
     fn try_from(value: CommandRecord) -> Result<Self, Self::Error> {
         let (header_value, body) = match value {
-            CommandRecord::Fence { fencing_token } => ("fence", fencing_token),
+            CommandRecord::Fence { fencing_token } => ("fence", fencing_token.into()),
             CommandRecord::Trim { seq_num } => ("trim", seq_num.to_be_bytes().to_vec()),
         };
         Self::new(body)?.with_headers(vec![Header::from_value(header_value)])
@@ -1127,7 +1175,7 @@ impl AsRef<[AppendRecord]> for AppendRecordBatch {
 pub struct AppendInput {
     pub records: AppendRecordBatch,
     pub match_seq_num: Option<u64>,
-    pub fencing_token: Option<Vec<u8>>,
+    pub fencing_token: Option<FencingToken>,
 }
 
 impl MeteredSize for AppendInput {
@@ -1152,9 +1200,9 @@ impl AppendInput {
         }
     }
 
-    pub fn with_fencing_token(self, fencing_token: impl Into<Vec<u8>>) -> Self {
+    pub fn with_fencing_token(self, fencing_token: FencingToken) -> Self {
         Self {
-            fencing_token: Some(fencing_token.into()),
+            fencing_token: Some(fencing_token),
             ..self
         }
     }
@@ -1170,7 +1218,7 @@ impl AppendInput {
             stream: stream.into(),
             records: records.into_iter().map(Into::into).collect(),
             match_seq_num,
-            fencing_token: fencing_token.map(Into::into),
+            fencing_token: fencing_token.map(|f| f.0.into()),
         }
     }
 }
