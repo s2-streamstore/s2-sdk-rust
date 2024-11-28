@@ -856,7 +856,7 @@ impl FencingToken {
         let bytes = bytes.into();
         if bytes.len() > Self::MAX_SIZE {
             Err(format!(
-                "size of a fencing token cannot exceed {} bytes",
+                "Size of a fencing token cannot exceed {} bytes",
                 Self::MAX_SIZE
             )
             .into())
