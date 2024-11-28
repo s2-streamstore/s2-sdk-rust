@@ -47,5 +47,3 @@ connector = []
 
 [lints.clippy]
 unused_async = "deny"
-declare_interior_mutable_const = "allow"
-borrow_interior_mutable_const = "allow"
