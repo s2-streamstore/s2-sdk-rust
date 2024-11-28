@@ -1,5 +1,6 @@
 use prost_types::method_options::IdempotencyLevel;
 use tonic::{transport::Channel, IntoRequest};
+use uuid::Uuid;
 
 use super::{add_s2_request_token_header, ServiceRequest};
 use crate::{
@@ -92,11 +93,16 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
 pub struct CreateStreamServiceRequest {
     client: BasinServiceClient<Channel>,
     req: types::CreateStreamRequest,
+    s2_request_token: String,
 }
 
 impl CreateStreamServiceRequest {
     pub fn new(client: BasinServiceClient<Channel>, req: types::CreateStreamRequest) -> Self {
-        Self { client, req }
+        Self {
+            client,
+            req,
+            s2_request_token: Uuid::new_v4().to_string(),
+        }
     }
 }
 
@@ -109,7 +115,7 @@ impl ServiceRequest for CreateStreamServiceRequest {
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::CreateStreamRequest = self.req.clone().try_into()?;
         let mut tonic_req = req.into_request();
-        add_s2_request_token_header(tonic_req.metadata_mut(), &Self::S2_REQUEST_TOKEN)?;
+        add_s2_request_token_header(tonic_req.metadata_mut(), &self.s2_request_token)?;
         Ok(tonic_req)
     }
 

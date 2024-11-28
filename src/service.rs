@@ -4,7 +4,6 @@ pub mod stream;
 
 use std::{
     pin::Pin,
-    sync::LazyLock,
     task::{Context, Poll},
 };
 
@@ -12,7 +11,6 @@ use futures::StreamExt;
 use prost_types::method_options::IdempotencyLevel;
 use secrecy::{ExposeSecret, SecretString};
 use tonic::metadata::{AsciiMetadataKey, AsciiMetadataValue, MetadataMap};
-use uuid::Uuid;
 
 use crate::{client::ClientError, types};
 
@@ -77,10 +75,6 @@ pub trait ServiceRequest {
 
     /// Idempotency level for the underlying service.
     const IDEMPOTENCY_LEVEL: IdempotencyLevel;
-
-    /// Request token for the service to be used for idempotency.
-    /// Only use by `CreateBasin` and `CreateStream`.    
-    const S2_REQUEST_TOKEN: LazyLock<String> = LazyLock::new(|| Uuid::new_v4().to_string());
 
     /// Take the request parameters and generate the corresponding tonic request.
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError>;
