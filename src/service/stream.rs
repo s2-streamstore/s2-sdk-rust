@@ -1,14 +1,16 @@
 use prost_types::method_options::IdempotencyLevel;
-use tonic::{transport::Channel, IntoRequest};
+use tonic::transport::Channel;
+use tonic::IntoRequest;
 use tonic_side_effect::{FrameSignal, RequestFrameMonitor};
 
 use super::{
     ClientError, ServiceRequest, ServiceStreamingRequest, ServiceStreamingResponse,
     StreamingRequest, StreamingResponse,
 };
+
+use crate::client::AppendRetryPolicy;
 use crate::{
     api::{self, stream_service_client::StreamServiceClient},
-    client::AppendRetryPolicy,
     types,
 };
 
