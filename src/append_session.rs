@@ -1,22 +1,31 @@
-use crate::client::{AppendRetryPolicy, ClientError, StreamClient};
-use crate::service::stream::{AppendSessionServiceRequest, AppendSessionStreamingResponse};
-use crate::service::ServiceStreamingResponse;
-use crate::types;
-use crate::types::MeteredSize;
+use std::{
+    collections::VecDeque,
+    ops::{DerefMut, RangeTo},
+    sync::Arc,
+    time::Duration,
+};
+
 use bytesize::ByteSize;
 use futures::StreamExt;
-use std::collections::VecDeque;
-use std::ops::{DerefMut, RangeTo};
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::mpsc::Permit;
-use tokio::sync::{mpsc, Mutex};
-use tokio::time::Instant;
+use tokio::{
+    sync::{mpsc, mpsc::Permit, Mutex},
+    time::Instant,
+};
 use tokio_muxt::{CoalesceMode, MuxTimer};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 use tonic_side_effect::FrameSignal;
 use tracing::debug;
+
+use crate::{
+    client::{AppendRetryPolicy, ClientError, StreamClient},
+    service::{
+        stream::{AppendSessionServiceRequest, AppendSessionStreamingResponse},
+        ServiceStreamingResponse,
+    },
+    types,
+    types::MeteredSize,
+};
 
 async fn connect(
     stream_client: &StreamClient,
@@ -355,8 +364,9 @@ pub(crate) async fn manage_session<S>(
                     match stream_client.inner.config.append_retry_policy {
                         AppendRetryPolicy::All => true,
                         AppendRetryPolicy::NoSideEffects => {
-                            // If no request frame has been produced, we conclude that the failing append
-                            // never left this host, so it is safe to retry.
+                            // If no request frame has been produced, we conclude that the failing
+                            // append never left this host, so it is
+                            // safe to retry.
                             !frame_signal.is_signalled()
                         }
                     }
