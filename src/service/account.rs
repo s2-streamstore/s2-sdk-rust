@@ -1,8 +1,10 @@
 use prost_types::method_options::IdempotencyLevel;
-use tonic::transport::Channel;
-use tonic::IntoRequest;
+use tonic::{    
+    transport::Channel,
+    IntoRequest,
+};
 
-use super::ServiceRequest;
+use super::{add_s2_request_token_header, ServiceRequest};
 use crate::{
     api::{self, account_service_client::AccountServiceClient},
     types,
@@ -24,11 +26,13 @@ impl ServiceRequest for CreateBasinServiceRequest {
     type ApiRequest = api::CreateBasinRequest;
     type Response = types::BasinInfo;
     type ApiResponse = api::CreateBasinResponse;
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::CreateBasinRequest = self.req.clone().try_into()?;
-        Ok(req.into_request())
+        let mut tonic_req = req.into_request();
+        add_s2_request_token_header(tonic_req.metadata_mut(), &*Self::S2_REQUEST_TOKEN)?;
+        Ok(tonic_req)
     }
 
     async fn send(
