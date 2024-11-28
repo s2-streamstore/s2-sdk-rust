@@ -816,6 +816,7 @@ impl From<api::Header> for Header {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FencingToken(Vec<u8>);
 
