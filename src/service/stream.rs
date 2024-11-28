@@ -243,6 +243,7 @@ impl ServiceRequest for AppendServiceRequest {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct AppendSessionServiceRequest<S>
 where
     S: Send + futures::Stream<Item = types::AppendInput> + Unpin,
@@ -269,7 +270,7 @@ where
     }
 }
 
-impl<S> ServiceRequest for AppendSessionServiceRequest<S>
+impl<S: std::fmt::Debug> ServiceRequest for AppendSessionServiceRequest<S>
 where
     S: 'static + Send + futures::Stream<Item = types::AppendInput> + Unpin,
 {

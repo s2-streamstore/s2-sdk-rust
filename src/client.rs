@@ -372,7 +372,7 @@ impl Client {
         req: types::CreateBasinRequest,
     ) -> Result<types::BasinInfo, ClientError> {
         self.inner
-            .send(CreateBasinServiceRequest::new(
+            .send_retryable(CreateBasinServiceRequest::new(
                 self.inner.account_service_client(),
                 req,
             ))
@@ -457,7 +457,7 @@ impl BasinClient {
     #[sync_docs]
     pub async fn create_stream(&self, req: types::CreateStreamRequest) -> Result<(), ClientError> {
         self.inner
-            .send(CreateStreamServiceRequest::new(
+            .send_retryable(CreateStreamServiceRequest::new(
                 self.inner.basin_service_client(),
                 req,
             ))
