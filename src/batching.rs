@@ -249,6 +249,7 @@ impl<'a> BatchBuilder<'a> {
 mod tests {
     use std::time::Duration;
 
+    use bytes::Bytes;
     use bytesize::ByteSize;
     use futures::StreamExt as _;
     use rstest::rstest;
@@ -341,7 +342,7 @@ mod tests {
                 // The padding exists just to increase the size of record in
                 // order to test the size limits.
                 record = record
-                    .with_headers(vec![types::Header::new("padding", padding)])
+                    .with_headers(vec![types::Header::new("padding", padding.to_owned())])
                     .unwrap();
             }
             stream_tx.send(record).unwrap();
@@ -386,13 +387,13 @@ mod tests {
 
         let batches = collect_batches_handle.await.unwrap();
 
-        let expected_batches = vec![
-            vec![b"r_0".to_owned(), b"r_1".to_owned()],
-            vec![b"r_2".to_owned(), b"r_3".to_owned()],
-            vec![b"r_4".to_owned(), b"r_5".to_owned(), b"r_6".to_owned()],
-            vec![b"r_7".to_owned()],
-            vec![b"r_8".to_owned()],
-            vec![b"r_9".to_owned()],
+        let expected_batches: Vec<Vec<Bytes>> = vec![
+            vec!["r_0".into(), "r_1".into()],
+            vec!["r_2".into(), "r_3".into()],
+            vec!["r_4".into(), "r_5".into(), "r_6".into()],
+            vec!["r_7".into()],
+            vec!["r_8".into()],
+            vec!["r_9".into()],
         ];
 
         assert_eq!(batches, expected_batches);
