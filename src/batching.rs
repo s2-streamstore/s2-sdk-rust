@@ -4,8 +4,6 @@ use std::{
     time::Duration,
 };
 
-#[cfg(test)]
-use bytesize::ByteSize;
 use futures::{Stream, StreamExt};
 
 use crate::types;
@@ -15,7 +13,7 @@ use crate::types;
 pub struct AppendRecordsBatchingOpts {
     max_batch_records: usize,
     #[cfg(test)]
-    max_batch_size: ByteSize,
+    max_batch_size_bytes: u64,
     match_seq_num: Option<u64>,
     fencing_token: Option<types::FencingToken>,
     linger_duration: Duration,
@@ -26,7 +24,7 @@ impl Default for AppendRecordsBatchingOpts {
         Self {
             max_batch_records: 1000,
             #[cfg(test)]
-            max_batch_size: ByteSize::mib(1),
+            max_batch_size_bytes: types::AppendRecordBatch::MAX_SIZE_BYTES,
             match_seq_num: None,
             fencing_token: None,
             linger_duration: Duration::from_millis(5),
@@ -54,14 +52,14 @@ impl AppendRecordsBatchingOpts {
 
     /// Maximum size of a batch in bytes.
     #[cfg(test)]
-    pub fn with_max_batch_size(self, max_batch_size: impl Into<ByteSize>) -> Self {
-        let max_batch_size = max_batch_size.into();
+    pub fn with_max_batch_size(self, max_batch_size_bytes: u64) -> Self {
         assert!(
-            max_batch_size > ByteSize::b(0) && max_batch_size <= types::AppendRecordBatch::MAX_SIZE,
+            max_batch_size_bytes > 0
+                && max_batch_size_bytes <= types::AppendRecordBatch::MAX_SIZE_BYTES,
             "Batch capacity must be between 1 byte and 1 MiB"
         );
         Self {
-            max_batch_size,
+            max_batch_size_bytes,
             ..self
         }
     }
@@ -192,7 +190,7 @@ impl<'a> BatchBuilder<'a> {
     fn new_batch(opts: &AppendRecordsBatchingOpts) -> types::AppendRecordBatch {
         types::AppendRecordBatch::with_max_capacity_and_size(
             opts.max_batch_records,
-            opts.max_batch_size,
+            opts.max_batch_size_bytes,
         )
     }
 
@@ -250,7 +248,6 @@ mod tests {
     use std::time::Duration;
 
     use bytes::Bytes;
-    use bytesize::ByteSize;
     use futures::StreamExt as _;
     use rstest::rstest;
     use tokio::sync::mpsc;
@@ -261,18 +258,18 @@ mod tests {
 
     #[rstest]
     #[case(Some(2), None)]
-    #[case(None, Some(ByteSize::b(30)))]
-    #[case(Some(2), Some(ByteSize::b(100)))]
-    #[case(Some(10), Some(ByteSize::b(30)))]
+    #[case(None, Some(30))]
+    #[case(Some(2), Some(100))]
+    #[case(Some(10), Some(30))]
     #[tokio::test]
     async fn test_append_record_batching_mechanics(
         #[case] max_batch_records: Option<usize>,
-        #[case] max_batch_size: Option<ByteSize>,
+        #[case] max_batch_size_bytes: Option<u64>,
     ) {
         let stream_iter = (0..100)
             .map(|i| {
                 let body = format!("r_{i}");
-                if let Some(max_batch_size) = max_batch_size {
+                if let Some(max_batch_size) = max_batch_size_bytes {
                     types::AppendRecord::with_max_size(max_batch_size, body)
                 } else {
                     types::AppendRecord::new(body)
@@ -286,7 +283,7 @@ mod tests {
         if let Some(max_batch_records) = max_batch_records {
             opts = opts.with_max_batch_records(max_batch_records);
         }
-        if let Some(max_batch_size) = max_batch_size {
+        if let Some(max_batch_size) = max_batch_size_bytes {
             opts = opts.with_max_batch_size(max_batch_size);
         }
 
@@ -312,7 +309,7 @@ mod tests {
         let (stream_tx, stream_rx) = mpsc::unbounded_channel::<types::AppendRecord>();
         let mut i = 0;
 
-        let size_limit = ByteSize::b(40);
+        let size_limit = 40;
 
         let collect_batches_handle = tokio::spawn(async move {
             let batch_stream = AppendRecordsBatchingStream::new(
@@ -402,7 +399,7 @@ mod tests {
     #[tokio::test]
     #[should_panic]
     async fn test_append_record_batching_panic_size_limits() {
-        let size_limit = ByteSize::b(1);
+        let size_limit = 1;
         let record =
             types::AppendRecord::with_max_size(size_limit, "too long to fit into size limits")
                 .unwrap();
