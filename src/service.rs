@@ -70,7 +70,7 @@ pub(crate) fn gen_s2_request_token() -> String {
     uuid::Uuid::new_v4()
         .as_bytes()
         .iter()
-        .fold(String::new(), |mut output, b| {
+        .fold(String::with_capacity(32), |mut output, b| {
             let _ = write!(output, "{b:02x}");
             output
         })
