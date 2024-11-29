@@ -1,8 +1,7 @@
 use prost_types::method_options::IdempotencyLevel;
 use tonic::{transport::Channel, IntoRequest};
-use uuid::Uuid;
 
-use super::{add_s2_request_token_header, ServiceRequest};
+use super::{add_s2_request_token_header, s2_request_token, ServiceRequest};
 use crate::{
     api::{self, account_service_client::AccountServiceClient},
     types,
@@ -20,7 +19,7 @@ impl CreateBasinServiceRequest {
         Self {
             client,
             req,
-            s2_request_token: Uuid::new_v4().to_string(),
+            s2_request_token: s2_request_token(),
         }
     }
 }

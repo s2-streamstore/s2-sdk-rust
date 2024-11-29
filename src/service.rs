@@ -11,6 +11,7 @@ use futures::StreamExt;
 use prost_types::method_options::IdempotencyLevel;
 use secrecy::{ExposeSecret, SecretString};
 use tonic::metadata::{AsciiMetadataKey, AsciiMetadataValue, MetadataMap};
+use uuid::Uuid;
 
 use crate::{client::ClientError, types};
 
@@ -63,6 +64,14 @@ pub(crate) fn add_s2_request_token_header(
     meta.insert("s2-request-token", s2_request_token);
 
     Ok(())
+}
+
+pub(crate) fn s2_request_token() -> String {
+    Uuid::new_v4()
+        .as_bytes()
+        .iter()
+        .map(|x| format!("{:02x}", x))
+        .collect::<String>()
 }
 
 pub trait ServiceRequest: std::fmt::Debug {
