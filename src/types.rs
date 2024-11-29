@@ -1,5 +1,6 @@
 use std::{ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
 
+use bytes::Bytes;
 use bytesize::ByteSize;
 use regex::Regex;
 #[cfg(feature = "serde")]
@@ -776,21 +777,21 @@ impl From<api::CheckTailResponse> for u64 {
 #[sync_docs]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Header {
-    pub name: Vec<u8>,
-    pub value: Vec<u8>,
+    pub name: Bytes,
+    pub value: Bytes,
 }
 
 impl Header {
-    pub fn new(name: impl Into<Vec<u8>>, value: impl Into<Vec<u8>>) -> Self {
+    pub fn new(name: impl Into<Bytes>, value: impl Into<Bytes>) -> Self {
         Self {
             name: name.into(),
             value: value.into(),
         }
     }
 
-    pub fn from_value(value: impl Into<Vec<u8>>) -> Self {
+    pub fn from_value(value: impl Into<Bytes>) -> Self {
         Self {
-            name: Vec::new(),
+            name: Bytes::new(),
             value: value.into(),
         }
     }
@@ -799,20 +800,154 @@ impl Header {
 impl From<Header> for api::Header {
     fn from(value: Header) -> Self {
         let Header { name, value } = value;
-        Self {
-            name: name.into(),
-            value: value.into(),
-        }
+        Self { name, value }
     }
 }
 
 impl From<api::Header> for Header {
     fn from(value: api::Header) -> Self {
         let api::Header { name, value } = value;
-        Self {
-            name: name.into(),
-            value: value.into(),
+        Self { name, value }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FencingToken(Bytes);
+
+#[cfg(feature = "serde")]
+impl Serialize for FencingToken {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use std::fmt::Write;
+
+        let mut bytes_str = "0x".to_owned();
+        for b in self.0.iter() {
+            write!(&mut bytes_str, "{:02x}", b).expect("writing to string");
         }
+        serializer.serialize_str(&bytes_str)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for FencingToken {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+
+        let bytes_str = String::deserialize(deserializer)?;
+        let bytes = if let Some(bytes) = Self::try_from_hex_bytes(&bytes_str) {
+            bytes.map_err(D::Error::custom)?
+        } else {
+            bytes_str.into()
+        };
+
+        Self::new(bytes).map_err(D::Error::custom)
+    }
+}
+
+impl FencingToken {
+    const MAX_SIZE: usize = 16;
+
+    pub fn new(bytes: impl Into<Bytes>) -> Result<Self, ConvertError> {
+        let bytes = bytes.into();
+        if bytes.len() > Self::MAX_SIZE {
+            Err(format!(
+                "Size of a fencing token cannot exceed {} bytes",
+                Self::MAX_SIZE
+            )
+            .into())
+        } else {
+            Ok(Self(bytes))
+        }
+    }
+
+    fn try_from_hex_bytes(s: impl AsRef<str>) -> Option<Result<Bytes, ConvertError>> {
+        let bytes_str = s.as_ref();
+        if let Some(hex) = bytes_str.strip_prefix("0x") {
+            // Hex encoded string
+            if hex.len() % 2 != 0 {
+                return Some(Err("hex string should have an even length".into()));
+            }
+
+            Some(
+                hex.as_bytes()
+                    .chunks(2)
+                    .map(|chunk| {
+                        let chunk = std::str::from_utf8(chunk).expect("pre-validated utf-8 str");
+                        u8::from_str_radix(chunk, 16)
+                    })
+                    .collect::<Result<Bytes, _>>()
+                    .map_err(|_| "invalid hex character".into()),
+            )
+        } else {
+            None
+        }
+    }
+}
+
+impl FromStr for FencingToken {
+    type Err = ConvertError;
+
+    fn from_str(bytes_str: &str) -> Result<Self, Self::Err> {
+        let bytes = if let Some(bytes) = Self::try_from_hex_bytes(bytes_str) {
+            bytes?
+        } else {
+            bytes_str.to_owned().into()
+        };
+
+        Self::new(bytes)
+    }
+}
+
+impl AsRef<Bytes> for FencingToken {
+    fn as_ref(&self) -> &Bytes {
+        &self.0
+    }
+}
+
+impl AsRef<[u8]> for FencingToken {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl Deref for FencingToken {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<FencingToken> for Bytes {
+    fn from(value: FencingToken) -> Self {
+        value.0
+    }
+}
+
+impl From<FencingToken> for Vec<u8> {
+    fn from(value: FencingToken) -> Self {
+        value.0.into()
+    }
+}
+
+impl TryFrom<Bytes> for FencingToken {
+    type Error = ConvertError;
+
+    fn try_from(value: Bytes) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl TryFrom<Vec<u8>> for FencingToken {
+    type Error = ConvertError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::new(value)
     }
 }
 
@@ -820,14 +955,14 @@ impl From<api::Header> for Header {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub enum CommandRecord {
-    Fence { fencing_token: Vec<u8> },
+    Fence { fencing_token: FencingToken },
     Trim { seq_num: u64 },
 }
 
 impl CommandRecord {
-    pub fn fence<T: Into<Vec<u8>>>(fencing_token: Option<T>) -> Self {
+    pub fn fence(fencing_token: Option<FencingToken>) -> Self {
         Self::Fence {
-            fencing_token: fencing_token.map(Into::into).unwrap_or_default(),
+            fencing_token: fencing_token.unwrap_or_default(),
         }
     }
 
@@ -842,7 +977,7 @@ impl CommandRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppendRecord {
     headers: Vec<Header>,
-    body: Vec<u8>,
+    body: Bytes,
     #[cfg(test)]
     max_size: ByteSize,
 }
@@ -865,7 +1000,7 @@ impl AppendRecord {
         }
     }
 
-    pub fn new(body: impl Into<Vec<u8>>) -> Result<Self, ConvertError> {
+    pub fn new(body: impl Into<Bytes>) -> Result<Self, ConvertError> {
         Self {
             headers: Vec::new(),
             body: body.into(),
@@ -876,10 +1011,7 @@ impl AppendRecord {
     }
 
     #[cfg(test)]
-    pub fn with_max_size(
-        max_size: ByteSize,
-        body: impl Into<Vec<u8>>,
-    ) -> Result<Self, ConvertError> {
+    pub fn with_max_size(max_size: ByteSize, body: impl Into<Bytes>) -> Result<Self, ConvertError> {
         Self {
             headers: Vec::new(),
             body: body.into(),
@@ -920,7 +1052,7 @@ impl From<AppendRecord> for api::AppendRecord {
     fn from(value: AppendRecord) -> Self {
         Self {
             headers: value.headers.into_iter().map(Into::into).collect(),
-            body: value.body.into(),
+            body: value.body,
         }
     }
 }
@@ -930,7 +1062,7 @@ impl TryFrom<CommandRecord> for AppendRecord {
 
     fn try_from(value: CommandRecord) -> Result<Self, Self::Error> {
         let (header_value, body) = match value {
-            CommandRecord::Fence { fencing_token } => ("fence", fencing_token),
+            CommandRecord::Fence { fencing_token } => ("fence", fencing_token.into()),
             CommandRecord::Trim { seq_num } => ("trim", seq_num.to_be_bytes().to_vec()),
         };
         Self::new(body)?.with_headers(vec![Header::from_value(header_value)])
@@ -940,7 +1072,7 @@ impl TryFrom<CommandRecord> for AppendRecord {
 #[derive(Debug, Clone)]
 pub struct AppendRecordParts {
     pub headers: Vec<Header>,
-    pub body: Vec<u8>,
+    pub body: Bytes,
 }
 
 impl From<AppendRecord> for AppendRecordParts {
@@ -1127,7 +1259,7 @@ impl AsRef<[AppendRecord]> for AppendRecordBatch {
 pub struct AppendInput {
     pub records: AppendRecordBatch,
     pub match_seq_num: Option<u64>,
-    pub fencing_token: Option<Vec<u8>>,
+    pub fencing_token: Option<FencingToken>,
 }
 
 impl MeteredSize for AppendInput {
@@ -1152,9 +1284,9 @@ impl AppendInput {
         }
     }
 
-    pub fn with_fencing_token(self, fencing_token: impl Into<Vec<u8>>) -> Self {
+    pub fn with_fencing_token(self, fencing_token: FencingToken) -> Self {
         Self {
-            fencing_token: Some(fencing_token.into()),
+            fencing_token: Some(fencing_token),
             ..self
         }
     }
@@ -1170,7 +1302,7 @@ impl AppendInput {
             stream: stream.into(),
             records: records.into_iter().map(Into::into).collect(),
             match_seq_num,
-            fencing_token: fencing_token.map(Into::into),
+            fencing_token: fencing_token.map(|f| f.0),
         }
     }
 }
@@ -1289,7 +1421,7 @@ impl ReadRequest {
 pub struct SequencedRecord {
     pub seq_num: u64,
     pub headers: Vec<Header>,
-    pub body: Vec<u8>,
+    pub body: Bytes,
 }
 
 metered_impl!(SequencedRecord);
@@ -1304,7 +1436,7 @@ impl From<api::SequencedRecord> for SequencedRecord {
         Self {
             seq_num,
             headers: headers.into_iter().map(Into::into).collect(),
-            body: body.into(),
+            body,
         }
     }
 }
