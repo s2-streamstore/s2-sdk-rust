@@ -3,7 +3,6 @@ pub mod basin;
 pub mod stream;
 
 use std::{
-    fmt::Write,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -67,13 +66,7 @@ pub(crate) fn add_s2_request_token_header(
 }
 
 pub(crate) fn gen_s2_request_token() -> String {
-    uuid::Uuid::new_v4()
-        .as_bytes()
-        .iter()
-        .fold(String::with_capacity(32), |mut output, b| {
-            let _ = write!(output, "{b:02x}");
-            output
-        })
+    uuid::Uuid::new_v4().simple().to_string()
 }
 
 pub trait ServiceRequest: std::fmt::Debug {
