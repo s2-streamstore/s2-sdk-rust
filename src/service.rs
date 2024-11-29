@@ -13,6 +13,7 @@ use secrecy::{ExposeSecret, SecretString};
 use tonic::metadata::{AsciiMetadataKey, AsciiMetadataValue, MetadataMap};
 
 use crate::{client::ClientError, types};
+use std::fmt::Write;
 
 pub async fn send_request<T: ServiceRequest>(
     mut service: T,
@@ -69,8 +70,10 @@ pub(crate) fn s2_request_token() -> String {
     uuid::Uuid::new_v4()
         .as_bytes()
         .iter()
-        .map(|x| format!("{:02x}", x))
-        .collect::<String>()
+        .fold(String::new(), |mut output, b| {
+            let _ = write!(output, "{b:02X}");
+            output
+        })
 }
 
 pub trait ServiceRequest: std::fmt::Debug {
