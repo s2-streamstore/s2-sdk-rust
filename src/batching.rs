@@ -17,7 +17,7 @@ pub struct AppendRecordsBatchingOpts {
     #[cfg(test)]
     max_batch_size: ByteSize,
     match_seq_num: Option<u64>,
-    fencing_token: Option<Vec<u8>>,
+    fencing_token: Option<types::FencingToken>,
     linger_duration: Duration,
 }
 
@@ -77,9 +77,9 @@ impl AppendRecordsBatchingOpts {
     }
 
     /// Enforce a fencing token.
-    pub fn with_fencing_token<T: Into<Vec<u8>>>(self, fencing_token: Option<T>) -> Self {
+    pub fn with_fencing_token(self, fencing_token: Option<types::FencingToken>) -> Self {
         Self {
-            fencing_token: fencing_token.map(Into::into),
+            fencing_token,
             ..self
         }
     }
@@ -249,6 +249,7 @@ impl<'a> BatchBuilder<'a> {
 mod tests {
     use std::time::Duration;
 
+    use bytes::Bytes;
     use bytesize::ByteSize;
     use futures::StreamExt as _;
     use rstest::rstest;
@@ -341,7 +342,7 @@ mod tests {
                 // The padding exists just to increase the size of record in
                 // order to test the size limits.
                 record = record
-                    .with_headers(vec![types::Header::new("padding", padding)])
+                    .with_headers(vec![types::Header::new("padding", padding.to_owned())])
                     .unwrap();
             }
             stream_tx.send(record).unwrap();
@@ -386,13 +387,13 @@ mod tests {
 
         let batches = collect_batches_handle.await.unwrap();
 
-        let expected_batches = vec![
-            vec![b"r_0".to_owned(), b"r_1".to_owned()],
-            vec![b"r_2".to_owned(), b"r_3".to_owned()],
-            vec![b"r_4".to_owned(), b"r_5".to_owned(), b"r_6".to_owned()],
-            vec![b"r_7".to_owned()],
-            vec![b"r_8".to_owned()],
-            vec![b"r_9".to_owned()],
+        let expected_batches: Vec<Vec<Bytes>> = vec![
+            vec!["r_0".into(), "r_1".into()],
+            vec!["r_2".into(), "r_3".into()],
+            vec!["r_4".into(), "r_5".into(), "r_6".into()],
+            vec!["r_7".into()],
+            vec!["r_8".into()],
+            vec!["r_9".into()],
         ];
 
         assert_eq!(batches, expected_batches);
@@ -423,7 +424,7 @@ mod tests {
             .map(|_| test_record.clone())
             .collect::<Vec<_>>();
 
-        let expected_fencing_token = "hello".as_bytes();
+        let expected_fencing_token = types::FencingToken::new("hello").unwrap();
         let mut expected_match_seq_num = 10;
 
         let num_batch_records = 3;
@@ -432,7 +433,7 @@ mod tests {
             futures::stream::iter(test_records),
             AppendRecordsBatchingOpts::new()
                 .with_max_batch_records(num_batch_records)
-                .with_fencing_token(Some(expected_fencing_token))
+                .with_fencing_token(Some(expected_fencing_token.clone()))
                 .with_match_seq_num(Some(expected_match_seq_num)),
         );
 
@@ -451,7 +452,7 @@ mod tests {
                 fencing_token,
             } = input;
             assert_eq!(records, expected_batch);
-            assert_eq!(fencing_token.as_deref(), Some(expected_fencing_token));
+            assert_eq!(fencing_token.as_ref(), Some(&expected_fencing_token));
             assert_eq!(match_seq_num, Some(expected_match_seq_num));
             expected_match_seq_num += num_batch_records as u64;
         }
