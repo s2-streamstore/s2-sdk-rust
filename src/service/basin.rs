@@ -1,8 +1,7 @@
 use prost_types::method_options::IdempotencyLevel;
-use tonic::transport::Channel;
-use tonic::IntoRequest;
+use tonic::{transport::Channel, IntoRequest};
 
-use super::ServiceRequest;
+use super::{add_s2_request_token_header, gen_s2_request_token, ServiceRequest};
 use crate::{
     api::{self, basin_service_client::BasinServiceClient},
     types,
@@ -93,11 +92,16 @@ impl ServiceRequest for GetStreamConfigServiceRequest {
 pub struct CreateStreamServiceRequest {
     client: BasinServiceClient<Channel>,
     req: types::CreateStreamRequest,
+    s2_request_token: String,
 }
 
 impl CreateStreamServiceRequest {
     pub fn new(client: BasinServiceClient<Channel>, req: types::CreateStreamRequest) -> Self {
-        Self { client, req }
+        Self {
+            client,
+            req,
+            s2_request_token: gen_s2_request_token(),
+        }
     }
 }
 
@@ -105,11 +109,13 @@ impl ServiceRequest for CreateStreamServiceRequest {
     type ApiRequest = api::CreateStreamRequest;
     type Response = ();
     type ApiResponse = api::CreateStreamResponse;
-    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
         let req: api::CreateStreamRequest = self.req.clone().try_into()?;
-        Ok(req.into_request())
+        let mut tonic_req = req.into_request();
+        add_s2_request_token_header(tonic_req.metadata_mut(), &self.s2_request_token)?;
+        Ok(tonic_req)
     }
 
     async fn send(

@@ -32,6 +32,7 @@ tonic = { version = "0.12.3", features = ["tls", "tls-webpki-roots"] }
 tonic-side-effect = { git = "https://github.com/s2-streamstore/tonic-side-effect.git", rev = "33c85a508a3dcb8f05194a7851592a83cec058d8" }
 tower-service = "0.3.3"
 tracing = "0.1.40"
+uuid = { version = "1.11.0", features = ["v4", "fast-rng"] }
 
 [build-dependencies]
 tonic-build = { version = "0.12.3", features = ["prost"] }
