@@ -3,6 +3,7 @@ pub mod basin;
 pub mod stream;
 
 use std::{
+    fmt::Write,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -13,7 +14,6 @@ use secrecy::{ExposeSecret, SecretString};
 use tonic::metadata::{AsciiMetadataKey, AsciiMetadataValue, MetadataMap};
 
 use crate::{client::ClientError, types};
-use std::fmt::Write;
 
 pub async fn send_request<T: ServiceRequest>(
     mut service: T,
@@ -66,12 +66,12 @@ pub(crate) fn add_s2_request_token_header(
     Ok(())
 }
 
-pub(crate) fn s2_request_token() -> String {
+pub(crate) fn gen_s2_request_token() -> String {
     uuid::Uuid::new_v4()
         .as_bytes()
         .iter()
         .fold(String::new(), |mut output, b| {
-            let _ = write!(output, "{b:02X}");
+            let _ = write!(output, "{b:02x}");
             output
         })
 }
