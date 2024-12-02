@@ -6,6 +6,5 @@ pub mod batching;
 pub mod client;
 pub mod types;
 
-pub use futures;
 pub use http::{uri, HeaderValue};
 pub use service::Streaming;
