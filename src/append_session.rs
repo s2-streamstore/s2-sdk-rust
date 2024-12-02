@@ -23,7 +23,7 @@ use crate::{
         ServiceStreamingResponse,
     },
     types,
-    types::MeteredSize,
+    types::MeteredBytes,
 };
 
 async fn connect(
@@ -51,7 +51,7 @@ async fn connect(
 
 struct InflightBatch {
     start: Instant,
-    metered_size_bytes: u64,
+    metered_bytes: u64,
     inner: types::AppendInput,
 }
 
@@ -108,7 +108,7 @@ fn ack_and_pop(
         "number of acknowledged records should equal amount in first inflight batch"
     );
 
-    *inflight_size -= corresponding_batch.metered_size_bytes;
+    *inflight_size -= corresponding_batch.metered_bytes;
     let end_seq_num = channel_ack.end_seq_num;
 
     permit.send(Ok(channel_ack));
@@ -243,12 +243,12 @@ where
             => {
                 match client_input {
                     Some(append_input) => {
-                        let metered_size_bytes = append_input.metered_size_bytes();
-                        *inflight_size += metered_size_bytes;
+                        let metered_bytes = append_input.metered_bytes();
+                        *inflight_size += metered_bytes;
                         let start = Instant::now();
                         inflight.push_back(InflightBatch {
                             start,
-                            metered_size_bytes,
+                            metered_bytes,
                             inner: append_input.clone()
                         });
                         timer.as_mut().fire_at(TimerEvent::BatchDeadline, start + batch_ack_deadline, CoalesceMode::Earliest);
