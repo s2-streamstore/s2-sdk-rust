@@ -225,7 +225,7 @@ where
     tokio::pin!(timer);
     let mut input_terminated = false;
 
-    while !input_terminated {
+    while !(input_terminated && inflight.is_empty()) {
         tokio::select! {
             (event_ord, _deadline) = &mut timer,
                 if timer.is_armed()
