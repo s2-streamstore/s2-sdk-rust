@@ -1,22 +1,30 @@
-use crate::client::{AppendRetryPolicy, ClientError, StreamClient};
-use crate::service::stream::{AppendSessionServiceRequest, AppendSessionStreamingResponse};
-use crate::service::ServiceStreamingResponse;
-use crate::types;
-use crate::types::MeteredSize;
-use bytesize::ByteSize;
+use std::{
+    collections::VecDeque,
+    ops::{DerefMut, RangeTo},
+    sync::Arc,
+    time::Duration,
+};
+
 use futures::StreamExt;
-use std::collections::VecDeque;
-use std::ops::{DerefMut, RangeTo};
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::mpsc::Permit;
-use tokio::sync::{mpsc, Mutex};
-use tokio::time::Instant;
+use tokio::{
+    sync::{mpsc, mpsc::Permit, Mutex},
+    time::Instant,
+};
 use tokio_muxt::{CoalesceMode, MuxTimer};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 use tonic_side_effect::FrameSignal;
 use tracing::debug;
+
+use crate::{
+    client::{AppendRetryPolicy, ClientError, StreamClient},
+    service::{
+        stream::{AppendSessionServiceRequest, AppendSessionStreamingResponse},
+        ServiceStreamingResponse,
+    },
+    types,
+    types::MeteredBytes,
+};
 
 async fn connect(
     stream_client: &StreamClient,
@@ -43,7 +51,7 @@ async fn connect(
 
 struct InflightBatch {
     start: Instant,
-    metered_size: ByteSize,
+    metered_bytes: u64,
     inner: types::AppendInput,
 }
 
@@ -100,7 +108,7 @@ fn ack_and_pop(
         "number of acknowledged records should equal amount in first inflight batch"
     );
 
-    *inflight_size -= corresponding_batch.metered_size.0;
+    *inflight_size -= corresponding_batch.metered_bytes;
     let end_seq_num = channel_ack.end_seq_num;
 
     permit.send(Ok(channel_ack));
@@ -191,7 +199,7 @@ where
         last_acked_seqnum,
     } = lock.deref_mut();
 
-    assert!(*inflight_size <= stream_client.inner.config.max_append_inflight_bytes.0);
+    assert!(*inflight_size <= stream_client.inner.config.max_append_inflight_bytes);
     let (input_tx, mut ack_stream) = connect(&stream_client, frame_signal.clone()).await?;
     let batch_ack_deadline = stream_client.inner.config.request_timeout;
 
@@ -231,16 +239,16 @@ where
                 }
             }
             client_input = request_stream.next(),
-                if !input_terminated && *inflight_size + MAX_BATCH_SIZE <= stream_client.inner.config.max_append_inflight_bytes.0
+                if !input_terminated && *inflight_size + MAX_BATCH_SIZE <= stream_client.inner.config.max_append_inflight_bytes
             => {
                 match client_input {
                     Some(append_input) => {
-                        let metered_size = append_input.metered_size();
-                        *inflight_size += metered_size.0;
+                        let metered_bytes = append_input.metered_bytes();
+                        *inflight_size += metered_bytes;
                         let start = Instant::now();
                         inflight.push_back(InflightBatch {
                             start,
-                            metered_size,
+                            metered_bytes,
                             inner: append_input.clone()
                         });
                         timer.as_mut().fire_at(TimerEvent::BatchDeadline, start + batch_ack_deadline, CoalesceMode::Earliest);
@@ -355,8 +363,8 @@ pub(crate) async fn manage_session<S>(
                     match stream_client.inner.config.append_retry_policy {
                         AppendRetryPolicy::All => true,
                         AppendRetryPolicy::NoSideEffects => {
-                            // If no request frame has been produced, we conclude that the failing append
-                            // never left this host, so it is safe to retry.
+                            // If no request frame has been produced, we conclude that the failing
+                            // append never left this host, so it is safe to retry.
                             !frame_signal.is_signalled()
                         }
                     }

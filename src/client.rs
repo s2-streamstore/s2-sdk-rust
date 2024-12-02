@@ -1,7 +1,6 @@
 use std::{env::VarError, fmt::Display, str::FromStr, time::Duration};
 
 use backon::{BackoffBuilder, ConstantBuilder, Retryable};
-use bytesize::ByteSize;
 use futures::StreamExt;
 use http::{uri::Authority, HeaderValue};
 use hyper_util::client::legacy::connect::HttpConnector;
@@ -37,7 +36,7 @@ use crate::{
         },
         ServiceRequest, ServiceStreamingResponse, Streaming,
     },
-    types,
+    types::{self, MIB_BYTES},
 };
 
 const DEFAULT_CONNECTOR: Option<HttpConnector> = None;
@@ -199,7 +198,7 @@ pub struct ClientConfig {
     pub(crate) uri_scheme: http::uri::Scheme,
     pub(crate) retry_backoff_duration: Duration,
     pub(crate) max_attempts: usize,
-    pub(crate) max_append_inflight_bytes: ByteSize,
+    pub(crate) max_append_inflight_bytes: u64,
 }
 
 impl ClientConfig {
@@ -216,7 +215,7 @@ impl ClientConfig {
             uri_scheme: http::uri::Scheme::HTTPS,
             retry_backoff_duration: Duration::from_millis(100),
             max_attempts: 3,
-            max_append_inflight_bytes: ByteSize::mib(256),
+            max_append_inflight_bytes: 256 * MIB_BYTES,
         }
     }
 
@@ -271,9 +270,8 @@ impl ClientConfig {
     ///
     /// Must be at least 1MiB. Defaults to 256MiB.
     pub fn with_max_append_inflight_bytes(self, max_append_inflight_bytes: u64) -> Self {
-        let max_append_inflight_bytes = ByteSize::b(max_append_inflight_bytes);
         assert!(
-            max_append_inflight_bytes >= ByteSize::mib(1),
+            max_append_inflight_bytes >= MIB_BYTES,
             "max_append_inflight_bytes must be at least 1MiB"
         );
         Self {
