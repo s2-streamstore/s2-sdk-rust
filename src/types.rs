@@ -73,15 +73,14 @@ impl CreateBasinRequest {
     }
 }
 
-impl TryFrom<CreateBasinRequest> for api::CreateBasinRequest {
-    type Error = ConvertError;
-    fn try_from(value: CreateBasinRequest) -> Result<Self, Self::Error> {
+impl From<CreateBasinRequest> for api::CreateBasinRequest {
+    fn from(value: CreateBasinRequest) -> Self {
         let CreateBasinRequest { basin, config } = value;
-        Ok(Self {
+        Self {
             basin: basin.0,
-            config: config.map(TryInto::try_into).transpose()?,
+            config: config.map(Into::into),
             assignment: None,
-        })
+        }
     }
 }
 
@@ -104,15 +103,14 @@ impl BasinConfig {
     }
 }
 
-impl TryFrom<BasinConfig> for api::BasinConfig {
-    type Error = ConvertError;
-    fn try_from(value: BasinConfig) -> Result<Self, Self::Error> {
+impl From<BasinConfig> for api::BasinConfig {
+    fn from(value: BasinConfig) -> Self {
         let BasinConfig {
             default_stream_config,
         } = value;
-        Ok(Self {
-            default_stream_config: default_stream_config.map(TryInto::try_into).transpose()?,
-        })
+        Self {
+            default_stream_config: default_stream_config.map(Into::into),
+        }
     }
 }
 
@@ -156,17 +154,16 @@ impl StreamConfig {
     }
 }
 
-impl TryFrom<StreamConfig> for api::StreamConfig {
-    type Error = ConvertError;
-    fn try_from(value: StreamConfig) -> Result<Self, Self::Error> {
+impl From<StreamConfig> for api::StreamConfig {
+    fn from(value: StreamConfig) -> Self {
         let StreamConfig {
             storage_class,
             retention_policy,
         } = value;
-        Ok(Self {
+        Self {
             storage_class: storage_class.into(),
-            retention_policy: retention_policy.map(TryInto::try_into).transpose()?,
-        })
+            retention_policy: retention_policy.map(Into::into),
+        }
     }
 }
 
@@ -248,16 +245,10 @@ pub enum RetentionPolicy {
     Age(Duration),
 }
 
-impl TryFrom<RetentionPolicy> for api::stream_config::RetentionPolicy {
-    type Error = ConvertError;
-    fn try_from(value: RetentionPolicy) -> Result<Self, Self::Error> {
+impl From<RetentionPolicy> for api::stream_config::RetentionPolicy {
+    fn from(value: RetentionPolicy) -> Self {
         match value {
-            RetentionPolicy::Age(duration) => Ok(Self::AgeMillis(
-                duration
-                    .as_millis()
-                    .try_into()
-                    .map_err(|_| "age duration overflow in milliseconds")?,
-            )),
+            RetentionPolicy::Age(duration) => Self::Age(duration.as_secs()),
         }
     }
 }
@@ -265,9 +256,7 @@ impl TryFrom<RetentionPolicy> for api::stream_config::RetentionPolicy {
 impl From<api::stream_config::RetentionPolicy> for RetentionPolicy {
     fn from(value: api::stream_config::RetentionPolicy) -> Self {
         match value {
-            api::stream_config::RetentionPolicy::AgeMillis(millis) => {
-                Self::Age(Duration::from_millis(millis))
-            }
+            api::stream_config::RetentionPolicy::Age(secs) => Self::Age(Duration::from_secs(secs)),
         }
     }
 }
@@ -515,14 +504,13 @@ impl CreateStreamRequest {
     }
 }
 
-impl TryFrom<CreateStreamRequest> for api::CreateStreamRequest {
-    type Error = ConvertError;
-    fn try_from(value: CreateStreamRequest) -> Result<Self, Self::Error> {
+impl From<CreateStreamRequest> for api::CreateStreamRequest {
+    fn from(value: CreateStreamRequest) -> Self {
         let CreateStreamRequest { stream, config } = value;
-        Ok(Self {
+        Self {
             stream,
-            config: config.map(TryInto::try_into).transpose()?,
-        })
+            config: config.map(Into::into),
+        }
     }
 }
 
@@ -693,19 +681,18 @@ impl ReconfigureBasinRequest {
     }
 }
 
-impl TryFrom<ReconfigureBasinRequest> for api::ReconfigureBasinRequest {
-    type Error = ConvertError;
-    fn try_from(value: ReconfigureBasinRequest) -> Result<Self, Self::Error> {
+impl From<ReconfigureBasinRequest> for api::ReconfigureBasinRequest {
+    fn from(value: ReconfigureBasinRequest) -> Self {
         let ReconfigureBasinRequest {
             basin,
             config,
             mask,
         } = value;
-        Ok(Self {
+        Self {
             basin: basin.0,
-            config: config.map(TryInto::try_into).transpose()?,
+            config: config.map(Into::into),
             mask: mask.map(|paths| prost_types::FieldMask { paths }),
-        })
+        }
     }
 }
 
@@ -742,19 +729,18 @@ impl ReconfigureStreamRequest {
     }
 }
 
-impl TryFrom<ReconfigureStreamRequest> for api::ReconfigureStreamRequest {
-    type Error = ConvertError;
-    fn try_from(value: ReconfigureStreamRequest) -> Result<Self, Self::Error> {
+impl From<ReconfigureStreamRequest> for api::ReconfigureStreamRequest {
+    fn from(value: ReconfigureStreamRequest) -> Self {
         let ReconfigureStreamRequest {
             stream,
             config,
             mask,
         } = value;
-        Ok(Self {
+        Self {
             stream,
-            config: config.map(TryInto::try_into).transpose()?,
+            config: config.map(Into::into),
             mask: mask.map(|paths| prost_types::FieldMask { paths }),
-        })
+        }
     }
 }
 
