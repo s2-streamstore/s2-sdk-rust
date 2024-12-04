@@ -31,7 +31,7 @@ impl ServiceRequest for CreateBasinServiceRequest {
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
-        let req: api::CreateBasinRequest = self.req.clone().try_into()?;
+        let req: api::CreateBasinRequest = self.req.clone().into();
         let mut tonic_req = req.into_request();
         add_s2_request_token_header(tonic_req.metadata_mut(), &self.s2_request_token)?;
         Ok(tonic_req)
@@ -192,7 +192,7 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
-        let req: api::ReconfigureBasinRequest = self.req.clone().try_into()?;
+        let req: api::ReconfigureBasinRequest = self.req.clone().into();
         Ok(req.into_request())
     }
 
