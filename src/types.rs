@@ -955,8 +955,8 @@ pub enum CommandRecord {
 }
 
 impl CommandRecord {
-    const FENCE: &str = "fence";
-    const TRIM: &str = "trim";
+    pub const FENCE: &str = "fence";
+    pub const TRIM: &str = "trim";
 
     pub fn fence(fencing_token: Option<FencingToken>) -> Self {
         Self::Fence {
