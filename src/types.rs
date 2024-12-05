@@ -955,8 +955,8 @@ pub enum CommandRecord {
 }
 
 impl CommandRecord {
-    pub const FENCE: &str = "fence";
-    pub const TRIM: &str = "trim";
+    const FENCE: &[u8] = b"fence";
+    const TRIM: &[u8] = b"trim";
 
     pub fn fence(fencing_token: Option<FencingToken>) -> Self {
         Self::Fence {
@@ -1055,17 +1055,20 @@ impl From<AppendRecord> for api::AppendRecord {
     }
 }
 
-impl TryFrom<CommandRecord> for AppendRecord {
-    type Error = ConvertError;
-
-    fn try_from(value: CommandRecord) -> Result<Self, Self::Error> {
+impl From<CommandRecord> for AppendRecord {
+    fn from(value: CommandRecord) -> Self {
         let (header_value, body) = match value {
             CommandRecord::Fence { fencing_token } => (CommandRecord::FENCE, fencing_token.into()),
             CommandRecord::Trim { seq_num } => {
                 (CommandRecord::TRIM, seq_num.to_be_bytes().to_vec())
             }
         };
-        Self::new(body)?.with_headers(vec![Header::from_value(header_value)])
+        AppendRecordParts {
+            headers: vec![Header::from_value(header_value)],
+            body: body.into(),
+        }
+        .try_into()
+        .expect("command record is a valid append record")
     }
 }
 
@@ -1453,9 +1456,7 @@ impl SequencedRecord {
             return None;
         }
 
-        let cmd = std::str::from_utf8(&header.value).ok()?;
-
-        match cmd {
+        match header.value.as_ref() {
             CommandRecord::FENCE => {
                 let fencing_token = FencingToken::new(self.body.clone()).ok()?;
                 Some(CommandRecord::Fence { fencing_token })
