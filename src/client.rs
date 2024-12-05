@@ -492,7 +492,7 @@ impl BasinClient {
     pub async fn reconfigure_stream(
         &self,
         req: types::ReconfigureStreamRequest,
-    ) -> Result<(), ClientError> {
+    ) -> Result<types::StreamConfig, ClientError> {
         self.inner
             .send(ReconfigureStreamServiceRequest::new(
                 self.inner.basin_service_client(),

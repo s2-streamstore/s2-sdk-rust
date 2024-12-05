@@ -190,7 +190,7 @@ impl ReconfigureStreamServiceRequest {
 
 impl ServiceRequest for ReconfigureStreamServiceRequest {
     type ApiRequest = api::ReconfigureStreamRequest;
-    type Response = ();
+    type Response = types::StreamConfig;
     type ApiResponse = api::ReconfigureStreamResponse;
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 
@@ -208,8 +208,8 @@ impl ServiceRequest for ReconfigureStreamServiceRequest {
 
     fn parse_response(
         &self,
-        _resp: tonic::Response<Self::ApiResponse>,
+        resp: tonic::Response<Self::ApiResponse>,
     ) -> Result<Self::Response, types::ConvertError> {
-        Ok(())
+        resp.into_inner().try_into()
     }
 }

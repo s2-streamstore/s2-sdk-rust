@@ -696,6 +696,15 @@ impl From<ReconfigureBasinRequest> for api::ReconfigureBasinRequest {
     }
 }
 
+impl TryFrom<api::ReconfigureBasinResponse> for BasinConfig {
+    type Error = ConvertError;
+    fn try_from(value: api::ReconfigureBasinResponse) -> Result<Self, Self::Error> {
+        let api::ReconfigureBasinResponse { config } = value;
+        let config = config.ok_or("missing basin config")?;
+        config.try_into()
+    }
+}
+
 #[sync_docs]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
@@ -744,11 +753,11 @@ impl From<ReconfigureStreamRequest> for api::ReconfigureStreamRequest {
     }
 }
 
-impl TryFrom<api::ReconfigureBasinResponse> for BasinConfig {
+impl TryFrom<api::ReconfigureStreamResponse> for StreamConfig {
     type Error = ConvertError;
-    fn try_from(value: api::ReconfigureBasinResponse) -> Result<Self, Self::Error> {
-        let api::ReconfigureBasinResponse { config } = value;
-        let config = config.ok_or("missing basin config")?;
+    fn try_from(value: api::ReconfigureStreamResponse) -> Result<Self, Self::Error> {
+        let api::ReconfigureStreamResponse { config } = value;
+        let config = config.ok_or("missing stream config")?;
         config.try_into()
     }
 }
