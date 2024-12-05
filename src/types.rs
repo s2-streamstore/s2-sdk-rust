@@ -955,6 +955,9 @@ pub enum CommandRecord {
 }
 
 impl CommandRecord {
+    const FENCE: &str = "fence";
+    const TRIM: &str = "trim";
+
     pub fn fence(fencing_token: Option<FencingToken>) -> Self {
         Self::Fence {
             fencing_token: fencing_token.unwrap_or_default(),
@@ -1041,6 +1044,20 @@ impl AppendRecord {
     pub fn try_from_parts(parts: AppendRecordParts) -> Result<Self, ConvertError> {
         Self::new(parts.body)?.with_headers(parts.headers)
     }
+
+    fn maybe_command(&self) -> Option<&str> {
+        if self.headers().len() != 1 {
+            return None;
+        }
+
+        let header = self.headers().first().expect("pre-validated length");
+
+        if !header.name.is_empty() {
+            return None;
+        }
+
+        std::str::from_utf8(&header.value).ok()
+    }
 }
 
 impl From<AppendRecord> for api::AppendRecord {
@@ -1057,10 +1074,44 @@ impl TryFrom<CommandRecord> for AppendRecord {
 
     fn try_from(value: CommandRecord) -> Result<Self, Self::Error> {
         let (header_value, body) = match value {
-            CommandRecord::Fence { fencing_token } => ("fence", fencing_token.into()),
-            CommandRecord::Trim { seq_num } => ("trim", seq_num.to_be_bytes().to_vec()),
+            CommandRecord::Fence { fencing_token } => (CommandRecord::FENCE, fencing_token.into()),
+            CommandRecord::Trim { seq_num } => {
+                (CommandRecord::TRIM, seq_num.to_be_bytes().to_vec())
+            }
         };
         Self::new(body)?.with_headers(vec![Header::from_value(header_value)])
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum TryIntoCommandRecordError {
+    #[error("The record is not a command record")]
+    NotCommandRecord(AppendRecord),
+    #[error(transparent)]
+    ConvertError(#[from] ConvertError),
+}
+
+impl TryFrom<AppendRecord> for CommandRecord {
+    type Error = TryIntoCommandRecordError;
+
+    fn try_from(value: AppendRecord) -> Result<Self, Self::Error> {
+        match value.maybe_command() {
+            Some(Self::FENCE) => {
+                let fencing_token = FencingToken::new(value.body)?;
+                Ok(Self::Fence { fencing_token })
+            }
+            Some(Self::TRIM) => {
+                let seq_num = u64::from_be_bytes(
+                    value
+                        .body
+                        .to_vec()
+                        .try_into()
+                        .map_err(|_| ConvertError("invalid sequence number".to_string()))?,
+                );
+                Ok(Self::Trim { seq_num })
+            }
+            _ => Err(TryIntoCommandRecordError::NotCommandRecord(value)),
+        }
     }
 }
 
