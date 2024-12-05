@@ -955,6 +955,9 @@ pub enum CommandRecord {
 }
 
 impl CommandRecord {
+    const FENCE: &[u8] = b"fence";
+    const TRIM: &[u8] = b"trim";
+
     pub fn fence(fencing_token: Option<FencingToken>) -> Self {
         Self::Fence {
             fencing_token: fencing_token.unwrap_or_default(),
@@ -1052,15 +1055,20 @@ impl From<AppendRecord> for api::AppendRecord {
     }
 }
 
-impl TryFrom<CommandRecord> for AppendRecord {
-    type Error = ConvertError;
-
-    fn try_from(value: CommandRecord) -> Result<Self, Self::Error> {
+impl From<CommandRecord> for AppendRecord {
+    fn from(value: CommandRecord) -> Self {
         let (header_value, body) = match value {
-            CommandRecord::Fence { fencing_token } => ("fence", fencing_token.into()),
-            CommandRecord::Trim { seq_num } => ("trim", seq_num.to_be_bytes().to_vec()),
+            CommandRecord::Fence { fencing_token } => (CommandRecord::FENCE, fencing_token.into()),
+            CommandRecord::Trim { seq_num } => {
+                (CommandRecord::TRIM, seq_num.to_be_bytes().to_vec())
+            }
         };
-        Self::new(body)?.with_headers(vec![Header::from_value(header_value)])
+        AppendRecordParts {
+            headers: vec![Header::from_value(header_value)],
+            body: body.into(),
+        }
+        .try_into()
+        .expect("command record is a valid append record")
     }
 }
 
@@ -1432,6 +1440,33 @@ impl From<api::SequencedRecord> for SequencedRecord {
             seq_num,
             headers: headers.into_iter().map(Into::into).collect(),
             body,
+        }
+    }
+}
+
+impl SequencedRecord {
+    pub fn as_command_record(&self) -> Option<CommandRecord> {
+        if self.headers.len() != 1 {
+            return None;
+        }
+
+        let header = self.headers.first().expect("pre-validated length");
+
+        if !header.name.is_empty() {
+            return None;
+        }
+
+        match header.value.as_ref() {
+            CommandRecord::FENCE => {
+                let fencing_token = FencingToken::new(self.body.clone()).ok()?;
+                Some(CommandRecord::Fence { fencing_token })
+            }
+            CommandRecord::TRIM => {
+                let body: &[u8] = &self.body;
+                let seq_num = u64::from_be_bytes(body.try_into().ok()?);
+                Some(CommandRecord::Trim { seq_num })
+            }
+            _ => None,
         }
     }
 }
