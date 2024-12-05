@@ -1361,19 +1361,15 @@ pub struct ReadLimit {
 #[sync_docs]
 #[derive(Debug, Clone, Default)]
 pub struct ReadRequest {
-    pub start_seq_num: Option<u64>,
+    pub start_seq_num: u64,
     pub limit: Option<ReadLimit>,
 }
 
 impl ReadRequest {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn with_start_seq_num(self, start_seq_num: impl Into<u64>) -> Self {
+    pub fn new(start_seq_num: u64) -> Self {
         Self {
-            start_seq_num: Some(start_seq_num.into()),
-            ..self
+            start_seq_num,
+            ..Default::default()
         }
     }
 
@@ -1532,19 +1528,15 @@ impl TryFrom<api::ReadResponse> for ReadOutput {
 #[sync_docs]
 #[derive(Debug, Clone, Default)]
 pub struct ReadSessionRequest {
-    pub start_seq_num: Option<u64>,
+    pub start_seq_num: u64,
     pub limit: Option<ReadLimit>,
 }
 
 impl ReadSessionRequest {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn with_start_seq_num(self, start_seq_num: impl Into<u64>) -> Self {
+    pub fn new(start_seq_num: u64) -> Self {
         Self {
-            start_seq_num: Some(start_seq_num.into()),
-            ..self
+            start_seq_num,
+            ..Default::default()
         }
     }
 

@@ -122,7 +122,7 @@ impl ReadSessionServiceRequest {
         }
     }
 
-    pub fn set_start_seq_num(&mut self, start_seq_num: Option<u64>) {
+    pub fn set_start_seq_num(&mut self, start_seq_num: u64) {
         self.req.start_seq_num = start_seq_num;
     }
 }
