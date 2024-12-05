@@ -796,7 +796,7 @@ fn read_resumption_stream(
                     }
                     if let Ok(types::ReadOutput::Batch(types::SequencedRecordBatch { records })) = &item {
                         if let Some(record) = records.last() {
-                            request.set_start_seq_num(Some(record.seq_num + 1));
+                            request.set_start_seq_num(record.seq_num + 1);
                         }
                     }
                     yield item;
