@@ -1044,20 +1044,6 @@ impl AppendRecord {
     pub fn try_from_parts(parts: AppendRecordParts) -> Result<Self, ConvertError> {
         Self::new(parts.body)?.with_headers(parts.headers)
     }
-
-    fn maybe_command(&self) -> Option<&str> {
-        if self.headers().len() != 1 {
-            return None;
-        }
-
-        let header = self.headers().first().expect("pre-validated length");
-
-        if !header.name.is_empty() {
-            return None;
-        }
-
-        std::str::from_utf8(&header.value).ok()
-    }
 }
 
 impl From<AppendRecord> for api::AppendRecord {
@@ -1080,25 +1066,6 @@ impl TryFrom<CommandRecord> for AppendRecord {
             }
         };
         Self::new(body)?.with_headers(vec![Header::from_value(header_value)])
-    }
-}
-
-impl TryFrom<AppendRecord> for CommandRecord {
-    type Error = AppendRecord;
-
-    fn try_from(value: AppendRecord) -> Result<Self, Self::Error> {
-        match value.maybe_command() {
-            Some(Self::FENCE) => {
-                let fencing_token = FencingToken::new(value.body.clone()).map_err(|_| value)?;
-                Ok(Self::Fence { fencing_token })
-            }
-            Some(Self::TRIM) => {
-                let seq_num =
-                    u64::from_be_bytes(value.body.clone().to_vec().try_into().map_err(|_| value)?);
-                Ok(Self::Trim { seq_num })
-            }
-            _ => Err(value),
-        }
     }
 }
 
@@ -1470,6 +1437,35 @@ impl From<api::SequencedRecord> for SequencedRecord {
             seq_num,
             headers: headers.into_iter().map(Into::into).collect(),
             body,
+        }
+    }
+}
+
+impl SequencedRecord {
+    pub fn as_command_record(&self) -> Option<CommandRecord> {
+        if self.headers.len() != 1 {
+            return None;
+        }
+
+        let header = self.headers.first().expect("pre-validated length");
+
+        if !header.name.is_empty() {
+            return None;
+        }
+
+        let cmd = std::str::from_utf8(&header.value).ok()?;
+
+        match cmd {
+            CommandRecord::FENCE => {
+                let fencing_token = FencingToken::new(self.body.clone()).ok()?;
+                Some(CommandRecord::Fence { fencing_token })
+            }
+            CommandRecord::TRIM => {
+                let body: &[u8] = &self.body;
+                let seq_num = u64::from_be_bytes(body.try_into().ok()?);
+                Some(CommandRecord::Trim { seq_num })
+            }
+            _ => None,
         }
     }
 }
