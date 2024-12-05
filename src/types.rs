@@ -1083,34 +1083,21 @@ impl TryFrom<CommandRecord> for AppendRecord {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum TryIntoCommandRecordError {
-    #[error("The record is not a command record")]
-    NotCommandRecord(AppendRecord),
-    #[error(transparent)]
-    ConvertError(#[from] ConvertError),
-}
-
 impl TryFrom<AppendRecord> for CommandRecord {
-    type Error = TryIntoCommandRecordError;
+    type Error = AppendRecord;
 
     fn try_from(value: AppendRecord) -> Result<Self, Self::Error> {
         match value.maybe_command() {
             Some(Self::FENCE) => {
-                let fencing_token = FencingToken::new(value.body)?;
+                let fencing_token = FencingToken::new(value.body.clone()).map_err(|_| value)?;
                 Ok(Self::Fence { fencing_token })
             }
             Some(Self::TRIM) => {
-                let seq_num = u64::from_be_bytes(
-                    value
-                        .body
-                        .to_vec()
-                        .try_into()
-                        .map_err(|_| ConvertError("invalid sequence number".to_string()))?,
-                );
+                let seq_num =
+                    u64::from_be_bytes(value.body.clone().to_vec().try_into().map_err(|_| value)?);
                 Ok(Self::Trim { seq_num })
             }
-            _ => Err(TryIntoCommandRecordError::NotCommandRecord(value)),
+            _ => Err(value),
         }
     }
 }
