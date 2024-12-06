@@ -958,10 +958,8 @@ impl CommandRecord {
     const FENCE: &[u8] = b"fence";
     const TRIM: &[u8] = b"trim";
 
-    pub fn fence(fencing_token: Option<FencingToken>) -> Self {
-        Self::Fence {
-            fencing_token: fencing_token.unwrap_or_default(),
-        }
+    pub fn fence(fencing_token: FencingToken) -> Self {
+        Self::Fence { fencing_token }
     }
 
     pub fn trim(seq_num: impl Into<u64>) -> Self {
