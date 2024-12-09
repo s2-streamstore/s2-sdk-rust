@@ -2,8 +2,7 @@ use std::{ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
 
 use bytes::Bytes;
 use regex::Regex;
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
+
 use sync_docs::sync_docs;
 
 use crate::api;
@@ -49,7 +48,6 @@ macro_rules! metered_impl {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct CreateBasinRequest {
     pub basin: BasinName,
@@ -85,7 +83,6 @@ impl From<CreateBasinRequest> for api::CreateBasinRequest {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Default)]
 pub struct BasinConfig {
     pub default_stream_config: Option<StreamConfig>,
@@ -127,7 +124,6 @@ impl TryFrom<api::BasinConfig> for BasinConfig {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Default)]
 pub struct StreamConfig {
     pub storage_class: StorageClass,
@@ -182,7 +178,6 @@ impl TryFrom<api::StreamConfig> for StreamConfig {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StorageClass {
     #[default]
@@ -239,7 +234,6 @@ impl TryFrom<i32> for StorageClass {
 }
 
 #[sync_docs(Age = "AgeMillis")]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub enum RetentionPolicy {
     Age(Duration),
@@ -262,7 +256,6 @@ impl From<api::stream_config::RetentionPolicy> for RetentionPolicy {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BasinState {
     Unspecified,
@@ -320,7 +313,6 @@ impl std::fmt::Display for BasinState {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct BasinInfo {
     pub name: String,
@@ -374,7 +366,6 @@ impl TryFrom<api::CreateBasinResponse> for BasinInfo {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Default)]
 pub struct ListStreamsRequest {
     pub prefix: String,
@@ -428,7 +419,6 @@ impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct StreamInfo {
     pub name: String,
@@ -447,7 +437,6 @@ impl From<api::StreamInfo> for StreamInfo {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct ListStreamsResponse {
     pub streams: Vec<StreamInfo>,
@@ -481,7 +470,6 @@ impl TryFrom<api::GetStreamConfigResponse> for StreamConfig {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct CreateStreamRequest {
     pub stream: String,
@@ -515,7 +503,6 @@ impl From<CreateStreamRequest> for api::CreateStreamRequest {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Default)]
 pub struct ListBasinsRequest {
     pub prefix: String,
@@ -569,7 +556,6 @@ impl TryFrom<ListBasinsRequest> for api::ListBasinsRequest {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct ListBasinsResponse {
     pub basins: Vec<BasinInfo>,
@@ -591,7 +577,6 @@ impl TryFrom<api::ListBasinsResponse> for ListBasinsResponse {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct DeleteBasinRequest {
     pub basin: BasinName,
@@ -620,7 +605,6 @@ impl From<DeleteBasinRequest> for api::DeleteBasinRequest {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct DeleteStreamRequest {
     pub stream: String,
@@ -649,7 +633,6 @@ impl From<DeleteStreamRequest> for api::DeleteStreamRequest {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct ReconfigureBasinRequest {
     pub basin: BasinName,
@@ -706,7 +689,6 @@ impl TryFrom<api::ReconfigureBasinResponse> for BasinConfig {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct ReconfigureStreamRequest {
     pub stream: String,
@@ -808,41 +790,6 @@ impl From<api::Header> for Header {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FencingToken(Bytes);
-
-#[cfg(feature = "serde")]
-impl Serialize for FencingToken {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use std::fmt::Write;
-
-        let mut bytes_str = "0x".to_owned();
-        for b in self.0.iter() {
-            write!(&mut bytes_str, "{:02x}", b).expect("writing to string");
-        }
-        serializer.serialize_str(&bytes_str)
-    }
-}
-
-#[cfg(feature = "serde")]
-impl<'de> Deserialize<'de> for FencingToken {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        use serde::de::Error;
-
-        let bytes_str = String::deserialize(deserializer)?;
-        let bytes = if let Some(bytes) = Self::try_from_hex_bytes(&bytes_str) {
-            bytes.map_err(D::Error::custom)?
-        } else {
-            bytes_str.into()
-        };
-
-        Self::new(bytes).map_err(D::Error::custom)
-    }
-}
 
 impl FencingToken {
     const MAX_BYTES: usize = 16;
@@ -947,7 +894,6 @@ impl TryFrom<Vec<u8>> for FencingToken {
 }
 
 #[sync_docs]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub enum CommandRecord {
     Fence { fencing_token: FencingToken },
@@ -1570,7 +1516,6 @@ impl TryFrom<api::ReadSessionResponse> for ReadOutput {
     }
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct BasinName(String);
 
