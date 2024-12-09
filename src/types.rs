@@ -2,7 +2,6 @@ use std::{ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
 
 use bytes::Bytes;
 use regex::Regex;
-
 use sync_docs::sync_docs;
 
 use crate::api;
