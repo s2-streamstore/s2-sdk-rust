@@ -1,13 +1,12 @@
-[workspace]
-members = [
-    "sync_docs"
-]
-
 [package]
 name = "streamstore"
+description = "Rust SDK for S2"
 version = "0.2.0"
 edition = "2021"
 license = "Apache-2.0"
+keywords = ["wal", "grpc", "s2", "log", "stream"]
+repository = "https://github.com/s2-streamstore/s2-sdk-rust"
+homepage = "https://github.com/s2-streamstore/s2-sdk-rust"
 
 [dependencies]
 async-stream = "0.3.6"
@@ -21,7 +20,7 @@ prost = "0.13.3"
 prost-types = "0.13.3"
 regex = "1.11.1"
 secrecy = "0.8.0"
-sync_docs = { path = "sync_docs" }
+sync_docs = "0.1.0"
 thiserror = "1.0.67"
 tokio = { version = "1.41.1", features = ["time"] }
 tokio-muxt = "0.5.0"
