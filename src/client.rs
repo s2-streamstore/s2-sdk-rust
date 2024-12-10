@@ -215,7 +215,7 @@ impl ClientConfig {
             uri_scheme: http::uri::Scheme::HTTPS,
             retry_backoff_duration: Duration::from_millis(100),
             max_attempts: 3,
-            max_append_inflight_bytes: 256 * MIB_BYTES,
+            max_append_inflight_bytes: 100 * MIB_BYTES,
         }
     }
 
@@ -268,7 +268,7 @@ impl ClientConfig {
     /// Maximum total size of currently inflight (pending acknowledgment) append
     /// batches within an append session, as measured by `MeteredSize` formula.
     ///
-    /// Must be at least 1MiB. Defaults to 256MiB.
+    /// Must be at least 1 MiB. Defaults to 100 MiB.
     pub fn with_max_append_inflight_bytes(self, max_append_inflight_bytes: u64) -> Self {
         assert!(
             max_append_inflight_bytes >= MIB_BYTES,
