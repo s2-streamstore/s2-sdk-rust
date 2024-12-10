@@ -1,2 +1,1 @@
-# s2.rs
-Rust SDK for S2
+# Rust SDK for S2
