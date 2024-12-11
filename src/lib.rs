@@ -1,4 +1,6 @@
+#[rustfmt::skip]
 mod api;
+
 mod append_session;
 mod service;
 
