@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2024-12-11
+
+### Features
+
+- Return reconfigured stream ([#95](https://github.com/s2-streamstore/s2-cli/issues/95))
+- Implement `SequencedRecord::as_command_record` ([#96](https://github.com/s2-streamstore/s2-cli/issues/96))
+- Make protoc requirement optional ([#103](https://github.com/s2-streamstore/s2-cli/issues/103))
+
+### Bug Fixes
+
+- Tonic-side-effect version ([#102](https://github.com/s2-streamstore/s2-cli/issues/102))
+
+### Miscellaneous Tasks
+
+- Update proto and associated types for non-optional `start_seq_num` ([#97](https://github.com/s2-streamstore/s2-cli/issues/97))
+- `CommandRecord::Fence` requires `FencingToken` even if empty ([#98](https://github.com/s2-streamstore/s2-cli/issues/98))
+- Rm serde ([#99](https://github.com/s2-streamstore/s2-cli/issues/99))
+- Lower `max_append_inflight_bytes` default
+- Move sync_docs to separate repository ([#101](https://github.com/s2-streamstore/s2-cli/issues/101))
+
 ## [0.2.0] - 2024-12-04
 
 ### Features
