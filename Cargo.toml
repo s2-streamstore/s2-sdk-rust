@@ -20,7 +20,7 @@ prost = "0.13.3"
 prost-types = "0.13.3"
 regex = "1.11.1"
 secrecy = "0.8.0"
-sync_docs = { git = "https://github.com/s2-streamstore/sync_docs" }
+sync_docs = "0.2.0"
 thiserror = "1.0.67"
 tokio = { version = "1.41.1", features = ["time"] }
 tokio-muxt = "0.5.0"
