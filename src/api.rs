@@ -25,9 +25,9 @@ pub struct ListBasinsResponse {
 /// Create a new basin.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateBasinRequest {
-    /// Basin name, which must be globally unique. It can be omitted to let the service assign a
-    /// unique name. The name must be between 8 and 48 characters, comprising lowercase
-    /// letters, numbers and hyphens. It cannot begin or end with a hyphen.
+    /// Basin name, which must be globally unique. It can be omitted to let the service assign a unique name.
+    /// The name must be between 8 and 48 characters, comprising lowercase letters, numbers and hyphens.
+    /// It cannot begin or end with a hyphen.
     #[prost(string, tag = "1")]
     pub basin: ::prost::alloc::string::String,
     /// Basin configuration.
@@ -203,8 +203,8 @@ pub struct AppendInput {
     /// Stream name. Optional for subsequent requests in the session.
     #[prost(string, tag = "1")]
     pub stream: ::prost::alloc::string::String,
-    /// Batch of records to append atomically, which must contain at least one record, and no more
-    /// than 1000. The total size of a batch of records may not exceed 1MiB of metered bytes.
+    /// Batch of records to append atomically, which must contain at least one record, and no more than 1000.
+    /// The total size of a batch of records may not exceed 1MiB of metered bytes.
     #[prost(message, repeated, tag = "2")]
     pub records: ::prost::alloc::vec::Vec<AppendRecord>,
     /// Enforce that the sequence number issued to the first record matches.
@@ -254,33 +254,27 @@ pub struct AppendSessionResponse {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReadOutput {
-    /// Reply which can be a batch of records, or a sequence number if the request could not be
-    /// satisfied.
+    /// Reply which can be a batch of records, or a sequence number if the request could not be satisfied.
     #[prost(oneof = "read_output::Output", tags = "1, 2, 3")]
     pub output: ::core::option::Option<read_output::Output>,
 }
 /// Nested message and enum types in `ReadOutput`.
 pub mod read_output {
-    /// Reply which can be a batch of records, or a sequence number if the request could not be
-    /// satisfied.
+    /// Reply which can be a batch of records, or a sequence number if the request could not be satisfied.
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Output {
         /// Batch of records.
-        /// This batch can be empty only if a `ReadLimit` was provided in the associated read
-        /// request, but the first record that could have been returned would violate the
-        /// limit.
+        /// This batch can be empty only if a `ReadLimit` was provided in the associated read request, but the first record
+        /// that could have been returned would violate the limit.
         #[prost(message, tag = "1")]
         Batch(super::SequencedRecordBatch),
-        /// Sequence number for the first record on this stream, in case the requested
-        /// `start_seq_num` is smaller. If returned in a streaming read session, this will
-        /// be a terminal reply, to signal that there is uncertainty about whether some records may
-        /// be omitted. The client can re-establish the session starting at this sequence
-        /// number.
+        /// Sequence number for the first record on this stream, in case the requested `start_seq_num` is smaller.
+        /// If returned in a streaming read session, this will be a terminal reply, to signal that there is uncertainty about whether some records may be omitted.
+        /// The client can re-establish the session starting at this sequence number.
         #[prost(uint64, tag = "2")]
         FirstSeqNum(u64),
-        /// Sequence number for the next record on this stream, in case the requested
-        /// `start_seq_num` was larger. If returned in a streaming read session, this will
-        /// be a terminal reply.
+        /// Sequence number for the next record on this stream, in case the requested `start_seq_num` was larger.
+        /// If returned in a streaming read session, this will be a terminal reply.
         #[prost(uint64, tag = "3")]
         NextSeqNum(u64),
     }
@@ -325,11 +319,10 @@ pub struct ReadSessionRequest {
     /// Starting sequence number (inclusive).
     #[prost(uint64, tag = "2")]
     pub start_seq_num: u64,
-    /// Limit on how many records can be returned. When a limit is specified, the session will be
-    /// terminated as soon as the limit is met, or when the current tail of the stream is
-    /// reached -- whichever occurs first. If no limit is specified, the session will remain
-    /// open after catching up to the tail, and continue tailing as new messages are written to
-    /// the stream.
+    /// Limit on how many records can be returned. When a limit is specified, the session will be terminated as soon as
+    /// the limit is met, or when the current tail of the stream is reached -- whichever occurs first.
+    /// If no limit is specified, the session will remain open after catching up to the tail, and continue tailing as
+    /// new messages are written to the stream.
     #[prost(message, optional, tag = "3")]
     pub limit: ::core::option::Option<ReadLimit>,
 }
@@ -357,8 +350,7 @@ pub mod stream_config {
     pub enum RetentionPolicy {
         /// Age in seconds for automatic trimming of records older than this threshold.
         /// If set to 0, the stream will have infinite retention.
-        /// Currently, a maximum retention of 28 days is allowed. This limit will be lifted in
-        /// future.
+        /// Currently, a maximum retention of 28 days is allowed. This limit will be lifted in future.
         #[prost(uint64, tag = "2")]
         Age(u64),
     }
@@ -386,18 +378,11 @@ pub struct BasinInfo {
 }
 /// Headers add structured information to a record as name-value pairs.
 ///
-/// Header names cannot be empty, with the exception of "command messages" that are interpreted by
-/// S2. A command message is signalled by a sole header with empty name. The header value represents
-/// an operation, and the record body acts as a payload for the command. S2 client SDKs provide
-/// high-level APIs for command messages, and advanced users may also create them directly.
+/// Header names cannot be empty, with the exception of "command messages" that are interpreted by S2. A command message is signalled by a sole header with empty name. The header value represents an operation, and the record body acts as a payload for the command. S2 client SDKs provide high-level APIs for command messages, and advanced users may also create them directly.
 ///
 /// Valid operations are as follows:
-/// - `fence` with an upto 16 byte payload to set a fencing token. An empty payload clears the
-///   token. Fencing is strongly consistent, and subsequent appends that specify a fencing token
-///   will be rejected if it does not match.
-/// - `trim` with exactly 8 big-endian bytes as payload representing the desired earliest sequence
-///   number. This sequence number is only allowed to advance, and any regression will be ignored.
-///   Trimming is eventually consistent, and trimmed records may be visible for a brief period.
+/// - `fence` with an upto 16 byte payload to set a fencing token. An empty payload clears the token. Fencing is strongly consistent, and subsequent appends that specify a fencing token will be rejected if it does not match.
+/// - `trim` with exactly 8 big-endian bytes as payload representing the desired earliest sequence number. This sequence number is only allowed to advance, and any regression will be ignored. Trimming is eventually consistent, and trimmed records may be visible for a brief period.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Header {
     /// Header name blob.
@@ -511,9 +496,10 @@ pub mod account_service_client {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value
+        clippy::let_unit_value,
     )]
-    use tonic::codegen::{http::Uri, *};
+    use tonic::codegen::*;
+    use tonic::codegen::http::Uri;
     /// Operate on an S2 account.
     #[derive(Debug, Clone)]
     pub struct AccountServiceClient<T> {
@@ -558,8 +544,9 @@ pub mod account_service_client {
                     <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
             >,
-            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
-                Into<StdError> + std::marker::Send + std::marker::Sync,
+            <T as tonic::codegen::Service<
+                http::Request<tonic::body::BoxBody>,
+            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             AccountServiceClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -598,33 +585,48 @@ pub mod account_service_client {
         pub async fn list_basins(
             &mut self,
             request: impl tonic::IntoRequest<super::ListBasinsRequest>,
-        ) -> std::result::Result<tonic::Response<super::ListBasinsResponse>, tonic::Status>
-        {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::ListBasinsResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path =
-                http::uri::PathAndQuery::from_static("/s2.v1alpha.AccountService/ListBasins");
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.AccountService/ListBasins",
+            );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("s2.v1alpha.AccountService", "ListBasins"));
             self.inner.unary(req, path, codec).await
         }
         /// Create a new basin.
-        /// Provide a client request token with the `S2-Request-Token` header to allow idempotent
-        /// retries.
+        /// Provide a client request token with the `S2-Request-Token` header to allow idempotent retries.
         pub async fn create_basin(
             &mut self,
             request: impl tonic::IntoRequest<super::CreateBasinRequest>,
-        ) -> std::result::Result<tonic::Response<super::CreateBasinResponse>, tonic::Status>
-        {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::CreateBasinResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path =
-                http::uri::PathAndQuery::from_static("/s2.v1alpha.AccountService/CreateBasin");
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.AccountService/CreateBasin",
+            );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("s2.v1alpha.AccountService", "CreateBasin"));
@@ -635,14 +637,22 @@ pub mod account_service_client {
         pub async fn delete_basin(
             &mut self,
             request: impl tonic::IntoRequest<super::DeleteBasinRequest>,
-        ) -> std::result::Result<tonic::Response<super::DeleteBasinResponse>, tonic::Status>
-        {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::DeleteBasinResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path =
-                http::uri::PathAndQuery::from_static("/s2.v1alpha.AccountService/DeleteBasin");
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.AccountService/DeleteBasin",
+            );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("s2.v1alpha.AccountService", "DeleteBasin"));
@@ -652,38 +662,52 @@ pub mod account_service_client {
         pub async fn reconfigure_basin(
             &mut self,
             request: impl tonic::IntoRequest<super::ReconfigureBasinRequest>,
-        ) -> std::result::Result<tonic::Response<super::ReconfigureBasinResponse>, tonic::Status>
-        {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::ReconfigureBasinResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path =
-                http::uri::PathAndQuery::from_static("/s2.v1alpha.AccountService/ReconfigureBasin");
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.AccountService/ReconfigureBasin",
+            );
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new(
-                "s2.v1alpha.AccountService",
-                "ReconfigureBasin",
-            ));
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("s2.v1alpha.AccountService", "ReconfigureBasin"),
+                );
             self.inner.unary(req, path, codec).await
         }
         /// Get basin configuration.
         pub async fn get_basin_config(
             &mut self,
             request: impl tonic::IntoRequest<super::GetBasinConfigRequest>,
-        ) -> std::result::Result<tonic::Response<super::GetBasinConfigResponse>, tonic::Status>
-        {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::GetBasinConfigResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path =
-                http::uri::PathAndQuery::from_static("/s2.v1alpha.AccountService/GetBasinConfig");
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.AccountService/GetBasinConfig",
+            );
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new(
-                "s2.v1alpha.AccountService",
-                "GetBasinConfig",
-            ));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("s2.v1alpha.AccountService", "GetBasinConfig"));
             self.inner.unary(req, path, codec).await
         }
     }
@@ -695,9 +719,10 @@ pub mod basin_service_client {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value
+        clippy::let_unit_value,
     )]
-    use tonic::codegen::{http::Uri, *};
+    use tonic::codegen::*;
+    use tonic::codegen::http::Uri;
     /// Operate on an S2 basin.
     #[derive(Debug, Clone)]
     pub struct BasinServiceClient<T> {
@@ -742,8 +767,9 @@ pub mod basin_service_client {
                     <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
             >,
-            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
-                Into<StdError> + std::marker::Send + std::marker::Sync,
+            <T as tonic::codegen::Service<
+                http::Request<tonic::body::BoxBody>,
+            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             BasinServiceClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -782,32 +808,48 @@ pub mod basin_service_client {
         pub async fn list_streams(
             &mut self,
             request: impl tonic::IntoRequest<super::ListStreamsRequest>,
-        ) -> std::result::Result<tonic::Response<super::ListStreamsResponse>, tonic::Status>
-        {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::ListStreamsResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static("/s2.v1alpha.BasinService/ListStreams");
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.BasinService/ListStreams",
+            );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("s2.v1alpha.BasinService", "ListStreams"));
             self.inner.unary(req, path, codec).await
         }
         /// Create a stream.
-        /// Provide a client request token with the `S2-Request-Token` header to allow idempotent
-        /// retries.
+        /// Provide a client request token with the `S2-Request-Token` header to allow idempotent retries.
         pub async fn create_stream(
             &mut self,
             request: impl tonic::IntoRequest<super::CreateStreamRequest>,
-        ) -> std::result::Result<tonic::Response<super::CreateStreamResponse>, tonic::Status>
-        {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::CreateStreamResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path =
-                http::uri::PathAndQuery::from_static("/s2.v1alpha.BasinService/CreateStream");
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.BasinService/CreateStream",
+            );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("s2.v1alpha.BasinService", "CreateStream"));
@@ -818,14 +860,22 @@ pub mod basin_service_client {
         pub async fn delete_stream(
             &mut self,
             request: impl tonic::IntoRequest<super::DeleteStreamRequest>,
-        ) -> std::result::Result<tonic::Response<super::DeleteStreamResponse>, tonic::Status>
-        {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::DeleteStreamResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path =
-                http::uri::PathAndQuery::from_static("/s2.v1alpha.BasinService/DeleteStream");
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.BasinService/DeleteStream",
+            );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("s2.v1alpha.BasinService", "DeleteStream"));
@@ -835,38 +885,50 @@ pub mod basin_service_client {
         pub async fn get_stream_config(
             &mut self,
             request: impl tonic::IntoRequest<super::GetStreamConfigRequest>,
-        ) -> std::result::Result<tonic::Response<super::GetStreamConfigResponse>, tonic::Status>
-        {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::GetStreamConfigResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path =
-                http::uri::PathAndQuery::from_static("/s2.v1alpha.BasinService/GetStreamConfig");
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.BasinService/GetStreamConfig",
+            );
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new(
-                "s2.v1alpha.BasinService",
-                "GetStreamConfig",
-            ));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("s2.v1alpha.BasinService", "GetStreamConfig"));
             self.inner.unary(req, path, codec).await
         }
         /// Update stream configuration.
         pub async fn reconfigure_stream(
             &mut self,
             request: impl tonic::IntoRequest<super::ReconfigureStreamRequest>,
-        ) -> std::result::Result<tonic::Response<super::ReconfigureStreamResponse>, tonic::Status>
-        {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::ReconfigureStreamResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path =
-                http::uri::PathAndQuery::from_static("/s2.v1alpha.BasinService/ReconfigureStream");
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.BasinService/ReconfigureStream",
+            );
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new(
-                "s2.v1alpha.BasinService",
-                "ReconfigureStream",
-            ));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("s2.v1alpha.BasinService", "ReconfigureStream"));
             self.inner.unary(req, path, codec).await
         }
     }
@@ -878,9 +940,10 @@ pub mod stream_service_client {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value
+        clippy::let_unit_value,
     )]
-    use tonic::codegen::{http::Uri, *};
+    use tonic::codegen::*;
+    use tonic::codegen::http::Uri;
     /// Operate on an S2 stream.
     #[derive(Debug, Clone)]
     pub struct StreamServiceClient<T> {
@@ -925,8 +988,9 @@ pub mod stream_service_client {
                     <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
             >,
-            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
-                Into<StdError> + std::marker::Send + std::marker::Sync,
+            <T as tonic::codegen::Service<
+                http::Request<tonic::body::BoxBody>,
+            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             StreamServiceClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -965,12 +1029,22 @@ pub mod stream_service_client {
         pub async fn check_tail(
             &mut self,
             request: impl tonic::IntoRequest<super::CheckTailRequest>,
-        ) -> std::result::Result<tonic::Response<super::CheckTailResponse>, tonic::Status> {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::CheckTailResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static("/s2.v1alpha.StreamService/CheckTail");
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.StreamService/CheckTail",
+            );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("s2.v1alpha.StreamService", "CheckTail"));
@@ -981,32 +1055,46 @@ pub mod stream_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::AppendRequest>,
         ) -> std::result::Result<tonic::Response<super::AppendResponse>, tonic::Status> {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static("/s2.v1alpha.StreamService/Append");
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.StreamService/Append",
+            );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("s2.v1alpha.StreamService", "Append"));
             self.inner.unary(req, path, codec).await
         }
-        /// Append batches of records to a stream continuously, while guaranteeing pipelined
-        /// requests are processed in order. If any request fails, the session is
-        /// terminated.
+        /// Append batches of records to a stream continuously, while guaranteeing pipelined requests are processed in order.
+        /// If any request fails, the session is terminated.
         pub async fn append_session(
             &mut self,
-            request: impl tonic::IntoStreamingRequest<Message = super::AppendSessionRequest>,
+            request: impl tonic::IntoStreamingRequest<
+                Message = super::AppendSessionRequest,
+            >,
         ) -> std::result::Result<
             tonic::Response<tonic::codec::Streaming<super::AppendSessionResponse>>,
             tonic::Status,
         > {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path =
-                http::uri::PathAndQuery::from_static("/s2.v1alpha.StreamService/AppendSession");
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.StreamService/AppendSession",
+            );
             let mut req = request.into_streaming_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("s2.v1alpha.StreamService", "AppendSession"));
@@ -1017,11 +1105,18 @@ pub mod stream_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::ReadRequest>,
         ) -> std::result::Result<tonic::Response<super::ReadResponse>, tonic::Status> {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static("/s2.v1alpha.StreamService/Read");
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.StreamService/Read",
+            );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("s2.v1alpha.StreamService", "Read"));
@@ -1035,12 +1130,18 @@ pub mod stream_service_client {
             tonic::Response<tonic::codec::Streaming<super::ReadSessionResponse>>,
             tonic::Status,
         > {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path =
-                http::uri::PathAndQuery::from_static("/s2.v1alpha.StreamService/ReadSession");
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.StreamService/ReadSession",
+            );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("s2.v1alpha.StreamService", "ReadSession"));
@@ -1055,41 +1156,54 @@ pub mod account_service_server {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value
+        clippy::let_unit_value,
     )]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with
-    /// AccountServiceServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with AccountServiceServer.
     #[async_trait]
     pub trait AccountService: std::marker::Send + std::marker::Sync + 'static {
         /// List basins.
         async fn list_basins(
             &self,
             request: tonic::Request<super::ListBasinsRequest>,
-        ) -> std::result::Result<tonic::Response<super::ListBasinsResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::ListBasinsResponse>,
+            tonic::Status,
+        >;
         /// Create a new basin.
-        /// Provide a client request token with the `S2-Request-Token` header to allow idempotent
-        /// retries.
+        /// Provide a client request token with the `S2-Request-Token` header to allow idempotent retries.
         async fn create_basin(
             &self,
             request: tonic::Request<super::CreateBasinRequest>,
-        ) -> std::result::Result<tonic::Response<super::CreateBasinResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::CreateBasinResponse>,
+            tonic::Status,
+        >;
         /// Delete a basin.
         /// Basin deletion is asynchronous, and may take a few minutes to complete.
         async fn delete_basin(
             &self,
             request: tonic::Request<super::DeleteBasinRequest>,
-        ) -> std::result::Result<tonic::Response<super::DeleteBasinResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::DeleteBasinResponse>,
+            tonic::Status,
+        >;
         /// Update basin configuration.
         async fn reconfigure_basin(
             &self,
             request: tonic::Request<super::ReconfigureBasinRequest>,
-        ) -> std::result::Result<tonic::Response<super::ReconfigureBasinResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::ReconfigureBasinResponse>,
+            tonic::Status,
+        >;
         /// Get basin configuration.
         async fn get_basin_config(
             &self,
             request: tonic::Request<super::GetBasinConfigRequest>,
-        ) -> std::result::Result<tonic::Response<super::GetBasinConfigResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::GetBasinConfigResponse>,
+            tonic::Status,
+        >;
     }
     /// Operate on an S2 account.
     #[derive(Debug)]
@@ -1113,7 +1227,10 @@ pub mod account_service_server {
                 max_encoding_message_size: None,
             }
         }
-        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> InterceptedService<Self, F>
         where
             F: tonic::service::Interceptor,
         {
@@ -1168,9 +1285,15 @@ pub mod account_service_server {
                 "/s2.v1alpha.AccountService/ListBasins" => {
                     #[allow(non_camel_case_types)]
                     struct ListBasinsSvc<T: AccountService>(pub Arc<T>);
-                    impl<T: AccountService> tonic::server::UnaryService<super::ListBasinsRequest> for ListBasinsSvc<T> {
+                    impl<
+                        T: AccountService,
+                    > tonic::server::UnaryService<super::ListBasinsRequest>
+                    for ListBasinsSvc<T> {
                         type Response = super::ListBasinsResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ListBasinsRequest>,
@@ -1207,11 +1330,15 @@ pub mod account_service_server {
                 "/s2.v1alpha.AccountService/CreateBasin" => {
                     #[allow(non_camel_case_types)]
                     struct CreateBasinSvc<T: AccountService>(pub Arc<T>);
-                    impl<T: AccountService> tonic::server::UnaryService<super::CreateBasinRequest>
-                        for CreateBasinSvc<T>
-                    {
+                    impl<
+                        T: AccountService,
+                    > tonic::server::UnaryService<super::CreateBasinRequest>
+                    for CreateBasinSvc<T> {
                         type Response = super::CreateBasinResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::CreateBasinRequest>,
@@ -1248,11 +1375,15 @@ pub mod account_service_server {
                 "/s2.v1alpha.AccountService/DeleteBasin" => {
                     #[allow(non_camel_case_types)]
                     struct DeleteBasinSvc<T: AccountService>(pub Arc<T>);
-                    impl<T: AccountService> tonic::server::UnaryService<super::DeleteBasinRequest>
-                        for DeleteBasinSvc<T>
-                    {
+                    impl<
+                        T: AccountService,
+                    > tonic::server::UnaryService<super::DeleteBasinRequest>
+                    for DeleteBasinSvc<T> {
                         type Response = super::DeleteBasinResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::DeleteBasinRequest>,
@@ -1289,19 +1420,23 @@ pub mod account_service_server {
                 "/s2.v1alpha.AccountService/ReconfigureBasin" => {
                     #[allow(non_camel_case_types)]
                     struct ReconfigureBasinSvc<T: AccountService>(pub Arc<T>);
-                    impl<T: AccountService>
-                        tonic::server::UnaryService<super::ReconfigureBasinRequest>
-                        for ReconfigureBasinSvc<T>
-                    {
+                    impl<
+                        T: AccountService,
+                    > tonic::server::UnaryService<super::ReconfigureBasinRequest>
+                    for ReconfigureBasinSvc<T> {
                         type Response = super::ReconfigureBasinResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ReconfigureBasinRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as AccountService>::reconfigure_basin(&inner, request).await
+                                <T as AccountService>::reconfigure_basin(&inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -1331,19 +1466,23 @@ pub mod account_service_server {
                 "/s2.v1alpha.AccountService/GetBasinConfig" => {
                     #[allow(non_camel_case_types)]
                     struct GetBasinConfigSvc<T: AccountService>(pub Arc<T>);
-                    impl<T: AccountService>
-                        tonic::server::UnaryService<super::GetBasinConfigRequest>
-                        for GetBasinConfigSvc<T>
-                    {
+                    impl<
+                        T: AccountService,
+                    > tonic::server::UnaryService<super::GetBasinConfigRequest>
+                    for GetBasinConfigSvc<T> {
                         type Response = super::GetBasinConfigResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::GetBasinConfigRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as AccountService>::get_basin_config(&inner, request).await
+                                <T as AccountService>::get_basin_config(&inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -1370,19 +1509,23 @@ pub mod account_service_server {
                     };
                     Box::pin(fut)
                 }
-                _ => Box::pin(async move {
-                    let mut response = http::Response::new(empty_body());
-                    let headers = response.headers_mut();
-                    headers.insert(
-                        tonic::Status::GRPC_STATUS,
-                        (tonic::Code::Unimplemented as i32).into(),
-                    );
-                    headers.insert(
-                        http::header::CONTENT_TYPE,
-                        tonic::metadata::GRPC_CONTENT_TYPE,
-                    );
-                    Ok(response)
-                }),
+                _ => {
+                    Box::pin(async move {
+                        let mut response = http::Response::new(empty_body());
+                        let headers = response.headers_mut();
+                        headers
+                            .insert(
+                                tonic::Status::GRPC_STATUS,
+                                (tonic::Code::Unimplemented as i32).into(),
+                            );
+                        headers
+                            .insert(
+                                http::header::CONTENT_TYPE,
+                                tonic::metadata::GRPC_CONTENT_TYPE,
+                            );
+                        Ok(response)
+                    })
+                }
             }
         }
     }
@@ -1411,41 +1554,54 @@ pub mod basin_service_server {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value
+        clippy::let_unit_value,
     )]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with
-    /// BasinServiceServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with BasinServiceServer.
     #[async_trait]
     pub trait BasinService: std::marker::Send + std::marker::Sync + 'static {
         /// List streams.
         async fn list_streams(
             &self,
             request: tonic::Request<super::ListStreamsRequest>,
-        ) -> std::result::Result<tonic::Response<super::ListStreamsResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::ListStreamsResponse>,
+            tonic::Status,
+        >;
         /// Create a stream.
-        /// Provide a client request token with the `S2-Request-Token` header to allow idempotent
-        /// retries.
+        /// Provide a client request token with the `S2-Request-Token` header to allow idempotent retries.
         async fn create_stream(
             &self,
             request: tonic::Request<super::CreateStreamRequest>,
-        ) -> std::result::Result<tonic::Response<super::CreateStreamResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::CreateStreamResponse>,
+            tonic::Status,
+        >;
         /// Delete a stream.
         /// Stream deletion is asynchronous, and may take a few minutes to complete.
         async fn delete_stream(
             &self,
             request: tonic::Request<super::DeleteStreamRequest>,
-        ) -> std::result::Result<tonic::Response<super::DeleteStreamResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::DeleteStreamResponse>,
+            tonic::Status,
+        >;
         /// Get stream configuration.
         async fn get_stream_config(
             &self,
             request: tonic::Request<super::GetStreamConfigRequest>,
-        ) -> std::result::Result<tonic::Response<super::GetStreamConfigResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::GetStreamConfigResponse>,
+            tonic::Status,
+        >;
         /// Update stream configuration.
         async fn reconfigure_stream(
             &self,
             request: tonic::Request<super::ReconfigureStreamRequest>,
-        ) -> std::result::Result<tonic::Response<super::ReconfigureStreamResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::ReconfigureStreamResponse>,
+            tonic::Status,
+        >;
     }
     /// Operate on an S2 basin.
     #[derive(Debug)]
@@ -1469,7 +1625,10 @@ pub mod basin_service_server {
                 max_encoding_message_size: None,
             }
         }
-        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> InterceptedService<Self, F>
         where
             F: tonic::service::Interceptor,
         {
@@ -1524,9 +1683,15 @@ pub mod basin_service_server {
                 "/s2.v1alpha.BasinService/ListStreams" => {
                     #[allow(non_camel_case_types)]
                     struct ListStreamsSvc<T: BasinService>(pub Arc<T>);
-                    impl<T: BasinService> tonic::server::UnaryService<super::ListStreamsRequest> for ListStreamsSvc<T> {
+                    impl<
+                        T: BasinService,
+                    > tonic::server::UnaryService<super::ListStreamsRequest>
+                    for ListStreamsSvc<T> {
                         type Response = super::ListStreamsResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ListStreamsRequest>,
@@ -1563,11 +1728,15 @@ pub mod basin_service_server {
                 "/s2.v1alpha.BasinService/CreateStream" => {
                     #[allow(non_camel_case_types)]
                     struct CreateStreamSvc<T: BasinService>(pub Arc<T>);
-                    impl<T: BasinService> tonic::server::UnaryService<super::CreateStreamRequest>
-                        for CreateStreamSvc<T>
-                    {
+                    impl<
+                        T: BasinService,
+                    > tonic::server::UnaryService<super::CreateStreamRequest>
+                    for CreateStreamSvc<T> {
                         type Response = super::CreateStreamResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::CreateStreamRequest>,
@@ -1604,11 +1773,15 @@ pub mod basin_service_server {
                 "/s2.v1alpha.BasinService/DeleteStream" => {
                     #[allow(non_camel_case_types)]
                     struct DeleteStreamSvc<T: BasinService>(pub Arc<T>);
-                    impl<T: BasinService> tonic::server::UnaryService<super::DeleteStreamRequest>
-                        for DeleteStreamSvc<T>
-                    {
+                    impl<
+                        T: BasinService,
+                    > tonic::server::UnaryService<super::DeleteStreamRequest>
+                    for DeleteStreamSvc<T> {
                         type Response = super::DeleteStreamResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::DeleteStreamRequest>,
@@ -1645,18 +1818,23 @@ pub mod basin_service_server {
                 "/s2.v1alpha.BasinService/GetStreamConfig" => {
                     #[allow(non_camel_case_types)]
                     struct GetStreamConfigSvc<T: BasinService>(pub Arc<T>);
-                    impl<T: BasinService> tonic::server::UnaryService<super::GetStreamConfigRequest>
-                        for GetStreamConfigSvc<T>
-                    {
+                    impl<
+                        T: BasinService,
+                    > tonic::server::UnaryService<super::GetStreamConfigRequest>
+                    for GetStreamConfigSvc<T> {
                         type Response = super::GetStreamConfigResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::GetStreamConfigRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as BasinService>::get_stream_config(&inner, request).await
+                                <T as BasinService>::get_stream_config(&inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -1686,19 +1864,23 @@ pub mod basin_service_server {
                 "/s2.v1alpha.BasinService/ReconfigureStream" => {
                     #[allow(non_camel_case_types)]
                     struct ReconfigureStreamSvc<T: BasinService>(pub Arc<T>);
-                    impl<T: BasinService>
-                        tonic::server::UnaryService<super::ReconfigureStreamRequest>
-                        for ReconfigureStreamSvc<T>
-                    {
+                    impl<
+                        T: BasinService,
+                    > tonic::server::UnaryService<super::ReconfigureStreamRequest>
+                    for ReconfigureStreamSvc<T> {
                         type Response = super::ReconfigureStreamResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ReconfigureStreamRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as BasinService>::reconfigure_stream(&inner, request).await
+                                <T as BasinService>::reconfigure_stream(&inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -1725,19 +1907,23 @@ pub mod basin_service_server {
                     };
                     Box::pin(fut)
                 }
-                _ => Box::pin(async move {
-                    let mut response = http::Response::new(empty_body());
-                    let headers = response.headers_mut();
-                    headers.insert(
-                        tonic::Status::GRPC_STATUS,
-                        (tonic::Code::Unimplemented as i32).into(),
-                    );
-                    headers.insert(
-                        http::header::CONTENT_TYPE,
-                        tonic::metadata::GRPC_CONTENT_TYPE,
-                    );
-                    Ok(response)
-                }),
+                _ => {
+                    Box::pin(async move {
+                        let mut response = http::Response::new(empty_body());
+                        let headers = response.headers_mut();
+                        headers
+                            .insert(
+                                tonic::Status::GRPC_STATUS,
+                                (tonic::Code::Unimplemented as i32).into(),
+                            );
+                        headers
+                            .insert(
+                                http::header::CONTENT_TYPE,
+                                tonic::metadata::GRPC_CONTENT_TYPE,
+                            );
+                        Ok(response)
+                    })
+                }
             }
         }
     }
@@ -1766,18 +1952,20 @@ pub mod stream_service_server {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value
+        clippy::let_unit_value,
     )]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with
-    /// StreamServiceServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with StreamServiceServer.
     #[async_trait]
     pub trait StreamService: std::marker::Send + std::marker::Sync + 'static {
         /// Check the sequence number that will be assigned to the next record on a stream.
         async fn check_tail(
             &self,
             request: tonic::Request<super::CheckTailRequest>,
-        ) -> std::result::Result<tonic::Response<super::CheckTailResponse>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::CheckTailResponse>,
+            tonic::Status,
+        >;
         /// Append a batch of records to a stream.
         async fn append(
             &self,
@@ -1786,15 +1974,18 @@ pub mod stream_service_server {
         /// Server streaming response type for the AppendSession method.
         type AppendSessionStream: tonic::codegen::tokio_stream::Stream<
                 Item = std::result::Result<super::AppendSessionResponse, tonic::Status>,
-            > + std::marker::Send
+            >
+            + std::marker::Send
             + 'static;
-        /// Append batches of records to a stream continuously, while guaranteeing pipelined
-        /// requests are processed in order. If any request fails, the session is
-        /// terminated.
+        /// Append batches of records to a stream continuously, while guaranteeing pipelined requests are processed in order.
+        /// If any request fails, the session is terminated.
         async fn append_session(
             &self,
             request: tonic::Request<tonic::Streaming<super::AppendSessionRequest>>,
-        ) -> std::result::Result<tonic::Response<Self::AppendSessionStream>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<Self::AppendSessionStream>,
+            tonic::Status,
+        >;
         /// Retrieve a batch of records from a stream.
         async fn read(
             &self,
@@ -1803,13 +1994,17 @@ pub mod stream_service_server {
         /// Server streaming response type for the ReadSession method.
         type ReadSessionStream: tonic::codegen::tokio_stream::Stream<
                 Item = std::result::Result<super::ReadSessionResponse, tonic::Status>,
-            > + std::marker::Send
+            >
+            + std::marker::Send
             + 'static;
         /// Retrieve batches of records from a stream continuously.
         async fn read_session(
             &self,
             request: tonic::Request<super::ReadSessionRequest>,
-        ) -> std::result::Result<tonic::Response<Self::ReadSessionStream>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<Self::ReadSessionStream>,
+            tonic::Status,
+        >;
     }
     /// Operate on an S2 stream.
     #[derive(Debug)]
@@ -1833,7 +2028,10 @@ pub mod stream_service_server {
                 max_encoding_message_size: None,
             }
         }
-        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> InterceptedService<Self, F>
         where
             F: tonic::service::Interceptor,
         {
@@ -1888,9 +2086,15 @@ pub mod stream_service_server {
                 "/s2.v1alpha.StreamService/CheckTail" => {
                     #[allow(non_camel_case_types)]
                     struct CheckTailSvc<T: StreamService>(pub Arc<T>);
-                    impl<T: StreamService> tonic::server::UnaryService<super::CheckTailRequest> for CheckTailSvc<T> {
+                    impl<
+                        T: StreamService,
+                    > tonic::server::UnaryService<super::CheckTailRequest>
+                    for CheckTailSvc<T> {
                         type Response = super::CheckTailResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::CheckTailRequest>,
@@ -1927,16 +2131,23 @@ pub mod stream_service_server {
                 "/s2.v1alpha.StreamService/Append" => {
                     #[allow(non_camel_case_types)]
                     struct AppendSvc<T: StreamService>(pub Arc<T>);
-                    impl<T: StreamService> tonic::server::UnaryService<super::AppendRequest> for AppendSvc<T> {
+                    impl<
+                        T: StreamService,
+                    > tonic::server::UnaryService<super::AppendRequest>
+                    for AppendSvc<T> {
                         type Response = super::AppendResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::AppendRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut =
-                                async move { <T as StreamService>::append(&inner, request).await };
+                            let fut = async move {
+                                <T as StreamService>::append(&inner, request).await
+                            };
                             Box::pin(fut)
                         }
                     }
@@ -1965,17 +2176,21 @@ pub mod stream_service_server {
                 "/s2.v1alpha.StreamService/AppendSession" => {
                     #[allow(non_camel_case_types)]
                     struct AppendSessionSvc<T: StreamService>(pub Arc<T>);
-                    impl<T: StreamService>
-                        tonic::server::StreamingService<super::AppendSessionRequest>
-                        for AppendSessionSvc<T>
-                    {
+                    impl<
+                        T: StreamService,
+                    > tonic::server::StreamingService<super::AppendSessionRequest>
+                    for AppendSessionSvc<T> {
                         type Response = super::AppendSessionResponse;
                         type ResponseStream = T::AppendSessionStream;
-                        type Future =
-                            BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<tonic::Streaming<super::AppendSessionRequest>>,
+                            request: tonic::Request<
+                                tonic::Streaming<super::AppendSessionRequest>,
+                            >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -2009,16 +2224,22 @@ pub mod stream_service_server {
                 "/s2.v1alpha.StreamService/Read" => {
                     #[allow(non_camel_case_types)]
                     struct ReadSvc<T: StreamService>(pub Arc<T>);
-                    impl<T: StreamService> tonic::server::UnaryService<super::ReadRequest> for ReadSvc<T> {
+                    impl<
+                        T: StreamService,
+                    > tonic::server::UnaryService<super::ReadRequest> for ReadSvc<T> {
                         type Response = super::ReadResponse;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ReadRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut =
-                                async move { <T as StreamService>::read(&inner, request).await };
+                            let fut = async move {
+                                <T as StreamService>::read(&inner, request).await
+                            };
                             Box::pin(fut)
                         }
                     }
@@ -2047,14 +2268,16 @@ pub mod stream_service_server {
                 "/s2.v1alpha.StreamService/ReadSession" => {
                     #[allow(non_camel_case_types)]
                     struct ReadSessionSvc<T: StreamService>(pub Arc<T>);
-                    impl<T: StreamService>
-                        tonic::server::ServerStreamingService<super::ReadSessionRequest>
-                        for ReadSessionSvc<T>
-                    {
+                    impl<
+                        T: StreamService,
+                    > tonic::server::ServerStreamingService<super::ReadSessionRequest>
+                    for ReadSessionSvc<T> {
                         type Response = super::ReadSessionResponse;
                         type ResponseStream = T::ReadSessionStream;
-                        type Future =
-                            BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ReadSessionRequest>,
@@ -2088,19 +2311,23 @@ pub mod stream_service_server {
                     };
                     Box::pin(fut)
                 }
-                _ => Box::pin(async move {
-                    let mut response = http::Response::new(empty_body());
-                    let headers = response.headers_mut();
-                    headers.insert(
-                        tonic::Status::GRPC_STATUS,
-                        (tonic::Code::Unimplemented as i32).into(),
-                    );
-                    headers.insert(
-                        http::header::CONTENT_TYPE,
-                        tonic::metadata::GRPC_CONTENT_TYPE,
-                    );
-                    Ok(response)
-                }),
+                _ => {
+                    Box::pin(async move {
+                        let mut response = http::Response::new(empty_body());
+                        let headers = response.headers_mut();
+                        headers
+                            .insert(
+                                tonic::Status::GRPC_STATUS,
+                                (tonic::Code::Unimplemented as i32).into(),
+                            );
+                        headers
+                            .insert(
+                                http::header::CONTENT_TYPE,
+                                tonic::metadata::GRPC_CONTENT_TYPE,
+                            );
+                        Ok(response)
+                    })
+                }
             }
         }
     }
