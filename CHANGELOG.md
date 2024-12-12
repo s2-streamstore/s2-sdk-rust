@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1] - 2024-12-12
+
+### Miscellaneous Tasks
+
+- Switch on `missing_docs` ([#106](https://github.com/s2-streamstore/s2-cli/issues/106))
+
 ## [0.3.0] - 2024-12-11
 
 ### Features
