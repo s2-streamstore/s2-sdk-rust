@@ -1,3 +1,5 @@
+//! Types for interacting with S2 services.
+
 use std::{ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
 
 use bytes::Bytes;
@@ -8,6 +10,7 @@ use crate::api;
 
 pub(crate) const MIB_BYTES: u64 = 1024 * 1024;
 
+/// Error related to conversion from one type to another.
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("{0}")]
 pub struct ConvertError(String);
@@ -18,7 +21,15 @@ impl<T: Into<String>> From<T> for ConvertError {
     }
 }
 
+/// Metered size of the object in bytes.
+///
+/// Bytes are calculated using the "metered bytes" formula:
+///
+/// ```python
+/// metered_bytes = lambda record: 8 + 2 * len(record.headers) + sum((len(h.key) + len(h.value)) for h in record.headers) + len(record.body)
+/// ```
 pub trait MeteredBytes {
+    /// Return the metered bytes of the object.
     fn metered_bytes(&self) -> u64;
 }
 
@@ -55,6 +66,7 @@ pub struct CreateBasinRequest {
 }
 
 impl CreateBasinRequest {
+    /// Create a new request with basin name.
     pub fn new(basin: BasinName) -> Self {
         Self {
             basin,
@@ -62,6 +74,7 @@ impl CreateBasinRequest {
         }
     }
 
+    /// Overwrite basin configuration.
     pub fn with_config(self, config: BasinConfig) -> Self {
         Self {
             config: Some(config),
@@ -88,10 +101,12 @@ pub struct BasinConfig {
 }
 
 impl BasinConfig {
+    /// Create a new request.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Overwrite default stream configuration.
     pub fn with_default_stream_config(default_stream_config: StreamConfig) -> Self {
         Self {
             default_stream_config: Some(default_stream_config),
@@ -130,10 +145,12 @@ pub struct StreamConfig {
 }
 
 impl StreamConfig {
+    /// Create a new request.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Overwrite storage class.
     pub fn with_storage_class(self, storage_class: impl Into<StorageClass>) -> Self {
         Self {
             storage_class: storage_class.into(),
@@ -141,6 +158,7 @@ impl StreamConfig {
         }
     }
 
+    /// Overwrite retention policy.
     pub fn with_retention_policy(self, retention_policy: RetentionPolicy) -> Self {
         Self {
             retention_policy: Some(retention_policy),
@@ -232,7 +250,7 @@ impl TryFrom<i32> for StorageClass {
     }
 }
 
-#[sync_docs(Age = "AgeMillis")]
+#[sync_docs(Age = "Age")]
 #[derive(Debug, Clone)]
 pub enum RetentionPolicy {
     Age(Duration),
@@ -373,10 +391,12 @@ pub struct ListStreamsRequest {
 }
 
 impl ListStreamsRequest {
+    /// Create a new request.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Overwrite prefix.
     pub fn with_prefix(self, prefix: impl Into<String>) -> Self {
         Self {
             prefix: prefix.into(),
@@ -384,6 +404,7 @@ impl ListStreamsRequest {
         }
     }
 
+    /// Overwrite start after.
     pub fn with_start_after(self, start_after: impl Into<String>) -> Self {
         Self {
             start_after: start_after.into(),
@@ -391,6 +412,7 @@ impl ListStreamsRequest {
         }
     }
 
+    /// Overwrite limit.
     pub fn with_limit(self, limit: impl Into<usize>) -> Self {
         Self {
             limit: limit.into(),
@@ -476,6 +498,7 @@ pub struct CreateStreamRequest {
 }
 
 impl CreateStreamRequest {
+    /// Create a new request with stream name.
     pub fn new(stream: impl Into<String>) -> Self {
         Self {
             stream: stream.into(),
@@ -483,6 +506,7 @@ impl CreateStreamRequest {
         }
     }
 
+    /// Overwrite stream config.
     pub fn with_config(self, config: StreamConfig) -> Self {
         Self {
             config: Some(config),
@@ -510,10 +534,12 @@ pub struct ListBasinsRequest {
 }
 
 impl ListBasinsRequest {
+    /// Create a new request.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Overwrite prefix.
     pub fn with_prefix(self, prefix: impl Into<String>) -> Self {
         Self {
             prefix: prefix.into(),
@@ -521,6 +547,7 @@ impl ListBasinsRequest {
         }
     }
 
+    /// Overwrite start after.
     pub fn with_start_after(self, start_after: impl Into<String>) -> Self {
         Self {
             start_after: start_after.into(),
@@ -528,6 +555,7 @@ impl ListBasinsRequest {
         }
     }
 
+    /// Overwrite limit.
     pub fn with_limit(self, limit: impl Into<usize>) -> Self {
         Self {
             limit: limit.into(),
@@ -584,6 +612,7 @@ pub struct DeleteBasinRequest {
 }
 
 impl DeleteBasinRequest {
+    /// Create a new request.
     pub fn new(basin: BasinName) -> Self {
         Self {
             basin,
@@ -591,6 +620,7 @@ impl DeleteBasinRequest {
         }
     }
 
+    /// Overwrite the if exists parameter.
     pub fn with_if_exists(self, if_exists: bool) -> Self {
         Self { if_exists, ..self }
     }
@@ -612,6 +642,7 @@ pub struct DeleteStreamRequest {
 }
 
 impl DeleteStreamRequest {
+    /// Create a new request.
     pub fn new(stream: impl Into<String>) -> Self {
         Self {
             stream: stream.into(),
@@ -619,6 +650,7 @@ impl DeleteStreamRequest {
         }
     }
 
+    /// Overwrite the if exists parameter.
     pub fn with_if_exists(self, if_exists: bool) -> Self {
         Self { if_exists, ..self }
     }
@@ -640,6 +672,7 @@ pub struct ReconfigureBasinRequest {
 }
 
 impl ReconfigureBasinRequest {
+    /// Create a new request with basin name.
     pub fn new(basin: BasinName) -> Self {
         Self {
             basin,
@@ -648,6 +681,7 @@ impl ReconfigureBasinRequest {
         }
     }
 
+    /// Overwrite basin config.
     pub fn with_config(self, config: BasinConfig) -> Self {
         Self {
             config: Some(config),
@@ -655,6 +689,7 @@ impl ReconfigureBasinRequest {
         }
     }
 
+    /// Overwrite field mask.
     pub fn with_mask(self, mask: impl Into<Vec<String>>) -> Self {
         Self {
             mask: Some(mask.into()),
@@ -696,6 +731,7 @@ pub struct ReconfigureStreamRequest {
 }
 
 impl ReconfigureStreamRequest {
+    /// Create a new request with stream name.
     pub fn new(stream: impl Into<String>) -> Self {
         Self {
             stream: stream.into(),
@@ -704,6 +740,7 @@ impl ReconfigureStreamRequest {
         }
     }
 
+    /// Overwrite stream config.
     pub fn with_config(self, config: StreamConfig) -> Self {
         Self {
             config: Some(config),
@@ -711,6 +748,7 @@ impl ReconfigureStreamRequest {
         }
     }
 
+    /// Overwrite field mask.
     pub fn with_mask(self, mask: impl Into<Vec<String>>) -> Self {
         Self {
             mask: Some(mask.into()),
@@ -758,6 +796,7 @@ pub struct Header {
 }
 
 impl Header {
+    /// Create a new header from name and value.
     pub fn new(name: impl Into<Bytes>, value: impl Into<Bytes>) -> Self {
         Self {
             name: name.into(),
@@ -765,6 +804,7 @@ impl Header {
         }
     }
 
+    /// Create a new header from value.
     pub fn from_value(value: impl Into<Bytes>) -> Self {
         Self {
             name: Bytes::new(),
@@ -787,12 +827,16 @@ impl From<api::Header> for Header {
     }
 }
 
+/// A fencing token can be enforced on append requests.
+///
+/// Must not be more than 16 bytes.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FencingToken(Bytes);
 
 impl FencingToken {
     const MAX_BYTES: usize = 16;
 
+    /// Try creating a new fencing token from bytes.
     pub fn new(bytes: impl Into<Bytes>) -> Result<Self, ConvertError> {
         let bytes = bytes.into();
         if bytes.len() > Self::MAX_BYTES {
@@ -804,43 +848,6 @@ impl FencingToken {
         } else {
             Ok(Self(bytes))
         }
-    }
-
-    fn try_from_hex_bytes(s: impl AsRef<str>) -> Option<Result<Bytes, ConvertError>> {
-        let bytes_str = s.as_ref();
-        if let Some(hex) = bytes_str.strip_prefix("0x") {
-            // Hex encoded string
-            if hex.len() % 2 != 0 {
-                return Some(Err("hex string should have an even length".into()));
-            }
-
-            Some(
-                hex.as_bytes()
-                    .chunks(2)
-                    .map(|chunk| {
-                        let chunk = std::str::from_utf8(chunk).expect("pre-validated utf-8 str");
-                        u8::from_str_radix(chunk, 16)
-                    })
-                    .collect::<Result<Bytes, _>>()
-                    .map_err(|_| "invalid hex character".into()),
-            )
-        } else {
-            None
-        }
-    }
-}
-
-impl FromStr for FencingToken {
-    type Err = ConvertError;
-
-    fn from_str(bytes_str: &str) -> Result<Self, Self::Err> {
-        let bytes = if let Some(bytes) = Self::try_from_hex_bytes(bytes_str) {
-            bytes?
-        } else {
-            bytes_str.to_owned().into()
-        };
-
-        Self::new(bytes)
     }
 }
 
@@ -892,21 +899,46 @@ impl TryFrom<Vec<u8>> for FencingToken {
     }
 }
 
-#[sync_docs]
+/// A command record is a special kind of [`AppendRecord`] that can be used to
+/// send command messages.
+///
+/// Such a record is signalled by a sole header with empty name. The header
+/// value represents the operation and record body acts as the payload.
 #[derive(Debug, Clone)]
 pub enum CommandRecord {
-    Fence { fencing_token: FencingToken },
-    Trim { seq_num: u64 },
+    /// Enforce a fencing token.
+    ///
+    /// Fencing is strongly consistent, and subsequent appends that specify a
+    /// fencing token will be rejected if it does not match.
+    Fence {
+        /// Fencing token to enforce.
+        ///
+        /// Set empty to clear the token.
+        fencing_token: FencingToken,
+    },
+    /// Request a trim till the sequence number.
+    ///
+    /// Trimming is eventually consistent, and trimmed records may be visible
+    /// for a brief period
+    Trim {
+        /// Trim point.
+        ///
+        /// This sequence number is only allowed to advance, and any regression
+        /// will be ignored.
+        seq_num: u64,
+    },
 }
 
 impl CommandRecord {
     const FENCE: &[u8] = b"fence";
     const TRIM: &[u8] = b"trim";
 
+    /// Create a new fence command record.
     pub fn fence(fencing_token: FencingToken) -> Self {
         Self::Fence { fencing_token }
     }
 
+    /// Create a new trim command record.
     pub fn trim(seq_num: impl Into<u64>) -> Self {
         Self::Trim {
             seq_num: seq_num.into(),
@@ -941,6 +973,7 @@ impl AppendRecord {
         }
     }
 
+    /// Try creating a new append record with body.
     pub fn new(body: impl Into<Bytes>) -> Result<Self, ConvertError> {
         Self {
             headers: Vec::new(),
@@ -961,6 +994,7 @@ impl AppendRecord {
         .validated()
     }
 
+    /// Overwrite headers.
     pub fn with_headers(self, headers: impl Into<Vec<Header>>) -> Result<Self, ConvertError> {
         Self {
             headers: headers.into(),
@@ -969,14 +1003,17 @@ impl AppendRecord {
         .validated()
     }
 
+    /// Body of the record.
     pub fn body(&self) -> &[u8] {
         &self.body
     }
 
+    /// Headers of the record.
     pub fn headers(&self) -> &[Header] {
         &self.headers
     }
 
+    /// Consume the record and return parts.
     pub fn into_parts(self) -> AppendRecordParts {
         AppendRecordParts {
             headers: self.headers,
@@ -984,6 +1021,7 @@ impl AppendRecord {
         }
     }
 
+    /// Try creating the record from parts.
     pub fn try_from_parts(parts: AppendRecordParts) -> Result<Self, ConvertError> {
         Self::new(parts.body)?.with_headers(parts.headers)
     }
@@ -1015,6 +1053,7 @@ impl From<CommandRecord> for AppendRecord {
     }
 }
 
+#[sync_docs(AppendRecordParts = "AppendRecord")]
 #[derive(Debug, Clone)]
 pub struct AppendRecordParts {
     pub headers: Vec<Header>,
@@ -1035,6 +1074,7 @@ impl TryFrom<AppendRecordParts> for AppendRecord {
     }
 }
 
+/// A collection of append records that can be sent together in a batch.
 #[derive(Debug, Clone)]
 pub struct AppendRecordBatch {
     records: Vec<AppendRecord>,
@@ -1064,13 +1104,22 @@ impl Default for AppendRecordBatch {
 }
 
 impl AppendRecordBatch {
+    /// Maximum number of records that a batch can hold.
+    ///
+    /// A record batch cannot be created with a bigger capacity.
     pub const MAX_CAPACITY: usize = 1000;
+
+    /// Maximum metered bytes of the batch.
     pub const MAX_BYTES: u64 = MIB_BYTES;
 
+    /// Create an empty record batch.
     pub fn new() -> Self {
         Self::with_max_capacity(Self::MAX_CAPACITY)
     }
 
+    /// Create an empty record batch with custom max capacity.
+    ///
+    /// The capacity should not be more than [`Self::MAX_CAPACITY`].
     pub fn with_max_capacity(max_capacity: usize) -> Self {
         assert!(
             max_capacity > 0 && max_capacity <= Self::MAX_CAPACITY,
@@ -1100,6 +1149,11 @@ impl AppendRecordBatch {
         }
     }
 
+    /// Try creating a record batch from an iterator.
+    ///
+    /// If all the items of the iterator cannot be drained into the batch, the
+    /// error returned contains a batch containing all records it could fit
+    /// along-with the left over items from the iterator.
     pub fn try_from_iter<R, T>(iter: T) -> Result<Self, (Self, Vec<AppendRecord>)>
     where
         R: Into<AppendRecord>,
@@ -1125,6 +1179,7 @@ impl AppendRecordBatch {
         }
     }
 
+    /// Returns true if the batch contains no records.
     pub fn is_empty(&self) -> bool {
         if self.records.is_empty() {
             assert_eq!(self.metered_bytes, 0);
@@ -1134,6 +1189,7 @@ impl AppendRecordBatch {
         }
     }
 
+    /// Returns the number of records contained in the batch.
     pub fn len(&self) -> usize {
         self.records.len()
     }
@@ -1148,10 +1204,12 @@ impl AppendRecordBatch {
         Self::MAX_BYTES
     }
 
+    /// Returns true if the batch cannot fit any more records.
     pub fn is_full(&self) -> bool {
         self.records.len() >= self.max_capacity || self.metered_bytes >= self.max_bytes()
     }
 
+    /// Try to append a new record into the batch.
     pub fn push(&mut self, record: impl Into<AppendRecord>) -> Result<(), AppendRecord> {
         assert!(self.records.len() <= self.max_capacity);
         assert!(self.metered_bytes <= self.max_bytes());
@@ -1215,6 +1273,7 @@ impl MeteredBytes for AppendInput {
 }
 
 impl AppendInput {
+    /// Create a new append input from record batch.
     pub fn new(records: impl Into<AppendRecordBatch>) -> Self {
         Self {
             records: records.into(),
@@ -1223,6 +1282,7 @@ impl AppendInput {
         }
     }
 
+    /// Overwrite match sequence number.
     pub fn with_match_seq_num(self, match_seq_num: impl Into<u64>) -> Self {
         Self {
             match_seq_num: Some(match_seq_num.into()),
@@ -1230,6 +1290,7 @@ impl AppendInput {
         }
     }
 
+    /// Overwrite fencing token.
     pub fn with_fencing_token(self, fencing_token: FencingToken) -> Self {
         Self {
             fencing_token: Some(fencing_token),
@@ -1237,7 +1298,7 @@ impl AppendInput {
         }
     }
 
-    pub fn into_api_type(self, stream: impl Into<String>) -> api::AppendInput {
+    pub(crate) fn into_api_type(self, stream: impl Into<String>) -> api::AppendInput {
         let Self {
             records,
             match_seq_num,
@@ -1309,6 +1370,7 @@ pub struct ReadRequest {
 }
 
 impl ReadRequest {
+    /// Create a new request with start sequence number.
     pub fn new(start_seq_num: u64) -> Self {
         Self {
             start_seq_num,
@@ -1316,6 +1378,7 @@ impl ReadRequest {
         }
     }
 
+    /// Overwrite limit.
     pub fn with_limit(self, limit: ReadLimit) -> Self {
         Self {
             limit: Some(limit),
@@ -1325,7 +1388,7 @@ impl ReadRequest {
 }
 
 impl ReadRequest {
-    pub fn try_into_api_type(
+    pub(crate) fn try_into_api_type(
         self,
         stream: impl Into<String>,
     ) -> Result<api::ReadRequest, ConvertError> {
@@ -1384,6 +1447,7 @@ impl From<api::SequencedRecord> for SequencedRecord {
 }
 
 impl SequencedRecord {
+    /// Try representing the sequenced record as a command record.
     pub fn as_command_record(&self) -> Option<CommandRecord> {
         if self.headers.len() != 1 {
             return None;
@@ -1410,6 +1474,7 @@ impl SequencedRecord {
     }
 }
 
+#[sync_docs]
 #[derive(Debug, Clone)]
 pub struct SequencedRecordBatch {
     pub records: Vec<SequencedRecord>,
@@ -1476,6 +1541,7 @@ pub struct ReadSessionRequest {
 }
 
 impl ReadSessionRequest {
+    /// Create a new request with start sequene number.
     pub fn new(start_seq_num: u64) -> Self {
         Self {
             start_seq_num,
@@ -1483,6 +1549,7 @@ impl ReadSessionRequest {
         }
     }
 
+    /// Overwrite limit.
     pub fn with_limit(self, limit: ReadLimit) -> Self {
         Self {
             limit: Some(limit),
@@ -1490,7 +1557,7 @@ impl ReadSessionRequest {
         }
     }
 
-    pub fn into_api_type(self, stream: impl Into<String>) -> api::ReadSessionRequest {
+    pub(crate) fn into_api_type(self, stream: impl Into<String>) -> api::ReadSessionRequest {
         let Self {
             start_seq_num,
             limit,
@@ -1515,6 +1582,10 @@ impl TryFrom<api::ReadSessionResponse> for ReadOutput {
     }
 }
 
+/// Name of a basin.
+///
+/// Must be between 8 and 48 characters in length. Must comprise lowercase
+/// letters, numbers, and hyphens. Cannot begin or end with a hyphen.
 #[derive(Debug, Clone)]
 pub struct BasinName(String);
 

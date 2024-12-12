@@ -1,3 +1,7 @@
+//! Rust SDK for S2.
+
+#![warn(missing_docs)]
+
 #[rustfmt::skip]
 mod api;
 
@@ -8,5 +12,4 @@ pub mod batching;
 pub mod client;
 pub mod types;
 
-pub use http::{uri, HeaderValue};
 pub use service::Streaming;

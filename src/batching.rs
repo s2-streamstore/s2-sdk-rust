@@ -1,3 +1,5 @@
+//! Append records batching stream.
+
 use std::{
     pin::Pin,
     task::{Context, Poll},
