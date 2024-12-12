@@ -985,7 +985,10 @@ impl AppendRecord {
     }
 
     #[cfg(test)]
-    pub fn with_max_bytes(max_bytes: u64, body: impl Into<Bytes>) -> Result<Self, ConvertError> {
+    pub(crate) fn with_max_bytes(
+        max_bytes: u64,
+        body: impl Into<Bytes>,
+    ) -> Result<Self, ConvertError> {
         Self {
             headers: Vec::new(),
             body: body.into(),
@@ -1136,7 +1139,7 @@ impl AppendRecordBatch {
     }
 
     #[cfg(test)]
-    pub fn with_max_capacity_and_bytes(max_capacity: usize, max_bytes: u64) -> Self {
+    pub(crate) fn with_max_capacity_and_bytes(max_capacity: usize, max_bytes: u64) -> Self {
         #[cfg(test)]
         assert!(
             max_bytes > 0 || max_bytes <= Self::MAX_BYTES,
