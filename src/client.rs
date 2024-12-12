@@ -1,3 +1,5 @@
+//! SDK client implementation.
+
 use std::{env::VarError, fmt::Display, str::FromStr, time::Duration};
 
 use backon::{BackoffBuilder, ConstantBuilder, Retryable};
@@ -97,6 +99,7 @@ pub struct S2Endpoints {
     pub basin: BasinEndpoint,
 }
 
+/// Retry policy for append requests.
 #[derive(Debug, Clone)]
 pub enum AppendRetryPolicy {
     /// Retry all eligible failures encountered during an append.
@@ -112,6 +115,7 @@ pub enum AppendRetryPolicy {
 }
 
 impl S2Endpoints {
+    /// Create S2 endpoints for the specified cloud.
     pub fn for_cloud(cloud: S2Cloud) -> Self {
         Self {
             account: format!("{cloud}.s2.dev")
@@ -125,6 +129,7 @@ impl S2Endpoints {
         }
     }
 
+    /// Create S2 endpoints for the specified cell.
     pub fn for_cell(
         cloud: S2Cloud,
         cell_id: impl Into<String>,
@@ -136,6 +141,13 @@ impl S2Endpoints {
         })
     }
 
+    /// Create S2 endpoints from environment variables.
+    ///
+    /// The following environment variables are used:
+    /// - `S2_CLOUD`: Valid S2 cloud name. Defaults to AWS.
+    /// - `S2_ACCOUNT_ENDPOINT`: Overrides the account endpoint.
+    /// - `S2_BASIN_ENDPOINT`: Overrides the basin endpoint. The prefix `"{basin}."` indicates the
+    ///   basin endpoint is `ParentZone` else `Direct`.
     pub fn from_env() -> Result<Self, String> {
         let cloud: S2Cloud = std::env::var("S2_CLOUD")
             .ok()
@@ -244,11 +256,8 @@ impl ClientConfig {
     }
 
     /// User agent. Defaults to `s2-sdk-rust`. Feel free to say hi.
-    pub fn with_user_agent(self, user_agent: impl Into<HeaderValue>) -> Self {
-        Self {
-            user_agent: user_agent.into(),
-            ..self
-        }
+    pub fn with_user_agent(self, user_agent: HeaderValue) -> Self {
+        Self { user_agent, ..self }
     }
 
     /// Retry policy for appends.
@@ -311,10 +320,15 @@ impl ClientConfig {
     }
 }
 
+/// Error from client operations.
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum ClientError {
+    /// SDK type conversion errors.
+    ///
+    /// Indicates an incompatibility between the SDK version and service.
     #[error(transparent)]
     Conversion(#[from] types::ConvertError),
+    /// Error status from service.
     #[error(transparent)]
     Service(#[from] tonic::Status),
 }
@@ -326,12 +340,14 @@ pub struct Client {
 }
 
 impl Client {
+    /// Create a new SDK client.
     pub fn new(config: ClientConfig) -> Self {
         Self {
             inner: ClientInner::new(ClientKind::Account, config, DEFAULT_CONNECTOR),
         }
     }
 
+    /// Create a new SDK client using a custom connector.
     #[cfg(feature = "connector")]
     pub fn new_with_connector<C>(config: ClientConfig, connector: C) -> Self
     where
@@ -345,6 +361,7 @@ impl Client {
         }
     }
 
+    /// Create basin client from the given name.
     pub fn basin_client(&self, basin: types::BasinName) -> BasinClient {
         BasinClient {
             inner: self.inner.for_basin(basin),
@@ -421,12 +438,14 @@ pub struct BasinClient {
 }
 
 impl BasinClient {
+    /// Create a new basin client.
     pub fn new(config: ClientConfig, basin: types::BasinName) -> Self {
         Self {
             inner: ClientInner::new(ClientKind::Basin(basin), config, DEFAULT_CONNECTOR),
         }
     }
 
+    /// Create a new basin client using a custom connector.
     #[cfg(feature = "connector")]
     pub fn new_with_connector<C>(
         config: ClientConfig,
@@ -520,10 +539,12 @@ pub struct StreamClient {
 }
 
 impl StreamClient {
+    /// Create a new stream client.
     pub fn new(config: ClientConfig, basin: types::BasinName, stream: impl Into<String>) -> Self {
         BasinClient::new(config, basin).stream_client(stream)
     }
 
+    /// Create a new stream client using a custom connector.
     #[cfg(feature = "connector")]
     pub fn new_with_connector<C>(
         config: ClientConfig,
