@@ -24,11 +24,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Field mask specifies which fields to update.
         .with_mask(vec!["retention_policy".to_string()]);
 
-    let updated_stream = basin_client
+    let updated_stream_config = basin_client
         .reconfigure_stream(reconfigure_stream_request)
         .await?;
 
-    println!("{updated_stream:#?}");
+    println!("{updated_stream_config:#?}");
 
     Ok(())
 }
