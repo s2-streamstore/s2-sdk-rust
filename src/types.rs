@@ -108,9 +108,10 @@ impl BasinConfig {
     }
 
     /// Overwrite default stream configuration.
-    pub fn with_default_stream_config(default_stream_config: StreamConfig) -> Self {
+    pub fn with_default_stream_config(self, default_stream_config: StreamConfig) -> Self {
         Self {
             default_stream_config: Some(default_stream_config),
+            ..self
         }
     }
 }
