@@ -335,10 +335,7 @@ pub struct ReadLimit {
     #[prost(uint64, tag = "1")]
     pub count: u64,
     /// A value of zero signifies no bytes limit.
-    /// Bytes are calculated using the "metered bytes" formula:
-    /// ```python
-    /// metered_bytes = lambda record: 8 + 2 * len(record.headers) + sum((len(h.key) + len(h.value)) for h in record.headers) + len(record.body)
-    /// ```
+    /// Record sizes are calculated as metered bytes.
     #[prost(uint64, tag = "2")]
     pub bytes: u64,
 }
@@ -384,19 +381,18 @@ pub mod stream_config {
     pub enum RetentionPolicy {
         /// Age in seconds for automatic trimming of records older than this threshold.
         /// If set to 0, the stream will have infinite retention.
-        /// Currently, a maximum retention of 28 days is allowed. This limit will be lifted in future.
         #[prost(uint64, tag = "2")]
         Age(u64),
     }
 }
-/// / Basin configuration.
+/// Basin configuration.
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct BasinConfig {
     /// Default stream configuration.
     #[prost(message, optional, tag = "1")]
     pub default_stream_config: ::core::option::Option<StreamConfig>,
 }
-/// / Basin information.
+/// Basin information.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BasinInfo {
     /// Basin name.
@@ -462,7 +458,7 @@ pub struct SequencedRecordBatch {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum StorageClass {
-    /// Unspecified, which currently overridden to `STORAGE_CLASS_EXPRESS`.
+    /// Unspecified, which is currently overridden to `STORAGE_CLASS_EXPRESS`.
     Unspecified = 0,
     /// Standard, which offers end-to-end latencies under 500 ms.
     Standard = 1,
@@ -646,7 +642,7 @@ pub mod account_service_client {
             self.inner.unary(req, path, codec).await
         }
         /// Create a new basin.
-        /// Provide a client request token with the `S2-Request-Token` header to allow idempotent retries.
+        /// Provide a client request token with the `S2-Request-Token` header for idempotent retry behaviour.
         pub async fn create_basin(
             &mut self,
             request: impl tonic::IntoRequest<super::CreateBasinRequest>,
@@ -869,7 +865,7 @@ pub mod basin_service_client {
             self.inner.unary(req, path, codec).await
         }
         /// Create a stream.
-        /// Provide a client request token with the `S2-Request-Token` header to allow idempotent retries.
+        /// Provide a client request token with the `S2-Request-Token` header for idempotent retry behaviour.
         pub async fn create_stream(
             &mut self,
             request: impl tonic::IntoRequest<super::CreateStreamRequest>,
@@ -1210,7 +1206,7 @@ pub mod account_service_server {
             tonic::Status,
         >;
         /// Create a new basin.
-        /// Provide a client request token with the `S2-Request-Token` header to allow idempotent retries.
+        /// Provide a client request token with the `S2-Request-Token` header for idempotent retry behaviour.
         async fn create_basin(
             &self,
             request: tonic::Request<super::CreateBasinRequest>,
@@ -1608,7 +1604,7 @@ pub mod basin_service_server {
             tonic::Status,
         >;
         /// Create a stream.
-        /// Provide a client request token with the `S2-Request-Token` header to allow idempotent retries.
+        /// Provide a client request token with the `S2-Request-Token` header for idempotent retry behaviour.
         async fn create_stream(
             &self,
             request: tonic::Request<super::CreateStreamRequest>,
