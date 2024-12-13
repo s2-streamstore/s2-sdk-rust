@@ -22,11 +22,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         default_stream_config: Some(default_stream_config),
     };
 
-    let create_basin_request = CreateBasinRequest::new(basin).with_config(basin_config);
+    let create_basin_request = CreateBasinRequest::new(basin.clone()).with_config(basin_config);
 
     let created_basin = client.create_basin(create_basin_request).await?;
-
     println!("{created_basin:#?}");
+
+    let basin_config = client.get_basin_config(basin).await?;
+    println!("{basin_config:#?}");
 
     Ok(())
 }

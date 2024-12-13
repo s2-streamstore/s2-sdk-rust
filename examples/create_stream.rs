@@ -19,8 +19,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let create_stream_request = CreateStreamRequest::new(stream).with_config(stream_config);
 
     let created_stream = basin_client.create_stream(create_stream_request).await?;
-
     println!("{created_stream:#?}");
+
+    let stream_config = basin_client.get_stream_config(stream).await?;
+    println!("{stream_config:#?}");
 
     Ok(())
 }
