@@ -472,7 +472,10 @@ impl BasinClient {
     }
 
     #[sync_docs]
-    pub async fn create_stream(&self, req: types::CreateStreamRequest) -> Result<(), ClientError> {
+    pub async fn create_stream(
+        &self,
+        req: types::CreateStreamRequest,
+    ) -> Result<types::StreamInfo, ClientError> {
         self.inner
             .send_retryable(CreateStreamServiceRequest::new(
                 self.inner.basin_service_client(),

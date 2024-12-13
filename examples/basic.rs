@@ -66,8 +66,8 @@ async fn main() {
     let basin_client = client.basin_client(basin.clone());
 
     match basin_client.create_stream(create_stream_req).await {
-        Ok(()) => {
-            println!("Stream created");
+        Ok(info) => {
+            println!("Stream created: {info:?}");
         }
         Err(ClientError::Service(status)) => {
             if status.code() == tonic::Code::AlreadyExists {
