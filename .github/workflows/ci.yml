@@ -64,6 +64,17 @@ jobs:
         with:
           crate: cargo-sort
           version: "^1.0"
+      - name: check proto build up-to-date
+        run: |
+          cargo build --features prost-build          
+          if git diff proto/; then
+              git diff --exit-code src/api.rs && echo "proto/ and src/api.rs are up-to-date" || {
+                  echo "src/api.rs is not up-to-date"
+                  exit 1
+              }
+          else
+              git diff --exit-code src/api.rs
+          fi 
       - name: check documentation
         env:
           RUSTDOCFLAGS: -D warnings
