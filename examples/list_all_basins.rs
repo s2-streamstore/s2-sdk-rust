@@ -24,6 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         all_basins.extend(list_basins_response.basins);
 
+        start_after = all_basins.last().map(|b| b.name.clone());
         has_more = list_basins_response.has_more;
     }
 
