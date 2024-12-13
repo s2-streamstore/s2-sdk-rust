@@ -107,7 +107,7 @@ impl CreateStreamServiceRequest {
 
 impl ServiceRequest for CreateStreamServiceRequest {
     type ApiRequest = api::CreateStreamRequest;
-    type Response = ();
+    type Response = types::StreamInfo;
     type ApiResponse = api::CreateStreamResponse;
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 
@@ -127,9 +127,9 @@ impl ServiceRequest for CreateStreamServiceRequest {
 
     fn parse_response(
         &self,
-        _resp: tonic::Response<Self::ApiResponse>,
+        resp: tonic::Response<Self::ApiResponse>,
     ) -> Result<Self::Response, types::ConvertError> {
-        Ok(())
+        resp.into_inner().try_into()
     }
 }
 
