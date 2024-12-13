@@ -458,6 +458,16 @@ impl From<api::StreamInfo> for StreamInfo {
     }
 }
 
+impl TryFrom<api::CreateStreamResponse> for StreamInfo {
+    type Error = ConvertError;
+
+    fn try_from(value: api::CreateStreamResponse) -> Result<Self, Self::Error> {
+        let api::CreateStreamResponse { info } = value;
+        let info = info.ok_or("missing stream info")?;
+        Ok(info.into())
+    }
+}
+
 #[sync_docs]
 #[derive(Debug, Clone)]
 pub struct ListStreamsResponse {
