@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2024-12-16
+
+### Features
+
+- Add `FencingToken::generate` method ([#110](https://github.com/s2-streamstore/s2-cli/issues/110))
+- Return `StreamInfo` from `BasinClient::create_stream` ([#114](https://github.com/s2-streamstore/s2-cli/issues/114))
+
+### Miscellaneous Tasks
+
+- Remove `GH_TOKEN` use to clone submodule in CI ([#109](https://github.com/s2-streamstore/s2-cli/issues/109))
+- Proto up-to-date check ([#112](https://github.com/s2-streamstore/s2-cli/issues/112))
+- Upgrade proto ([#111](https://github.com/s2-streamstore/s2-cli/issues/111))
+- Add examples for API ([#113](https://github.com/s2-streamstore/s2-cli/issues/113))
+- Add `README.md` ([#116](https://github.com/s2-streamstore/s2-cli/issues/116))
+
 ## [0.3.1] - 2024-12-12
 
 ### Miscellaneous Tasks
