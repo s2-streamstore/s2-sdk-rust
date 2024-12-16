@@ -4,6 +4,7 @@
 [![docs.rs][docsrs-badge]][docsrs-url]
 [![Build Status][actions-badge]][actions-url]
 [![Discord chat][discord-badge]][discord-url]
+[![LICENSE][license-badge]][license-url]
 
 [crates-badge]: https://img.shields.io/crates/v/streamstore.svg
 [crates-url]: https://crates.io/crates/streamstore
@@ -13,6 +14,8 @@
 [actions-url]: https://github.com/s2-streamstore/s2-sdk-rust/actions?query=branch%3Amain++
 [discord-badge]: https://img.shields.io/discord/1209937852528599092?logo=discord
 [discord-url]: https://discord.gg/vTCs7kMkAf
+[license-badge]: https://img.shields.io/github/license/s2-streamstore/s2-sdk-rust
+[license-url]: ./LICENSE
 
 The Rust SDK provides ergonomic wrappers and utilities to interact with the
 [S2 API](https://buf.build/streamstore/s2/docs/main:s2.v1alpha).
