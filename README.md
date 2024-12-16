@@ -14,25 +14,15 @@
 
   <p>
     <!-- Crates.io -->
-    <a href="https://crates.io/crates/streamstore">
-      <img src="https://img.shields.io/crates/v/streamstore.svg" />
-    </a>
+    <a href="https://crates.io/crates/streamstore"><img src="https://img.shields.io/crates/v/streamstore.svg" /></a>
     <!-- Docs.rs -->
-    <a href="https://docs.rs/streamstore/latest/streamstore/">
-      <img src="https://img.shields.io/docsrs/streamstore" />
-    </a>
+    <a href="https://docs.rs/streamstore/latest/streamstore/"><img src="https://img.shields.io/docsrs/streamstore" /></a>
     <!-- Github Actions (CI) -->
-    <a href="https://github.com/s2-streamstore/s2-sdk-rust/actions?query=branch%3Amain++">
-      <img src="https://github.com/s2-streamstore/s2-sdk-rust/actions/workflows/ci.yml/badge.svg" />
-    </a>
+    <a href="https://github.com/s2-streamstore/s2-sdk-rust/actions?query=branch%3Amain++"><img src="https://github.com/s2-streamstore/s2-sdk-rust/actions/workflows/ci.yml/badge.svg" /></a>
     <!-- Discord (chat) -->
-    <a href="https://discord.gg/vTCs7kMkAf">
-      <img src="https://img.shields.io/discord/1209937852528599092?logo=discord" />
-    </a>
+    <a href="https://discord.gg/vTCs7kMkAf"><img src="https://img.shields.io/discord/1209937852528599092?logo=discord" /></a>
     <!-- LICENSE -->
-    <a href="./LICENSE">
-      <img src="https://img.shields.io/github/license/s2-streamstore/s2-sdk-rust" />
-    </a>
+    <a href="./LICENSE"><img src="https://img.shields.io/github/license/s2-streamstore/s2-sdk-rust" /></a>
   </p>
 </div>
 
