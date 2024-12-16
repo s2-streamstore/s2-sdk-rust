@@ -1,30 +1,40 @@
 <div align="center">
-  <a href="https://s2.dev#gh-light-mode-only">
-    <img src="./assets/s2-black.png" height="60">
-  </a>
-  <a href="https://s2.dev#gh-dark-mode-only">
-    <img src="./assets/s2-white.png" height="60">
-  </a>
+  <p>
+    <!-- Light mode logo -->
+    <a href="https://s2.dev#gh-light-mode-only">
+      <img src="./assets/s2-black.png" height="60">
+    </a>
+    <!-- Dark mode logo -->
+    <a href="https://s2.dev#gh-dark-mode-only">
+      <img src="./assets/s2-white.png" height="60">
+    </a>
+  </p>
+
+  <h1>Rust SDK for S2</h1>
+
+  <p>
+    <!-- Crates.io -->
+    <a href="https://crates.io/crates/streamstore">
+      <img src="https://img.shields.io/crates/v/streamstore.svg" />
+    </a>
+    <!-- Docs.rs -->
+    <a href="https://docs.rs/streamstore/latest/streamstore/">
+      <img src="https://img.shields.io/docsrs/streamstore" />
+    </a>
+    <!-- Github Actions (CI) -->
+    <a href="https://github.com/s2-streamstore/s2-sdk-rust/actions?query=branch%3Amain++">
+      <img src="https://github.com/s2-streamstore/s2-sdk-rust/actions/workflows/ci.yml/badge.svg" />
+    </a>
+    <!-- Discord (chat) -->
+    <a href="https://discord.gg/vTCs7kMkAf">
+      <img src="https://img.shields.io/discord/1209937852528599092?logo=discord" />
+    </a>
+    <!-- LICENSE -->
+    <a href="./LICENSE">
+      <img src="https://img.shields.io/github/license/s2-streamstore/s2-sdk-rust" />
+    </a>
+  </p>
 </div>
-
-# Rust SDK for S2
-
-[![Crates.io][crates-badge]][crates-url]
-[![docs.rs][docsrs-badge]][docsrs-url]
-[![Build Status][actions-badge]][actions-url]
-[![Discord chat][discord-badge]][discord-url]
-[![LICENSE][license-badge]][license-url]
-
-[crates-badge]: https://img.shields.io/crates/v/streamstore.svg
-[crates-url]: https://crates.io/crates/streamstore
-[docsrs-badge]: https://img.shields.io/docsrs/streamstore
-[docsrs-url]: https://docs.rs/streamstore/latest/streamstore/
-[actions-badge]: https://github.com/s2-streamstore/s2-sdk-rust/actions/workflows/ci.yml/badge.svg
-[actions-url]: https://github.com/s2-streamstore/s2-sdk-rust/actions?query=branch%3Amain++
-[discord-badge]: https://img.shields.io/discord/1209937852528599092?logo=discord
-[discord-url]: https://discord.gg/vTCs7kMkAf
-[license-badge]: https://img.shields.io/github/license/s2-streamstore/s2-sdk-rust
-[license-url]: ./LICENSE
 
 The Rust SDK provides ergonomic wrappers and utilities to interact with the
 [S2 API](https://buf.build/streamstore/s2/docs/main:s2.v1alpha).
