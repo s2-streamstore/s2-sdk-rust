@@ -11,7 +11,7 @@
 [docsrs-url]: https://docs.rs/streamstore/latest/streamstore/
 [actions-badge]: https://github.com/s2-streamstore/s2-sdk-rust/actions/workflows/ci.yml/badge.svg
 [actions-url]: https://github.com/s2-streamstore/s2-sdk-rust/actions?query=branch%3Amain++
-[discord-badge]: https://img.shields.io/discord/1209937852528599092?logo=discord&style=flat-square
+[discord-badge]: https://img.shields.io/discord/1209937852528599092
 [discord-url]: https://discord.gg/vTCs7kMkAf
 
 The Rust SDK provides ergonomic wrappers and utilities to interact with the
