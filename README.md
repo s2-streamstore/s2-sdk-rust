@@ -1,6 +1,6 @@
 # Rust SDK for S2
 
-The Rust SDK provides an ergonomic wrappers and utilities to interact with the
+The Rust SDK provides ergonomic wrappers and utilities to interact with the
 [S2 API](https://buf.build/streamstore/s2/docs/main:s2.v1alpha).
 
 ## Getting started
