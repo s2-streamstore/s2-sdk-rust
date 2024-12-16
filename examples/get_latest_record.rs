@@ -8,10 +8,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let token = std::env::var("S2_AUTH_TOKEN")?;
     let config = ClientConfig::new(token);
     let basin: BasinName = "my-basin".parse()?;
-    let stream = "my-basin";
+    let stream = "my-stream";
     let stream_client = StreamClient::new(config, basin, stream);
 
     let tail = stream_client.check_tail().await?;
+    if tail == 0 {
+        println!("Empty stream");
+        return Ok(());
+    }
+
     let latest_seq_num = tail - 1;
 
     let read_limit = ReadLimit { count: 1, bytes: 0 };
