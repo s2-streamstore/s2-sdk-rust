@@ -8,6 +8,15 @@ keywords = ["wal", "grpc", "s2", "log", "stream"]
 repository = "https://github.com/s2-streamstore/s2-sdk-rust"
 homepage = "https://github.com/s2-streamstore/s2-sdk-rust"
 
+[package.metadata.docs.rs]
+features = ["connector"]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
+
+[[example]]
+# `doc-scrape-examples` requires *any* one example to specify the option.
+name = "create_basin"
+doc-scrape-examples = true
+
 [dependencies]
 async-stream = "0.3.6"
 backon = "1.2.0"

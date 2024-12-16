@@ -101,20 +101,6 @@ pub struct BasinConfig {
     pub default_stream_config: Option<StreamConfig>,
 }
 
-impl BasinConfig {
-    /// Create a new request.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Overwrite default stream configuration.
-    pub fn with_default_stream_config(default_stream_config: StreamConfig) -> Self {
-        Self {
-            default_stream_config: Some(default_stream_config),
-        }
-    }
-}
-
 impl From<BasinConfig> for api::BasinConfig {
     fn from(value: BasinConfig) -> Self {
         let BasinConfig {
