@@ -1,5 +1,19 @@
 # Rust SDK for S2
 
+[![Crates.io][crates-badge]][crates-url]
+[![docs.rs][docsrs-badge]][docsrs-url]
+[![Build Status][actions-badge]][actions-url]
+[![Discord chat][discord-badge]][discord-url]
+
+[crates-badge]: https://img.shields.io/crates/v/streamstore.svg
+[crates-url]: https://crates.io/crates/streamstore
+[docsrs-badge]: https://img.shields.io/docsrs/streamstore
+[docsrs-url]: https://docs.rs/streamstore/latest/streamstore/
+[actions-badge]: https://github.com/s2-streamstore/s2-sdk-rust/actions/workflows/ci.yml/badge.svg
+[actions-url]: https://github.com/s2-streamstore/s2-sdk-rust/actions?query=branch%3Amain++
+[discord-badge]: https://img.shields.io/discord/1209937852528599092?logo=discord&style=flat-square
+[discord-url]: https://discord.gg/vTCs7kMkAf
+
 The Rust SDK provides ergonomic wrappers and utilities to interact with the
 [S2 API](https://buf.build/streamstore/s2/docs/main:s2.v1alpha).
 
