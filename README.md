@@ -62,7 +62,7 @@ Run any example using the following command:
 
 ```bash
 export S2_AUTH_TOKEN="<YOUR AUTH TOKEN>"
-cargo run --example <example_name>.rs
+cargo run --example <example_name>
 ```
 
 > [!TIP]
