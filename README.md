@@ -1,3 +1,12 @@
+<div align="center">
+  <a href="https://s2.dev#gh-light-mode-only">
+    <img src="./assets/s2-black.png" height="60">
+  </a>
+  <a href="https://s2.dev#gh-dark-mode-only">
+    <img src="./assets/s2-white.png" height="60">
+  </a>
+</div>
+
 # Rust SDK for S2
 
 [![Crates.io][crates-badge]][crates-url]
