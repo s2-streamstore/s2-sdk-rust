@@ -6,77 +6,77 @@ All notable changes to this project will be documented in this file.
 
 ### Bug Fixes
 
-- Deadlock potential due to `await`s in append_session's `select!` loop ([#115](https://github.com/s2-streamstore/s2-cli/issues/115))
+- Deadlock potential due to `await`s in append_session's `select!` loop ([#115](https://github.com/s2-streamstore/s2-sdk-rust/issues/115))
 
 ## [0.4.0] - 2024-12-16
 
 ### Features
 
-- Add `FencingToken::generate` method ([#110](https://github.com/s2-streamstore/s2-cli/issues/110))
-- Return `StreamInfo` from `BasinClient::create_stream` ([#114](https://github.com/s2-streamstore/s2-cli/issues/114))
+- Add `FencingToken::generate` method ([#110](https://github.com/s2-streamstore/s2-sdk-rust/issues/110))
+- Return `StreamInfo` from `BasinClient::create_stream` ([#114](https://github.com/s2-streamstore/s2-sdk-rust/issues/114))
 
 ### Miscellaneous Tasks
 
-- Remove `GH_TOKEN` use to clone submodule in CI ([#109](https://github.com/s2-streamstore/s2-cli/issues/109))
-- Proto up-to-date check ([#112](https://github.com/s2-streamstore/s2-cli/issues/112))
-- Upgrade proto ([#111](https://github.com/s2-streamstore/s2-cli/issues/111))
-- Add examples for API ([#113](https://github.com/s2-streamstore/s2-cli/issues/113))
-- Add `README.md` ([#116](https://github.com/s2-streamstore/s2-cli/issues/116))
+- Remove `GH_TOKEN` use to clone submodule in CI ([#109](https://github.com/s2-streamstore/s2-sdk-rust/issues/109))
+- Proto up-to-date check ([#112](https://github.com/s2-streamstore/s2-sdk-rust/issues/112))
+- Upgrade proto ([#111](https://github.com/s2-streamstore/s2-sdk-rust/issues/111))
+- Add examples for API ([#113](https://github.com/s2-streamstore/s2-sdk-rust/issues/113))
+- Add `README.md` ([#116](https://github.com/s2-streamstore/s2-sdk-rust/issues/116))
 
 ## [0.3.1] - 2024-12-12
 
 ### Miscellaneous Tasks
 
-- Switch on `missing_docs` ([#106](https://github.com/s2-streamstore/s2-cli/issues/106))
+- Switch on `missing_docs` ([#106](https://github.com/s2-streamstore/s2-sdk-rust/issues/106))
 
 ## [0.3.0] - 2024-12-11
 
 ### Features
 
-- Return reconfigured stream ([#95](https://github.com/s2-streamstore/s2-cli/issues/95))
-- Implement `SequencedRecord::as_command_record` ([#96](https://github.com/s2-streamstore/s2-cli/issues/96))
-- Make protoc requirement optional ([#103](https://github.com/s2-streamstore/s2-cli/issues/103))
+- Return reconfigured stream ([#95](https://github.com/s2-streamstore/s2-sdk-rust/issues/95))
+- Implement `SequencedRecord::as_command_record` ([#96](https://github.com/s2-streamstore/s2-sdk-rust/issues/96))
+- Make protoc requirement optional ([#103](https://github.com/s2-streamstore/s2-sdk-rust/issues/103))
 
 ### Bug Fixes
 
-- Tonic-side-effect version ([#102](https://github.com/s2-streamstore/s2-cli/issues/102))
+- Tonic-side-effect version ([#102](https://github.com/s2-streamstore/s2-sdk-rust/issues/102))
 
 ### Miscellaneous Tasks
 
-- Update proto and associated types for non-optional `start_seq_num` ([#97](https://github.com/s2-streamstore/s2-cli/issues/97))
-- `CommandRecord::Fence` requires `FencingToken` even if empty ([#98](https://github.com/s2-streamstore/s2-cli/issues/98))
-- Rm serde ([#99](https://github.com/s2-streamstore/s2-cli/issues/99))
+- Update proto and associated types for non-optional `start_seq_num` ([#97](https://github.com/s2-streamstore/s2-sdk-rust/issues/97))
+- `CommandRecord::Fence` requires `FencingToken` even if empty ([#98](https://github.com/s2-streamstore/s2-sdk-rust/issues/98))
+- Rm serde ([#99](https://github.com/s2-streamstore/s2-sdk-rust/issues/99))
 - Lower `max_append_inflight_bytes` default
-- Move sync_docs to separate repository ([#101](https://github.com/s2-streamstore/s2-cli/issues/101))
+- Move sync_docs to separate repository ([#101](https://github.com/s2-streamstore/s2-sdk-rust/issues/101))
 
 ## [0.2.0] - 2024-12-04
 
 ### Features
 
-- Redo endpoint logic ([#39](https://github.com/s2-streamstore/s2-cli/issues/39)) ([#40](https://github.com/s2-streamstore/s2-cli/issues/40))
-- Metered_size impl ([#51](https://github.com/s2-streamstore/s2-cli/issues/51))
-- Allow custom tonic connectors & expose more errors ([#54](https://github.com/s2-streamstore/s2-cli/issues/54))
-- Implement lingering for append record stream ([#55](https://github.com/s2-streamstore/s2-cli/issues/55))
-- Read session resumption ([#64](https://github.com/s2-streamstore/s2-cli/issues/64))
-- Pre-validate append record batch ([#72](https://github.com/s2-streamstore/s2-cli/issues/72))
+- Redo endpoint logic ([#39](https://github.com/s2-streamstore/s2-sdk-rust/issues/39)) ([#40](https://github.com/s2-streamstore/s2-sdk-rust/issues/40))
+- Metered_size impl ([#51](https://github.com/s2-streamstore/s2-sdk-rust/issues/51))
+- Allow custom tonic connectors & expose more errors ([#54](https://github.com/s2-streamstore/s2-sdk-rust/issues/54))
+- Implement lingering for append record stream ([#55](https://github.com/s2-streamstore/s2-sdk-rust/issues/55))
+- Read session resumption ([#64](https://github.com/s2-streamstore/s2-sdk-rust/issues/64))
+- Pre-validate append record batch ([#72](https://github.com/s2-streamstore/s2-sdk-rust/issues/72))
 - Retryable `append_session` + side-effect logic
-- Validate fencing token length ([#87](https://github.com/s2-streamstore/s2-cli/issues/87))
-- S2_request_token header (exercise idempotence) ([#86](https://github.com/s2-streamstore/s2-cli/issues/86))
+- Validate fencing token length ([#87](https://github.com/s2-streamstore/s2-sdk-rust/issues/87))
+- S2_request_token header (exercise idempotence) ([#86](https://github.com/s2-streamstore/s2-sdk-rust/issues/86))
 
 ### Bug Fixes
 
-- Only connect lazily (remove option to connect eagerly) ([#49](https://github.com/s2-streamstore/s2-cli/issues/49))
-- Update `HostEndpoints::from_env` with new spec ([#58](https://github.com/s2-streamstore/s2-cli/issues/58))
-- Add Send bound to Streaming wrapper ([#63](https://github.com/s2-streamstore/s2-cli/issues/63))
-- Validate append input when converting from sdk type to api ([#65](https://github.com/s2-streamstore/s2-cli/issues/65))
-- Limit retries when read resumes but stream keeps erroring ([#66](https://github.com/s2-streamstore/s2-cli/issues/66))
-- Retry on deadline exceeded ([#67](https://github.com/s2-streamstore/s2-cli/issues/67))
-- Remove `ConnectionError` in favour of pre-processing ([#68](https://github.com/s2-streamstore/s2-cli/issues/68))
+- Only connect lazily (remove option to connect eagerly) ([#49](https://github.com/s2-streamstore/s2-sdk-rust/issues/49))
+- Update `HostEndpoints::from_env` with new spec ([#58](https://github.com/s2-streamstore/s2-sdk-rust/issues/58))
+- Add Send bound to Streaming wrapper ([#63](https://github.com/s2-streamstore/s2-sdk-rust/issues/63))
+- Validate append input when converting from sdk type to api ([#65](https://github.com/s2-streamstore/s2-sdk-rust/issues/65))
+- Limit retries when read resumes but stream keeps erroring ([#66](https://github.com/s2-streamstore/s2-sdk-rust/issues/66))
+- Retry on deadline exceeded ([#67](https://github.com/s2-streamstore/s2-sdk-rust/issues/67))
+- Remove `ConnectionError` in favour of pre-processing ([#68](https://github.com/s2-streamstore/s2-sdk-rust/issues/68))
 - Rename 'max_retries' to 'max_attempts'
-- Validate `types::AppendRecord` for metered size ([#79](https://github.com/s2-streamstore/s2-cli/issues/79))
-- Adapt to recent gRPC interface updates ([#84](https://github.com/s2-streamstore/s2-cli/issues/84))
-- Use `if_exists` for delete basin/stream ([#85](https://github.com/s2-streamstore/s2-cli/issues/85))
-- `append_session` inner loop while condition ([#91](https://github.com/s2-streamstore/s2-cli/issues/91))
+- Validate `types::AppendRecord` for metered size ([#79](https://github.com/s2-streamstore/s2-sdk-rust/issues/79))
+- Adapt to recent gRPC interface updates ([#84](https://github.com/s2-streamstore/s2-sdk-rust/issues/84))
+- Use `if_exists` for delete basin/stream ([#85](https://github.com/s2-streamstore/s2-sdk-rust/issues/85))
+- `append_session` inner loop while condition ([#91](https://github.com/s2-streamstore/s2-sdk-rust/issues/91))
 
 ### Documentation
 
@@ -84,67 +84,67 @@ All notable changes to this project will be documented in this file.
 
 ### Testing
 
-- `fencing_token` and `match_seq_num` for `AppendRecordsBatchStream` ([#77](https://github.com/s2-streamstore/s2-cli/issues/77))
+- `fencing_token` and `match_seq_num` for `AppendRecordsBatchStream` ([#77](https://github.com/s2-streamstore/s2-sdk-rust/issues/77))
 
 ### Miscellaneous Tasks
 
-- Rename `ClientError` to `ConnectError` ([#47](https://github.com/s2-streamstore/s2-cli/issues/47))
+- Rename `ClientError` to `ConnectError` ([#47](https://github.com/s2-streamstore/s2-sdk-rust/issues/47))
 - Make `ReadLimit` fields pub
-- Add clippy to CI ([#50](https://github.com/s2-streamstore/s2-cli/issues/50))
-- Expose Aborted as an error variant ([#52](https://github.com/s2-streamstore/s2-cli/issues/52))
-- Expose tonic Internal error message ([#53](https://github.com/s2-streamstore/s2-cli/issues/53))
-- Refactor errors to return tonic::Status ([#57](https://github.com/s2-streamstore/s2-cli/issues/57))
-- Conversion from `HostCloud` for `HostEndpoints` ([#59](https://github.com/s2-streamstore/s2-cli/issues/59))
-- Rm unneeded async ([#62](https://github.com/s2-streamstore/s2-cli/issues/62))
+- Add clippy to CI ([#50](https://github.com/s2-streamstore/s2-sdk-rust/issues/50))
+- Expose Aborted as an error variant ([#52](https://github.com/s2-streamstore/s2-sdk-rust/issues/52))
+- Expose tonic Internal error message ([#53](https://github.com/s2-streamstore/s2-sdk-rust/issues/53))
+- Refactor errors to return tonic::Status ([#57](https://github.com/s2-streamstore/s2-sdk-rust/issues/57))
+- Conversion from `HostCloud` for `HostEndpoints` ([#59](https://github.com/s2-streamstore/s2-sdk-rust/issues/59))
+- Rm unneeded async ([#62](https://github.com/s2-streamstore/s2-sdk-rust/issues/62))
 - Create LICENSE
 - Update Cargo.toml with license
 - Update license for sync_docs
-- Add expect messages instead of unwraps ([#69](https://github.com/s2-streamstore/s2-cli/issues/69))
-- Make `ClientConfig` fields private + revise docs ([#73](https://github.com/s2-streamstore/s2-cli/issues/73))
+- Add expect messages instead of unwraps ([#69](https://github.com/s2-streamstore/s2-sdk-rust/issues/69))
+- Make `ClientConfig` fields private + revise docs ([#73](https://github.com/s2-streamstore/s2-sdk-rust/issues/73))
 - Whoops, max_attempts -> with_max_attempts
-- Endpoints re-rejig ([#70](https://github.com/s2-streamstore/s2-cli/issues/70))
-- Add back `S2Endpoints::from_env()` ([#74](https://github.com/s2-streamstore/s2-cli/issues/74))
+- Endpoints re-rejig ([#70](https://github.com/s2-streamstore/s2-sdk-rust/issues/70))
+- Add back `S2Endpoints::from_env()` ([#74](https://github.com/s2-streamstore/s2-sdk-rust/issues/74))
 - Example from_env
-- Assertions instead of errors for batch capacity & size ([#75](https://github.com/s2-streamstore/s2-cli/issues/75))
+- Assertions instead of errors for batch capacity & size ([#75](https://github.com/s2-streamstore/s2-sdk-rust/issues/75))
 - Simplify s2_request_token creation
-- Remove `bytesize` dependency ([#89](https://github.com/s2-streamstore/s2-cli/issues/89))
-- Update proto ([#93](https://github.com/s2-streamstore/s2-cli/issues/93))
+- Remove `bytesize` dependency ([#89](https://github.com/s2-streamstore/s2-sdk-rust/issues/89))
+- Update proto ([#93](https://github.com/s2-streamstore/s2-sdk-rust/issues/93))
 
 ## [0.1.0] - 2024-11-06
 
 ### Features
 
-- Implement `BasinService/{ListStreams, GetBasinConfig}` ([#3](https://github.com/s2-streamstore/s2-cli/issues/3))
-- Implement `BasinService/{CreateStream, GetStreamConfig}` ([#8](https://github.com/s2-streamstore/s2-cli/issues/8))
-- Implement `AccountService/{ListBasins, DeleteBasin}` ([#10](https://github.com/s2-streamstore/s2-cli/issues/10))
-- Implement `BasinService` ([#12](https://github.com/s2-streamstore/s2-cli/issues/12))
-- Add request timeout ([#14](https://github.com/s2-streamstore/s2-cli/issues/14))
-- Display impl for types::BasinState ([#18](https://github.com/s2-streamstore/s2-cli/issues/18))
-- Implement `StreamService` (complete) ([#16](https://github.com/s2-streamstore/s2-cli/issues/16))
-- Implement `AppendRecordStream` with batching support ([#24](https://github.com/s2-streamstore/s2-cli/issues/24))
-- Enable tls config and make connection uri depend on env ([#25](https://github.com/s2-streamstore/s2-cli/issues/25))
-- Doc reuse ([#32](https://github.com/s2-streamstore/s2-cli/issues/32))
-- Support for overriding user-agent ([#33](https://github.com/s2-streamstore/s2-cli/issues/33))
-- Sync rpc - sdk wrapper docs ([#34](https://github.com/s2-streamstore/s2-cli/issues/34))
+- Implement `BasinService/{ListStreams, GetBasinConfig}` ([#3](https://github.com/s2-streamstore/s2-sdk-rust/issues/3))
+- Implement `BasinService/{CreateStream, GetStreamConfig}` ([#8](https://github.com/s2-streamstore/s2-sdk-rust/issues/8))
+- Implement `AccountService/{ListBasins, DeleteBasin}` ([#10](https://github.com/s2-streamstore/s2-sdk-rust/issues/10))
+- Implement `BasinService` ([#12](https://github.com/s2-streamstore/s2-sdk-rust/issues/12))
+- Add request timeout ([#14](https://github.com/s2-streamstore/s2-sdk-rust/issues/14))
+- Display impl for types::BasinState ([#18](https://github.com/s2-streamstore/s2-sdk-rust/issues/18))
+- Implement `StreamService` (complete) ([#16](https://github.com/s2-streamstore/s2-sdk-rust/issues/16))
+- Implement `AppendRecordStream` with batching support ([#24](https://github.com/s2-streamstore/s2-sdk-rust/issues/24))
+- Enable tls config and make connection uri depend on env ([#25](https://github.com/s2-streamstore/s2-sdk-rust/issues/25))
+- Doc reuse ([#32](https://github.com/s2-streamstore/s2-sdk-rust/issues/32))
+- Support for overriding user-agent ([#33](https://github.com/s2-streamstore/s2-sdk-rust/issues/33))
+- Sync rpc - sdk wrapper docs ([#34](https://github.com/s2-streamstore/s2-sdk-rust/issues/34))
 
 ### Bug Fixes
 
-- Use usize for ListBasins ([#15](https://github.com/s2-streamstore/s2-cli/issues/15))
-- Make all errors public ([#20](https://github.com/s2-streamstore/s2-cli/issues/20))
+- Use usize for ListBasins ([#15](https://github.com/s2-streamstore/s2-sdk-rust/issues/15))
+- Make all errors public ([#20](https://github.com/s2-streamstore/s2-sdk-rust/issues/20))
 
 ### Miscellaneous Tasks
 
-- Update proto submodule ([#7](https://github.com/s2-streamstore/s2-cli/issues/7))
-- Replace url with http::uri::Uri ([#6](https://github.com/s2-streamstore/s2-cli/issues/6))
-- Update `HAS_NO_SIDE_EFFECTS` to `IDEMPOTENCY_LEVEL` ([#11](https://github.com/s2-streamstore/s2-cli/issues/11))
-- FromStr impl to convert str to StorageClass enum ([#13](https://github.com/s2-streamstore/s2-cli/issues/13))
-- Move `get_basin_config`, `reconfigure_basin` to `AccountService` ([#17](https://github.com/s2-streamstore/s2-cli/issues/17))
-- Remove usage of deprecated `tonic_build` method ([#21](https://github.com/s2-streamstore/s2-cli/issues/21))
-- Add+feature-gate serde Serialize/Deserialize derives ([#22](https://github.com/s2-streamstore/s2-cli/issues/22))
+- Update proto submodule ([#7](https://github.com/s2-streamstore/s2-sdk-rust/issues/7))
+- Replace url with http::uri::Uri ([#6](https://github.com/s2-streamstore/s2-sdk-rust/issues/6))
+- Update `HAS_NO_SIDE_EFFECTS` to `IDEMPOTENCY_LEVEL` ([#11](https://github.com/s2-streamstore/s2-sdk-rust/issues/11))
+- FromStr impl to convert str to StorageClass enum ([#13](https://github.com/s2-streamstore/s2-sdk-rust/issues/13))
+- Move `get_basin_config`, `reconfigure_basin` to `AccountService` ([#17](https://github.com/s2-streamstore/s2-sdk-rust/issues/17))
+- Remove usage of deprecated `tonic_build` method ([#21](https://github.com/s2-streamstore/s2-sdk-rust/issues/21))
+- Add+feature-gate serde Serialize/Deserialize derives ([#22](https://github.com/s2-streamstore/s2-sdk-rust/issues/22))
 - Deps
-- Updated repo for proto submodule ([#38](https://github.com/s2-streamstore/s2-cli/issues/38))
-- Http2 adaptive window [S2-412] ([#41](https://github.com/s2-streamstore/s2-cli/issues/41))
-- Add CI action ([#44](https://github.com/s2-streamstore/s2-cli/issues/44))
-- Add release action ([#45](https://github.com/s2-streamstore/s2-cli/issues/45))
+- Updated repo for proto submodule ([#38](https://github.com/s2-streamstore/s2-sdk-rust/issues/38))
+- Http2 adaptive window [S2-412] ([#41](https://github.com/s2-streamstore/s2-sdk-rust/issues/41))
+- Add CI action ([#44](https://github.com/s2-streamstore/s2-sdk-rust/issues/44))
+- Add release action ([#45](https://github.com/s2-streamstore/s2-sdk-rust/issues/45))
 
 <!-- generated by git-cliff -->
