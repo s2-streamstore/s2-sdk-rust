@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1] - 2024-12-17
+
+### Bug Fixes
+
+- Deadlock potential due to `await`s in append_session's `select!` loop ([#115](https://github.com/s2-streamstore/s2-cli/issues/115))
+
 ## [0.4.0] - 2024-12-16
 
 ### Features
