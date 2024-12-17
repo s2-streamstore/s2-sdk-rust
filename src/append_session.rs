@@ -156,13 +156,13 @@ async fn resend(
         tokio::select! {
             (event_ord, _deadline) = &mut timer, if timer.is_armed() => {
                 match TimerEvent::from(event_ord) {
-                    TimerEvent::BatchDeadline => Err(ClientError::Service(Status::cancelled("sdk hit local deadline (`request_timeout`) waiting for an append acknowledgement")))?,
+                    TimerEvent::BatchDeadline => Err(ClientError::Service(Status::cancelled("client: hit deadline (`request_timeout`) waiting for an append acknowledgement")))?,
                     _ => unreachable!("only batch deadline timer in resend mode")
                 }
             }
 
             s2_permit = s2_input_tx.reserve(), if !resend_tx_finished => {
-                let s2_permit = s2_permit.map_err(|_| ClientError::Service(Status::unavailable("server disconnected")))?;
+                let s2_permit = s2_permit.map_err(|_| ClientError::Service(Status::unavailable("client: s2 server disconnected")))?;
                 match inflight.get(resend_index) {
                     Some(batch) => {
                         timer.as_mut().fire_at(TimerEvent::BatchDeadline, batch.start + request_timeout, CoalesceMode::Earliest);
@@ -174,7 +174,7 @@ async fn resend(
             },
 
             next_ack = s2_ack_stream.next(), if stashed_ack.is_none() => {
-                stashed_ack = Some(next_ack.ok_or(ClientError::Service(Status::internal("s2 stream closed early")))?);
+                stashed_ack = Some(next_ack.ok_or(ClientError::Service(Status::internal("client: response stream closed early")))?);
             }
 
             client_permit = output_tx.reserve(), if stashed_ack.is_some() => {
@@ -182,7 +182,7 @@ async fn resend(
                     stashed_ack.take().expect("stashed ack")?,
                     inflight,
                     inflight_size,
-                    client_permit.map_err(|_| ClientError::Service(Status::cancelled("client disconnected")))?
+                    client_permit.map_err(|_| ClientError::Service(Status::cancelled("client: disconnected")))?
                 );
 
                 *total_records_acknowledged += (ack_range.end - ack_range.start) as usize;
@@ -263,7 +263,7 @@ where
             (event_ord, _deadline) = &mut timer, if timer.is_armed() => {
                 match TimerEvent::from(event_ord) {
                     TimerEvent::MetricUpdate => todo!(),
-                    TimerEvent::BatchDeadline => Err(ClientError::Service(Status::cancelled("sdk hit local deadline (`request_timeout`) waiting for an append acknowledgement")))?
+                    TimerEvent::BatchDeadline => Err(ClientError::Service(Status::cancelled("client: hit deadline (`request_timeout`) waiting for an append acknowledgement")))?
                 }
             }
 
@@ -273,18 +273,13 @@ where
                 *inflight_size + MAX_BATCH_SIZE <= stream_client.inner.config.max_append_inflight_bytes
             => {
                 match next_request {
-                    Some(append_input) => {
-                        *stashed_request = Some(append_input);
-                    },
-                    None => {
-                        debug!("append_session input terminated");
-                        client_input_terminated = true;
-                    }
+                    Some(append_input) => *stashed_request = Some(append_input),
+                    None => client_input_terminated = true
                 }
             }
 
             s2_permit = s2_input_tx.reserve(), if stashed_request.is_some() => {
-                let s2_permit = s2_permit.map_err(|_| ClientError::Service(Status::unavailable("server disconnected")))?;
+                let s2_permit = s2_permit.map_err(|_| ClientError::Service(Status::unavailable("client: s2 server disconnected")))?;
                 let append_input = stashed_request.take().expect("stashed request");
                 let metered_bytes = append_input.metered_bytes();
                 let start = Instant::now();
@@ -303,7 +298,7 @@ where
             }
 
             next_ack = s2_ack_stream.next(), if stashed_ack.is_none() => {
-                stashed_ack = Some(next_ack.ok_or(ClientError::Service(Status::internal("s2 acknowledgment stream closed early")))?);
+                stashed_ack = Some(next_ack.ok_or(ClientError::Service(Status::internal("client: response stream closed early")))?);
             }
 
             client_permit = output_tx.reserve(), if stashed_ack.is_some() => {
@@ -311,7 +306,7 @@ where
                     stashed_ack.take().expect("stashed ack")?,
                     inflight,
                     inflight_size,
-                    client_permit.map_err(|_| ClientError::Service(Status::cancelled("client disconnected")))?
+                    client_permit.map_err(|_| ClientError::Service(Status::cancelled("client: disconnected")))?
                 );
 
                 *total_records_acknowledged += (ack_range.end - ack_range.start) as usize;
