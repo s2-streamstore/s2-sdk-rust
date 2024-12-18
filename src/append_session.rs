@@ -1,6 +1,6 @@
 use std::{
     collections::VecDeque,
-    ops::{DerefMut, RangeTo},
+    ops::{DerefMut, Range},
     sync::Arc,
     time::Duration,
 };
@@ -87,42 +87,56 @@ struct AppendState<S>
 where
     S: 'static + Send + Unpin + futures::Stream<Item = types::AppendInput>,
 {
+    /// Append batches which are "inflight" currently, and have not yet received acknowledgement.
     inflight: VecDeque<InflightBatch>,
+
+    /// Size of `inflight` queue in `metered_bytes`.
     inflight_size: u64,
+
+    /// Stream of `AppendInput` from client.
     request_stream: S,
-    last_acked_seqnum: Option<RangeTo<u64>>,
+
+    /// Number of records received from client, over the course of this append session.
+    total_records: usize,
+
+    /// Number of acknowledged records from S2, over the course of this append session.
+    total_records_acknowledged: usize,
+
+    /// Used to temporarily store the most recent `AppendInput` from the client stream.
+    stashed_request: Option<types::AppendInput>,
 }
 
+/// Handle S2 acknowledgment by forwarding it to the client,
+/// and updating the inflight data.
 fn ack_and_pop(
-    channel_ack: types::AppendOutput,
+    s2_ack: types::AppendOutput,
     inflight: &mut VecDeque<InflightBatch>,
     inflight_size: &mut u64,
     permit: Permit<'_, Result<types::AppendOutput, ClientError>>,
-) -> Result<RangeTo<u64>, ClientError> {
-    let n_acked_records = channel_ack.end_seq_num - channel_ack.start_seq_num;
+) -> Range<u64> {
     let corresponding_batch = inflight.pop_front().expect("inflight should not be empty");
 
     assert_eq!(
-        n_acked_records as usize,
+        (s2_ack.end_seq_num - s2_ack.start_seq_num) as usize,
         corresponding_batch.inner.records.len(),
-        "number of acknowledged records should equal amount in first inflight batch"
+        "number of acknowledged records from S2 should equal amount from first inflight batch"
     );
 
     *inflight_size -= corresponding_batch.metered_bytes;
-    let end_seq_num = channel_ack.end_seq_num;
+    let ack_range = s2_ack.start_seq_num..s2_ack.end_seq_num;
 
-    permit.send(Ok(channel_ack));
+    permit.send(Ok(s2_ack));
 
-    Ok(..end_seq_num)
+    ack_range
 }
 
 async fn resend(
     request_timeout: Duration,
     inflight: &mut VecDeque<InflightBatch>,
     inflight_size: &mut u64,
-    channel_input_tx: mpsc::Sender<types::AppendInput>,
-    channel_ack_stream: &mut ServiceStreamingResponse<AppendSessionStreamingResponse>,
-    last_acked_seqnum: &mut Option<RangeTo<u64>>,
+    s2_input_tx: mpsc::Sender<types::AppendInput>,
+    s2_ack_stream: &mut ServiceStreamingResponse<AppendSessionStreamingResponse>,
+    total_records_acknowledged: &mut usize,
     output_tx: mpsc::Sender<Result<types::AppendOutput, ClientError>>,
 ) -> Result<(), ClientError> {
     debug!(
@@ -130,40 +144,48 @@ async fn resend(
         inflight_bytes = inflight_size,
         "resending"
     );
+
     let mut resend_index = 0;
     let mut resend_tx_finished = false;
+    let mut stashed_ack = None;
+
     let timer = MuxTimer::<N_TIMER_VARIANTS>::default();
     tokio::pin!(timer);
 
     while !inflight.is_empty() {
         tokio::select! {
-            (event_ord, _) = &mut timer, if timer.is_armed() => {
+            (event_ord, _deadline) = &mut timer, if timer.is_armed() => {
                 match TimerEvent::from(event_ord) {
-                    TimerEvent::BatchDeadline => {
-                        Err(ClientError::Service(Status::cancelled("sdk hit deadline (`request_timeout`) waiting for an append acknowledgement")))?
-                    }
+                    TimerEvent::BatchDeadline => Err(ClientError::Service(Status::cancelled("client: hit deadline (`request_timeout`) waiting for an append acknowledgement")))?,
                     _ => unreachable!("only batch deadline timer in resend mode")
                 }
             }
-            Ok(permit) = channel_input_tx.reserve(), if !resend_tx_finished => {
+
+            s2_permit = s2_input_tx.reserve(), if !resend_tx_finished => {
+                let s2_permit = s2_permit.map_err(|_| ClientError::Service(Status::unavailable("client: s2 server disconnected")))?;
                 match inflight.get(resend_index) {
                     Some(batch) => {
                         timer.as_mut().fire_at(TimerEvent::BatchDeadline, batch.start + request_timeout, CoalesceMode::Earliest);
-                        permit.send(batch.inner.clone());
+                        s2_permit.send(batch.inner.clone());
                         resend_index += 1;
                     },
                     None => resend_tx_finished = true
                 }
             },
-            Some(ack) = channel_ack_stream.next() => {
-                let ack_until = ack_and_pop(
-                    ack?,
+
+            next_ack = s2_ack_stream.next(), if stashed_ack.is_none() => {
+                stashed_ack = Some(next_ack.ok_or(ClientError::Service(Status::internal("client: response stream closed early")))?);
+            }
+
+            client_permit = output_tx.reserve(), if stashed_ack.is_some() => {
+                let ack_range = ack_and_pop(
+                    stashed_ack.take().expect("stashed ack")?,
                     inflight,
                     inflight_size,
-                    output_tx.reserve().await.map_err(|_| ClientError::Service(Status::cancelled("client disconnected")))?
-                )?;
+                    client_permit.map_err(|_| ClientError::Service(Status::cancelled("client: disconnected")))?
+                );
 
-                *last_acked_seqnum = Some(ack_until);
+                *total_records_acknowledged += (ack_range.end - ack_range.start) as usize;
                 resend_index -= 1;
 
                 // Adjust next timer.
@@ -175,10 +197,15 @@ async fn resend(
                     ),
                     None => timer.as_mut().cancel(TimerEvent::BatchDeadline),
                 };
-
             }
         }
     }
+
+    assert!(stashed_ack.is_none());
+    assert_eq!(resend_index, 0);
+
+    debug!("finished resending");
+
     Ok(())
 }
 
@@ -196,11 +223,14 @@ where
         inflight,
         inflight_size,
         request_stream,
-        last_acked_seqnum,
+        total_records,
+        total_records_acknowledged,
+        stashed_request,
     } = lock.deref_mut();
 
     assert!(*inflight_size <= stream_client.inner.config.max_append_inflight_bytes);
-    let (input_tx, mut ack_stream) = connect(&stream_client, frame_signal.clone()).await?;
+
+    let (s2_input_tx, mut s2_ack_stream) = connect(&stream_client, frame_signal.clone()).await?;
     let batch_ack_deadline = stream_client.inner.config.request_timeout;
 
     if !inflight.is_empty() {
@@ -208,69 +238,84 @@ where
             batch_ack_deadline,
             inflight,
             inflight_size,
-            input_tx.clone(),
-            &mut ack_stream,
-            last_acked_seqnum,
+            s2_input_tx.clone(),
+            &mut s2_ack_stream,
+            total_records_acknowledged,
             output_tx.clone(),
         )
         .await?;
 
-        assert_eq!(inflight.len(), 0);
-        assert_eq!(*inflight_size, 0);
         frame_signal.reset();
 
-        debug!("finished resending");
+        assert!(inflight.is_empty());
+        assert_eq!(*inflight_size, 0);
+        assert_eq!(total_records, total_records_acknowledged);
     }
+
     let timer = MuxTimer::<N_TIMER_VARIANTS>::default();
     tokio::pin!(timer);
-    let mut input_terminated = false;
 
-    while !(input_terminated && inflight.is_empty()) {
+    let mut client_input_terminated = false;
+    let mut stashed_ack = None;
+
+    while !(client_input_terminated && inflight.is_empty()) {
         tokio::select! {
-            (event_ord, _deadline) = &mut timer,
-                if timer.is_armed()
-            => {
+            (event_ord, _deadline) = &mut timer, if timer.is_armed() => {
                 match TimerEvent::from(event_ord) {
-                    TimerEvent::MetricUpdate => {
-                        todo!()
-                    }
-                    TimerEvent::BatchDeadline =>
-                        Err(ClientError::Service(Status::cancelled("sdk hit deadline (`request_timeout`) waiting for an append acknowledgement")))?
+                    TimerEvent::MetricUpdate => todo!(),
+                    TimerEvent::BatchDeadline => Err(ClientError::Service(Status::cancelled("client: hit deadline (`request_timeout`) waiting for an append acknowledgement")))?
                 }
             }
-            client_input = request_stream.next(),
-                if !input_terminated && *inflight_size + MAX_BATCH_SIZE <= stream_client.inner.config.max_append_inflight_bytes
+
+            next_request = request_stream.next(), if
+                stashed_request.is_none() &&
+                !client_input_terminated &&
+                *inflight_size + MAX_BATCH_SIZE <= stream_client.inner.config.max_append_inflight_bytes
             => {
-                match client_input {
-                    Some(append_input) => {
-                        let metered_bytes = append_input.metered_bytes();
-                        *inflight_size += metered_bytes;
-                        let start = Instant::now();
-                        inflight.push_back(InflightBatch {
-                            start,
-                            metered_bytes,
-                            inner: append_input.clone()
-                        });
-                        timer.as_mut().fire_at(TimerEvent::BatchDeadline, start + batch_ack_deadline, CoalesceMode::Earliest);
-                        input_tx.send(append_input)
-                            .await
-                            .map_err(|_| ClientError::Service(Status::unavailable("server disconnected")))?;
-                    }
-                    None => input_terminated = true,
+                match next_request {
+                    Some(append_input) => *stashed_request = Some(append_input),
+                    None => client_input_terminated = true
                 }
-            },
-            Some(ack) = ack_stream.next() => {
-                let ack_until = ack_and_pop(
-                    ack?,
+            }
+
+            s2_permit = s2_input_tx.reserve(), if stashed_request.is_some() => {
+                let s2_permit = s2_permit.map_err(|_| ClientError::Service(Status::unavailable("client: s2 server disconnected")))?;
+                let append_input = stashed_request.take().expect("stashed request");
+                let metered_bytes = append_input.metered_bytes();
+                let start = Instant::now();
+
+                *inflight_size += metered_bytes;
+                *total_records += append_input.records.len();
+                inflight.push_back(InflightBatch {
+                    start,
+                    metered_bytes,
+                    inner: append_input.clone()
+                });
+
+                s2_permit.send(append_input);
+
+                timer.as_mut().fire_at(TimerEvent::BatchDeadline, start + batch_ack_deadline, CoalesceMode::Earliest);
+            }
+
+            next_ack = s2_ack_stream.next(), if stashed_ack.is_none() => {
+                stashed_ack = Some(next_ack.ok_or(ClientError::Service(Status::internal("client: response stream closed early")))?);
+            }
+
+            client_permit = output_tx.reserve(), if stashed_ack.is_some() => {
+                let ack_range = ack_and_pop(
+                    stashed_ack.take().expect("stashed ack")?,
                     inflight,
                     inflight_size,
-                    output_tx.reserve().await.map_err(|_| ClientError::Service(Status::cancelled("client disconnected")))?
-                )?;
+                    client_permit.map_err(|_| ClientError::Service(Status::cancelled("client: disconnected")))?
+                );
 
-                *last_acked_seqnum = Some(ack_until);
+                *total_records_acknowledged += (ack_range.end - ack_range.start) as usize;
 
+                // Safe to reset frame signal whenever we reach a sync point between
+                // records received and acknowledged.
                 if inflight.is_empty() {
-                   frame_signal.reset()
+                    assert_eq!(total_records, total_records_acknowledged);
+                    frame_signal.reset()
                 }
 
                 // Adjust next timer.
@@ -282,14 +327,15 @@ where
                     ),
                     None => timer.as_mut().cancel(TimerEvent::BatchDeadline),
                 };
-
-            },
-
-            else => break,
+            }
         }
     }
 
-    assert!(input_terminated);
+    assert!(stashed_ack.is_none());
+    assert!(stashed_request.is_none());
+    assert!(client_input_terminated);
+
+    assert_eq!(total_records, total_records_acknowledged);
     assert_eq!(inflight.len(), 0);
     assert_eq!(*inflight_size, 0);
 
@@ -307,12 +353,14 @@ pub(crate) async fn manage_session<S>(
         inflight: Default::default(),
         inflight_size: Default::default(),
         request_stream: input,
-        last_acked_seqnum: None,
+        total_records: 0,
+        total_records_acknowledged: 0,
+        stashed_request: None,
     }));
 
     let frame_signal = FrameSignal::new();
     let mut attempts = 1;
-    let mut last_acked_seqnum: Option<RangeTo<u64>> = None;
+    let mut acks_out: usize = 0;
     loop {
         match session_inner(
             state.clone(),
@@ -324,10 +372,10 @@ pub(crate) async fn manage_session<S>(
         {
             Ok(()) => return,
             Err(e) => {
-                let new_last_acked_seqnum = state.lock().await.last_acked_seqnum;
-                if last_acked_seqnum != new_last_acked_seqnum {
+                let new_acks_out = state.lock().await.total_records_acknowledged;
+                if acks_out < new_acks_out {
                     // Progress has been made during the last attempt, so reset the retry counter.
-                    last_acked_seqnum = new_last_acked_seqnum;
+                    acks_out = new_acks_out;
                     attempts = 1;
                 }
 
@@ -376,8 +424,12 @@ pub(crate) async fn manage_session<S>(
                     debug!(attempts, ?e, "retrying");
                 } else {
                     debug!(
+                        ?e,
                         remaining_attempts,
-                        enough_time, retryable_error, policy_compliant, "not retrying"
+                        enough_time,
+                        retryable_error,
+                        policy_compliant,
+                        "not retrying"
                     );
                     _ = output_tx.send(Err(e)).await;
                     return;
