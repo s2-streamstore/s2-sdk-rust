@@ -115,7 +115,7 @@ pub enum AppendRetryPolicy {
 }
 
 impl S2Endpoints {
-    /// Create S2 endpoints for the specified cloud.
+    /// Get S2 endpoints for the specified cloud.
     pub fn for_cloud(cloud: S2Cloud) -> Self {
         Self {
             account: format!("{cloud}.s2.dev")
@@ -129,7 +129,7 @@ impl S2Endpoints {
         }
     }
 
-    /// Create S2 endpoints for the specified cell.
+    /// Get S2 endpoints for the specified cell.
     pub fn for_cell(
         cloud: S2Cloud,
         cell_id: impl Into<String>,
@@ -141,7 +141,7 @@ impl S2Endpoints {
         })
     }
 
-    /// Create S2 endpoints from environment variables.
+    /// Get S2 endpoints from environment variables.
     ///
     /// The following environment variables are used:
     /// - `S2_CLOUD`: Valid S2 cloud name. Defaults to AWS.
