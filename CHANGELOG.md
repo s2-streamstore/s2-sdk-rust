@@ -6,15 +6,16 @@ All notable changes to this project will be documented in this file.
 
 ### Documentation
 
-- `batching` module Rust docs ([#119](https://github.com/s2-streamstore/s2-cli/issues/119))
-- Update basin and stream names ([#122](https://github.com/s2-streamstore/s2-cli/issues/122))
-- Update README API link ([#123](https://github.com/s2-streamstore/s2-cli/issues/123))
-- `s2::client` ([#121](https://github.com/s2-streamstore/s2-cli/issues/121))
-- Crate level documentation ([#124](https://github.com/s2-streamstore/s2-cli/issues/124))
+- `batching` module Rust docs ([#119](https://github.com/s2-streamstore/s2-sdk-rust/issues/119))
+- Update basin and stream names ([#122](https://github.com/s2-streamstore/s2-sdk-rust/issues/122))
+- Update README API link ([#123](https://github.com/s2-streamstore/s2-sdk-rust/issues/123))
+- `s2::client` ([#121](https://github.com/s2-streamstore/s2-sdk-rust/issues/121))
+- Crate level documentation ([#124](https://github.com/s2-streamstore/s2-sdk-rust/issues/124))
 
 ### Miscellaneous Tasks
 
-- Rename `[lib]` to `s2` ([#120](https://github.com/s2-streamstore/s2-cli/issues/120))
+- Rename `[lib]` to `s2` ([#120](https://github.com/s2-streamstore/s2-sdk-rust/issues/120))
+- *(release)* 0.5.0
 
 ## [0.4.1] - 2024-12-17
 
