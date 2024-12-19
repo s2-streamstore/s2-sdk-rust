@@ -1,5 +1,5 @@
 use futures::StreamExt;
-use streamstore::{
+use s2::{
     client::{ClientConfig, StreamClient},
     types::{BasinName, ReadSessionRequest},
 };

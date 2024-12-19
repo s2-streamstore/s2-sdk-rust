@@ -1,4 +1,4 @@
-use streamstore::{
+use s2::{
     client::{Client, ClientConfig},
     types::{BasinName, CreateStreamRequest, StorageClass, StreamConfig},
 };
