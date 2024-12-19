@@ -5,21 +5,23 @@
 //!
 //! # Getting started
 //!
-//! 1. Ensure you have `tokio` added as a dependency. The SDK relies on
-//!    [Tokio](https://crates.io/crates/tokio) for executing async code.
+//! 1. Ensure you have `tokio` added as a dependency. The SDK relies on [Tokio](https://crates.io/crates/tokio)
+//!    for executing async code.
+//!
 //!    ```bash
 //!    cargo add tokio --features full
 //!    ```
 //!
 //! 1. Add the `streamstore` dependency to your project:
+//!
 //!    ```bash
 //!    cargo add streamstore
 //!    ```
 //!
-//! 1. Generate an authentication token by logging onto the web console at
-//!    [s2.dev](https://s2.dev/dashboard).
+//! 1. Generate an authentication token by logging onto the web console at [s2.dev](https://s2.dev/dashboard).
 //!
 //! 1. Make a request using SDK client.
+//!
 //!    ```no_run
 //!    # let _ = async move {
 //!    let config = s2::ClientConfig::new("<YOUR AUTH TOKEN>");
