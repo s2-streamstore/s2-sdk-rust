@@ -8,6 +8,10 @@ keywords = ["wal", "grpc", "s2", "log", "stream"]
 repository = "https://github.com/s2-streamstore/s2-sdk-rust"
 homepage = "https://github.com/s2-streamstore/s2-sdk-rust"
 
+[lib]
+name = "s2"
+path = "src/lib.rs"
+
 [package.metadata.docs.rs]
 features = ["connector"]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
