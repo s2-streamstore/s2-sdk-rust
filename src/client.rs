@@ -26,9 +26,9 @@
 //! from the basin endpoint creating a new connection each time the request is
 //! sent. See [`S2Endpoints`].
 //!
-//! [AccountService]: https://buf.build/streamstore/s2/docs/main:s2.v1alpha#s2.v1alpha.AccountService
-//! [BasinService]: https://buf.build/streamstore/s2/docs/main:s2.v1alpha#s2.v1alpha.BasinService
-//! [StreamService]: https://buf.build/streamstore/s2/docs/main:s2.v1alpha#s2.v1alpha.StreamService
+//! [AccountService]: https://s2.dev/docs/interface/grpc-api#accountservice
+//! [BasinService]: https://s2.dev/docs/interface/grpc-api#basinservice
+//! [StreamService]: https://s2.dev/docs/interface/grpc-api#streamservice
 //! [s2.dev]: https://s2.dev/dashboard
 
 use std::{env::VarError, fmt::Display, str::FromStr, time::Duration};
