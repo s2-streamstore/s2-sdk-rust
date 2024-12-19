@@ -9,10 +9,10 @@ use s2::{
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let token = std::env::var("S2_AUTH_TOKEN")?;
     let config = ClientConfig::new(token);
-    let basin: BasinName = "my-basin".parse()?;
+    let basin: BasinName = "my-favorite-basin".parse()?;
     let basin_client = BasinClient::new(config, basin);
 
-    let stream = "my-stream";
+    let stream = "my-favorite-stream";
 
     let stream_config_updates = StreamConfig::new().with_retention_policy(RetentionPolicy::Age(
         // Change to retention policy to 1 day

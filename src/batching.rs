@@ -16,7 +16,7 @@
 //! # use s2::batching::*;
 //! # use std::time::Duration;
 //! # let config = ClientConfig::new("token");
-//! # let basin: BasinName = "my-basin".parse().unwrap();
+//! # let basin: BasinName = "my-favorite-basin".parse().unwrap();
 //! # let stream_client = StreamClient::new(config, basin, "stream");
 //! # let fencing_token = FencingToken::generate(16).unwrap();
 //! let append_records_stream = futures::stream::iter([

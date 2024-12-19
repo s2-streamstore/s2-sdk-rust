@@ -27,7 +27,7 @@
 </div>
 
 The Rust SDK provides ergonomic wrappers and utilities to interact with the
-[S2 API](https://buf.build/streamstore/s2/docs/main:s2.v1alpha).
+[S2 API](https://s2.dev/docs/interface/grpc-api).
 
 ## Getting started
 
@@ -71,10 +71,10 @@ export S2_AUTH_TOKEN="<YOUR AUTH TOKEN>"
 cargo run --example <example_name>
 ```
 
-> [!TIP]
+> [!NOTE]
 > You might want to update the basin name in the example before running since
 > basin names are globally unique and each example uses the same basin name
-> (`"my-basin"`).
+> (`"my-favorite-basin"`).
 
 ## SDK Docs and Reference
 
