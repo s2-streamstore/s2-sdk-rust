@@ -9,8 +9,8 @@ use streamstore::{
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let token = std::env::var("S2_AUTH_TOKEN")?;
     let config = ClientConfig::new(token);
-    let basin: BasinName = "my-basin".parse()?;
-    let stream = "my-stream";
+    let basin: BasinName = "my-favorite-basin".parse()?;
+    let stream = "my-favorite-stream";
     let stream_client = StreamClient::new(config, basin, stream);
 
     let fencing_token = FencingToken::generate(16).expect("valid fencing token with 16 bytes");

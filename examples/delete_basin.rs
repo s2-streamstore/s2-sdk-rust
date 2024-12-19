@@ -9,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = ClientConfig::new(token);
     let client = Client::new(config);
 
-    let basin: BasinName = "my-basin".parse()?;
+    let basin: BasinName = "my-favorite-basin".parse()?;
 
     let delete_basin_request = DeleteBasinRequest::new(basin)
         // Don't error if the basin doesn't exist.

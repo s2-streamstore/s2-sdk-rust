@@ -9,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = ClientConfig::new(token);
     let client = Client::new(config);
 
-    let basin: BasinName = "my-basin".parse()?;
+    let basin: BasinName = "my-favorite-basin".parse()?;
 
     let default_stream_config_updates =
         StreamConfig::new().with_storage_class(StorageClass::Standard);

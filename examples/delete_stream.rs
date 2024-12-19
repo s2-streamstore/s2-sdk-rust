@@ -7,10 +7,10 @@ use streamstore::{
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let token = std::env::var("S2_AUTH_TOKEN")?;
     let config = ClientConfig::new(token);
-    let basin: BasinName = "my-basin".parse()?;
+    let basin: BasinName = "my-favorite-basin".parse()?;
     let basin_client = BasinClient::new(config, basin);
 
-    let stream = "my-stream";
+    let stream = "my-favorite-stream";
 
     let delete_stream_request = DeleteStreamRequest::new(stream);
 
