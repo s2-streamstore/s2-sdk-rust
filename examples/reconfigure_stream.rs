@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use streamstore::{
+use s2::{
     client::{BasinClient, ClientConfig},
     types::{BasinName, ReconfigureStreamRequest, RetentionPolicy, StreamConfig},
 };

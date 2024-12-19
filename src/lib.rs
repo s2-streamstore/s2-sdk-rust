@@ -12,4 +12,5 @@ pub mod batching;
 pub mod client;
 pub mod types;
 
+pub use client::{BasinClient, Client, ClientConfig, StreamClient};
 pub use service::Streaming;

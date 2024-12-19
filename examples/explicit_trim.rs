@@ -1,4 +1,4 @@
-use streamstore::{
+use s2::{
     client::{ClientConfig, StreamClient},
     types::{AppendInput, AppendRecordBatch, BasinName, CommandRecord},
 };

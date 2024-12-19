@@ -11,9 +11,9 @@
 //! # Example usage
 //!
 //! ```no_run
-//! # use streamstore::client::*;
-//! # use streamstore::types::*;
-//! # use streamstore::batching::*;
+//! # use s2::client::*;
+//! # use s2::types::*;
+//! # use s2::batching::*;
 //! # use std::time::Duration;
 //! # let config = ClientConfig::new("token");
 //! # let basin: BasinName = "my-basin".parse().unwrap();

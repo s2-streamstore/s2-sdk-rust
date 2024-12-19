@@ -1,5 +1,5 @@
 use futures::StreamExt;
-use streamstore::{
+use s2::{
     batching::{AppendRecordsBatchingOpts, AppendRecordsBatchingStream},
     client::{ClientConfig, StreamClient},
     types::{AppendInput, AppendRecord, AppendRecordBatch, BasinName, CommandRecord, FencingToken},

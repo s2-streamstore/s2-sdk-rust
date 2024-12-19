@@ -47,13 +47,12 @@ The Rust SDK provides ergonomic wrappers and utilities to interact with the
 
 1. Make a request using SDK client.
    ```rust
-   use streamstore::client::{Client, ClientConfig};
-   use streamstore::types::ListBasinsRequest;
+   use s2::types::ListBasinsRequest;
 
    #[tokio::main]
    async fn main() -> Result<(), Box<dyn std::error::Error>> {
-       let config = ClientConfig::new("<YOUR AUTH TOKEN>");
-       let client = Client::new(config);
+       let config = s2::ClientConfig::new("<YOUR AUTH TOKEN>");
+       let client = s2::Client::new(config);
 
        let basins = client.list_basins(ListBasinsRequest::new()).await?;
        println!("My basins: {:?}", basins);
