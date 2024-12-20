@@ -16,7 +16,7 @@
     <!-- Crates.io -->
     <a href="https://crates.io/crates/streamstore"><img src="https://img.shields.io/crates/v/streamstore.svg" /></a>
     <!-- Docs.rs -->
-    <a href="https://docs.rs/streamstore/latest/streamstore/"><img src="https://img.shields.io/docsrs/streamstore" /></a>
+    <a href="https://docs.rs/streamstore/latest/s2/"><img src="https://img.shields.io/docsrs/streamstore" /></a>
     <!-- Github Actions (CI) -->
     <a href="https://github.com/s2-streamstore/s2-sdk-rust/actions?query=branch%3Amain++"><img src="https://github.com/s2-streamstore/s2-sdk-rust/actions/workflows/ci.yml/badge.svg" /></a>
     <!-- Discord (chat) -->
@@ -78,7 +78,7 @@ cargo run --example <example_name>
 
 ## SDK Docs and Reference
 
-Head over to [docs.rs](https://docs.rs/streamstore/latest/streamstore/) for
+Head over to [docs.rs](https://docs.rs/streamstore/latest/s2/) for
 detailed documentation and crate reference.
 
 ## Feedback
