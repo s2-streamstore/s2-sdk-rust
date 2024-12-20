@@ -26,9 +26,9 @@
 //! from the basin endpoint creating a new connection each time the request is
 //! sent. See [`S2Endpoints`].
 //!
-//! [AccountService]: https://s2.dev/docs/interface/grpc-api#accountservice
-//! [BasinService]: https://s2.dev/docs/interface/grpc-api#basinservice
-//! [StreamService]: https://s2.dev/docs/interface/grpc-api#streamservice
+//! [AccountService]: https://s2.dev/docs/interface/grpc#accountservice
+//! [BasinService]: https://s2.dev/docs/interface/grpc#basinservice
+//! [StreamService]: https://s2.dev/docs/interface/grpc#streamservice
 //! [s2.dev]: https://s2.dev/dashboard
 
 use std::{env::VarError, fmt::Display, str::FromStr, time::Duration};
@@ -122,6 +122,10 @@ pub enum BasinEndpoint {
 }
 
 /// Endpoints for the S2 environment.
+///
+/// You can find the S2 endpoints in our [documentation].
+///
+/// [documentation]: https://s2.dev/docs/interface/endpoints
 #[derive(Debug, Clone)]
 pub struct S2Endpoints {
     /// Used by `AccountService` requests.

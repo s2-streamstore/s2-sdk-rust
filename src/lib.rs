@@ -2,7 +2,7 @@
 Rust SDK for S2.
 
 The Rust SDK provides ergonomic wrappers and utilities to interact with the
-[S2 API](https://s2.dev/docs/interface/grpc-api).
+[S2 API](https://s2.dev/docs/interface/grpc).
 
 # Getting started
 
