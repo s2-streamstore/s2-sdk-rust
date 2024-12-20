@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] - 2024-12-20
+
+### Documentation
+
+- Update S2 doc links ([#126](https://github.com/s2-streamstore/s2-sdk-rust/issues/126))
+
 ## [0.5.0] - 2024-12-19
 
 ### Documentation
