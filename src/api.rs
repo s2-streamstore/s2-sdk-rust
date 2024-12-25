@@ -409,15 +409,10 @@ pub struct BasinInfo {
     pub state: i32,
 }
 /// Headers add structured information to a record as name-value pairs.
-///
-/// Header names cannot be empty, with the exception of "command messages" that are interpreted by S2. A command message is signalled by a sole header with empty name. The header value represents an operation, and the record body acts as a payload for the command. S2 client SDKs provide high-level APIs for command messages, and advanced users may also create them directly.
-///
-/// Valid operations are as follows:
-/// - `fence` with an upto 16 byte payload to set a fencing token. An empty payload clears the token. Fencing is strongly consistent, and subsequent appends that specify a fencing token will be rejected if it does not match.
-/// - `trim` with exactly 8 big-endian bytes as payload representing the desired earliest sequence number. This sequence number is only allowed to advance, and any regression will be ignored. Trimming is eventually consistent, and trimmed records may be visible for a brief period.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Header {
     /// Header name blob.
+    /// The name cannot be empty, with the exception of an S2 command record.
     #[prost(bytes = "bytes", tag = "1")]
     pub name: ::prost::bytes::Bytes,
     /// Header value blob.
