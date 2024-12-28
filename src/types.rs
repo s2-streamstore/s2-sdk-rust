@@ -1269,7 +1269,7 @@ impl AsRef<[AppendRecord]> for AppendRecordBatch {
 }
 
 #[sync_docs]
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct AppendInput {
     pub records: AppendRecordBatch,
     pub match_seq_num: Option<u64>,
