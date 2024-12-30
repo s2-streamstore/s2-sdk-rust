@@ -1,0 +1,17 @@
+[package]
+name = "streamstore-python"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "streamstore"
+crate-type = ["cdylib"]
+
+[dependencies]
+bytes = "1.8.0"
+futures = "0.3.31"
+pyo3 = "0.23.3"
+pyo3-async-runtimes = { version = "0.23.0", features = ["tokio-runtime", "unstable-streams"] }
+streamstore = { path = "../../"}
+tokio = "1.41.1"
