@@ -1412,7 +1412,7 @@ impl ReadRequest {
             Some(limit) => Some({
                 if limit.count > Some(1000) {
                     Err("read limit: count must not exceed 1000 for unary request")
-                } else if limit.bytes > Some(1024 * 1024) {
+                } else if limit.bytes > Some(MIB_BYTES) {
                     Err("read limit: bytes must not exceed 1MiB for unary request")
                 } else {
                     Ok(api::ReadLimit {
