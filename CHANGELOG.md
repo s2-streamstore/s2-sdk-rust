@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2025-01-13
+
+### Documentation
+
+- Update README link for docs.rs ([#128](https://github.com/s2-streamstore/s2-sdk-rust/issues/128))
+
+### Miscellaneous Tasks
+
+- Update proto ([#129](https://github.com/s2-streamstore/s2-sdk-rust/issues/129))
+- Default impl for AppendInput ([#130](https://github.com/s2-streamstore/s2-sdk-rust/issues/130))
+- Update protos ([#133](https://github.com/s2-streamstore/s2-sdk-rust/issues/133))
+
 ## [0.5.1] - 2024-12-20
 
 ### Documentation
