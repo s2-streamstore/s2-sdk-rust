@@ -19,7 +19,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let latest_seq_num = tail - 1;
 
-    let read_limit = ReadLimit { count: 1, bytes: 0 };
+    let read_limit = ReadLimit {
+        count: Some(1),
+        bytes: None,
+    };
     let read_request = ReadRequest::new(latest_seq_num).with_limit(read_limit);
     let latest_record = stream_client.read(read_request).await?;
 

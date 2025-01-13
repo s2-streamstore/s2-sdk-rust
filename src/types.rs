@@ -1368,8 +1368,8 @@ impl TryFrom<api::AppendSessionResponse> for AppendOutput {
 #[sync_docs]
 #[derive(Debug, Clone, Default)]
 pub struct ReadLimit {
-    pub count: u64,
-    pub bytes: u64,
+    pub count: Option<u64>,
+    pub bytes: Option<u64>,
 }
 
 #[sync_docs]
@@ -1410,9 +1410,9 @@ impl ReadRequest {
         let limit: Option<api::ReadLimit> = match limit {
             None => None,
             Some(limit) => Some({
-                if limit.count > 1000 {
+                if limit.count > Some(1000) {
                     Err("read limit: count must not exceed 1000 for unary request")
-                } else if limit.bytes > (1024 * 1024) {
+                } else if limit.bytes > Some(1024 * 1024) {
                     Err("read limit: bytes must not exceed 1MiB for unary request")
                 } else {
                     Ok(api::ReadLimit {
