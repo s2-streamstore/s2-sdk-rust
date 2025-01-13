@@ -328,16 +328,15 @@ pub struct ReadResponse {
     #[prost(message, optional, tag = "1")]
     pub output: ::core::option::Option<ReadOutput>,
 }
-/// If both count and bytes are non-zero, either limit may be hit.
+/// If both count and bytes are specified, either limit may be hit.
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct ReadLimit {
-    /// A value of zero signifies no count limit.
-    #[prost(uint64, tag = "1")]
-    pub count: u64,
-    /// A value of zero signifies no bytes limit.
-    /// Record sizes are calculated as metered bytes.
-    #[prost(uint64, tag = "2")]
-    pub bytes: u64,
+    /// Record count limit.
+    #[prost(uint64, optional, tag = "1")]
+    pub count: ::core::option::Option<u64>,
+    /// Metered bytes limit.
+    #[prost(uint64, optional, tag = "2")]
+    pub bytes: ::core::option::Option<u64>,
 }
 /// Read session request.
 #[derive(Clone, PartialEq, ::prost::Message)]
