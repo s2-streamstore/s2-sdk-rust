@@ -10,9 +10,9 @@ pub struct ListBasinsRequest {
     /// It must be greater than or equal to the prefix if specified.
     #[prost(string, tag = "2")]
     pub start_after: ::prost::alloc::string::String,
-    /// Number of results, upto a maximum of 1000.
-    #[prost(uint64, tag = "3")]
-    pub limit: u64,
+    /// Number of results, up to a maximum of 1000.
+    #[prost(uint64, optional, tag = "3")]
+    pub limit: ::core::option::Option<u64>,
 }
 /// List basins response.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -128,9 +128,9 @@ pub struct ListStreamsRequest {
     /// It must be greater than or equal to the prefix if specified.
     #[prost(string, tag = "2")]
     pub start_after: ::prost::alloc::string::String,
-    /// Number of results, upto a maximum of 1000.
-    #[prost(uint64, tag = "3")]
-    pub limit: u64,
+    /// Number of results, up to a maximum of 1000.
+    #[prost(uint64, optional, tag = "3")]
+    pub limit: ::core::option::Option<u64>,
 }
 /// List streams response.
 #[derive(Clone, PartialEq, ::prost::Message)]

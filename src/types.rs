@@ -374,7 +374,7 @@ impl TryFrom<api::CreateBasinResponse> for BasinInfo {
 pub struct ListStreamsRequest {
     pub prefix: String,
     pub start_after: String,
-    pub limit: usize,
+    pub limit: Option<usize>,
 }
 
 impl ListStreamsRequest {
@@ -402,7 +402,7 @@ impl ListStreamsRequest {
     /// Overwrite limit.
     pub fn with_limit(self, limit: impl Into<usize>) -> Self {
         Self {
-            limit: limit.into(),
+            limit: Some(limit.into()),
             ..self
         }
     }
@@ -420,7 +420,8 @@ impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
             prefix,
             start_after,
             limit: limit
-                .try_into()
+                .map(TryInto::try_into)
+                .transpose()
                 .map_err(|_| "request limit does not fit into u64 bounds")?,
         })
     }
@@ -527,7 +528,7 @@ impl From<CreateStreamRequest> for api::CreateStreamRequest {
 pub struct ListBasinsRequest {
     pub prefix: String,
     pub start_after: String,
-    pub limit: usize,
+    pub limit: Option<usize>,
 }
 
 impl ListBasinsRequest {
@@ -555,7 +556,7 @@ impl ListBasinsRequest {
     /// Overwrite limit.
     pub fn with_limit(self, limit: impl Into<usize>) -> Self {
         Self {
-            limit: limit.into(),
+            limit: Some(limit.into()),
             ..self
         }
     }
@@ -573,7 +574,8 @@ impl TryFrom<ListBasinsRequest> for api::ListBasinsRequest {
             prefix,
             start_after,
             limit: limit
-                .try_into()
+                .map(TryInto::try_into)
+                .transpose()
                 .map_err(|_| "request limit does not fit into u64 bounds")?,
         })
     }
