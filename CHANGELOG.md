@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] - 2025-01-16
+
+### Miscellaneous Tasks
+
+- Update proto ([#135](https://github.com/s2-streamstore/s2-sdk-rust/issues/135))
+
 ## [0.6.0] - 2025-01-13
 
 ### Documentation
