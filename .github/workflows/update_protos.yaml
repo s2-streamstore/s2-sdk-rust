@@ -22,7 +22,7 @@ jobs:
         id: submodules
         uses: sgoudham/update-git-submodules@v2.1.1
         with:
-          submodules: s2-protos
+          submodules: proto
 
       - name: install rust
         uses: dtolnay/rust-toolchain@stable
@@ -42,11 +42,11 @@ jobs:
           cargo build --features prost-build
 
       - name: Create Pull Request
-        if: ${{ steps.submodules.outputs['s2-protos--updated'] }}
+        if: ${{ steps.submodules.outputs['proto--updated'] }}
         uses: peter-evans/create-pull-request@v7
         with:
           committer: s2-helper[bot] <194906454+s2-helper[bot]@users.noreply.github.com>
           author: s2-helper[bot] <194906454+s2-helper[bot]@users.noreply.github.com>
-          title: chore - protos update
-          branch: "protos/update-s2-protos-${{ steps.submodules.outputs['s2-protos--latestShortCommitSha'] }}"
+          title: chore - proto update
+          branch: "proto/update-s2-protos-${{ steps.submodules.outputs['proto--latestShortCommitSha'] }}"
           body: ${{ steps.submodules.outputs.prBody }}
