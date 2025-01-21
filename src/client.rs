@@ -69,7 +69,7 @@ use crate::{
         },
         ServiceRequest, ServiceStreamingResponse, Streaming,
     },
-    types::{self, MIB_BYTES},
+    types::{self, MeteredBytes, MIB_BYTES},
 };
 
 const DEFAULT_CONNECTOR: Option<HttpConnector> = None;
@@ -854,8 +854,15 @@ fn read_resumption_stream(
                         backoff = None;
                     }
                     if let Ok(types::ReadOutput::Batch(types::SequencedRecordBatch { records })) = &item {
+                        let req = request.req_mut();
                         if let Some(record) = records.last() {
-                            request.set_start_seq_num(record.seq_num + 1);
+                            req.start_seq_num = record.seq_num + 1;
+                        }
+                        if let Some(count) = req.limit.count.as_mut() {
+                            *count = count.saturating_sub(records.len() as u64);
+                        }
+                        if let Some(bytes) = req.limit.bytes.as_mut() {
+                            *bytes = bytes.saturating_sub(records.metered_bytes());
                         }
                     }
                     yield item;

@@ -1375,7 +1375,7 @@ pub struct ReadLimit {
 #[derive(Debug, Clone, Default)]
 pub struct ReadRequest {
     pub start_seq_num: u64,
-    pub limit: Option<ReadLimit>,
+    pub limit: ReadLimit,
 }
 
 impl ReadRequest {
@@ -1389,10 +1389,7 @@ impl ReadRequest {
 
     /// Overwrite limit.
     pub fn with_limit(self, limit: ReadLimit) -> Self {
-        Self {
-            limit: Some(limit),
-            ..self
-        }
+        Self { limit, ..self }
     }
 }
 
@@ -1406,26 +1403,21 @@ impl ReadRequest {
             limit,
         } = self;
 
-        let limit: Option<api::ReadLimit> = match limit {
-            None => None,
-            Some(limit) => Some({
-                if limit.count > Some(1000) {
-                    Err("read limit: count must not exceed 1000 for unary request")
-                } else if limit.bytes > Some(MIB_BYTES) {
-                    Err("read limit: bytes must not exceed 1MiB for unary request")
-                } else {
-                    Ok(api::ReadLimit {
-                        count: limit.count,
-                        bytes: limit.bytes,
-                    })
-                }
-            }?),
-        };
+        let limit = if limit.count > Some(1000) {
+            Err("read limit: count must not exceed 1000 for unary request")
+        } else if limit.bytes > Some(MIB_BYTES) {
+            Err("read limit: bytes must not exceed 1MiB for unary request")
+        } else {
+            Ok(api::ReadLimit {
+                count: limit.count,
+                bytes: limit.bytes,
+            })
+        }?;
 
         Ok(api::ReadRequest {
             stream: stream.into(),
             start_seq_num,
-            limit,
+            limit: Some(limit),
         })
     }
 }
@@ -1546,7 +1538,7 @@ impl TryFrom<api::ReadResponse> for ReadOutput {
 #[derive(Debug, Clone, Default)]
 pub struct ReadSessionRequest {
     pub start_seq_num: u64,
-    pub limit: Option<ReadLimit>,
+    pub limit: ReadLimit,
 }
 
 impl ReadSessionRequest {
@@ -1560,10 +1552,7 @@ impl ReadSessionRequest {
 
     /// Overwrite limit.
     pub fn with_limit(self, limit: ReadLimit) -> Self {
-        Self {
-            limit: Some(limit),
-            ..self
-        }
+        Self { limit, ..self }
     }
 
     pub(crate) fn into_api_type(self, stream: impl Into<String>) -> api::ReadSessionRequest {
@@ -1574,7 +1563,7 @@ impl ReadSessionRequest {
         api::ReadSessionRequest {
             stream: stream.into(),
             start_seq_num,
-            limit: limit.map(|limit| api::ReadLimit {
+            limit: Some(api::ReadLimit {
                 count: limit.count,
                 bytes: limit.bytes,
             }),

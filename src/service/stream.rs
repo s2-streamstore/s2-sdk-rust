@@ -122,8 +122,8 @@ impl ReadSessionServiceRequest {
         }
     }
 
-    pub fn set_start_seq_num(&mut self, start_seq_num: u64) {
-        self.req.start_seq_num = start_seq_num;
+    pub(crate) fn req_mut(&mut self) -> &mut types::ReadSessionRequest {
+        &mut self.req
     }
 }
 
