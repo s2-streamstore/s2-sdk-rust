@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2025-01-21
+
+### Bug Fixes
+
+- Respect limits with read session resumption ([#139](https://github.com/s2-streamstore/s2-sdk-rust/issues/139))
+
+### Miscellaneous Tasks
+
+- Make `with_limit()` take option ([#145](https://github.com/s2-streamstore/s2-sdk-rust/issues/145))
+
 ## [0.7.0] - 2025-01-16
 
 ### Miscellaneous Tasks
