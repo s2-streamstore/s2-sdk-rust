@@ -400,9 +400,9 @@ impl ListStreamsRequest {
     }
 
     /// Overwrite limit.
-    pub fn with_limit(self, limit: impl Into<usize>) -> Self {
+    pub fn with_limit(self, limit: impl Into<Option<usize>>) -> Self {
         Self {
-            limit: Some(limit.into()),
+            limit: limit.into(),
             ..self
         }
     }
@@ -419,10 +419,7 @@ impl TryFrom<ListStreamsRequest> for api::ListStreamsRequest {
         Ok(Self {
             prefix,
             start_after,
-            limit: limit
-                .map(TryInto::try_into)
-                .transpose()
-                .map_err(|_| "request limit does not fit into u64 bounds")?,
+            limit: limit.map(|n| n as u64),
         })
     }
 }
@@ -554,9 +551,9 @@ impl ListBasinsRequest {
     }
 
     /// Overwrite limit.
-    pub fn with_limit(self, limit: impl Into<usize>) -> Self {
+    pub fn with_limit(self, limit: impl Into<Option<usize>>) -> Self {
         Self {
-            limit: Some(limit.into()),
+            limit: limit.into(),
             ..self
         }
     }
