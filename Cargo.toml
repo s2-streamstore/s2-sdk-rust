@@ -39,7 +39,7 @@ thiserror = "1.0.67"
 tokio = { version = "1.41.1", features = ["time"] }
 tokio-muxt = "0.5.0"
 tokio-stream = "0.1.16"
-tonic = { version = "0.12.3", features = ["tls", "tls-webpki-roots"] }
+tonic = { version = "0.12.3", features = ["tls", "tls-webpki-roots", "zstd"] }
 tonic-side-effect = "0.2.0"
 tower-service = "0.3.3"
 tracing = "0.1.40"

@@ -1,5 +1,5 @@
 use prost_types::method_options::IdempotencyLevel;
-use tonic::{transport::Channel, IntoRequest};
+use tonic::{codec::CompressionEncoding, transport::Channel, IntoRequest};
 use tonic_side_effect::{FrameSignal, RequestFrameMonitor};
 
 use super::{
@@ -69,7 +69,7 @@ impl ReadServiceRequest {
         req: types::ReadRequest,
     ) -> Self {
         Self {
-            client,
+            client: client.accept_compressed(CompressionEncoding::Zstd),
             stream: stream.into(),
             req,
         }
@@ -116,7 +116,7 @@ impl ReadSessionServiceRequest {
         req: types::ReadSessionRequest,
     ) -> Self {
         Self {
-            client,
+            client: client.accept_compressed(CompressionEncoding::Zstd),
             stream: stream.into(),
             req,
         }
@@ -188,7 +188,7 @@ impl AppendServiceRequest {
         req: types::AppendInput,
     ) -> Self {
         Self {
-            client,
+            client: client.send_compressed(CompressionEncoding::Zstd),
             append_retry_policy,
             frame_signal,
             stream: stream.into(),
@@ -261,7 +261,7 @@ where
         req: S,
     ) -> Self {
         Self {
-            client,
+            client: client.send_compressed(CompressionEncoding::Zstd),
             stream: stream.into(),
             req: Some(req),
         }
