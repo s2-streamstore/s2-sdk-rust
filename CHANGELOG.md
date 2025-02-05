@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.1] - 2025-02-05
+
+### Features
+
+- Enable compression ([#147](https://github.com/s2-streamstore/s2-sdk-rust/issues/147))
+
 ## [0.8.0] - 2025-01-21
 
 ### Bug Fixes
