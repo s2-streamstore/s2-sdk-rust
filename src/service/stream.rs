@@ -69,9 +69,7 @@ impl ReadServiceRequest {
         req: types::ReadRequest,
     ) -> Self {
         Self {
-            client: client
-                .accept_compressed(CompressionEncoding::Zstd)
-                .accept_compressed(CompressionEncoding::Gzip),
+            client: client.accept_compressed(CompressionEncoding::Zstd),
             stream: stream.into(),
             req,
         }
@@ -118,9 +116,7 @@ impl ReadSessionServiceRequest {
         req: types::ReadSessionRequest,
     ) -> Self {
         Self {
-            client: client
-                .accept_compressed(CompressionEncoding::Zstd)
-                .accept_compressed(CompressionEncoding::Gzip),
+            client: client.accept_compressed(CompressionEncoding::Zstd),
             stream: stream.into(),
             req,
         }
