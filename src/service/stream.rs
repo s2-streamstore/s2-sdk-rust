@@ -240,7 +240,10 @@ impl ServiceRequest for AppendServiceRequest {
         if let ClientError::Service(status) = err {
             let retryable_error = matches!(
                 status.code(),
-                tonic::Code::Unavailable | tonic::Code::DeadlineExceeded | tonic::Code::Unknown
+                tonic::Code::Unavailable
+                    | tonic::Code::DeadlineExceeded
+                    | tonic::Code::Cancelled
+                    | tonic::Code::Unknown
             );
             let policy_compliant = match self.append_retry_policy {
                 AppendRetryPolicy::All => true,

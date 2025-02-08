@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.2] - 2025-02-07
+
+### Bug Fixes
+
+- Retry CANCELLED gRPC status code ([#149](https://github.com/s2-streamstore/s2-sdk-rust/issues/149))
+
 ## [0.8.1] - 2025-02-05
 
 ### Features

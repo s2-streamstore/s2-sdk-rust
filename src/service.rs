@@ -99,7 +99,10 @@ pub trait ServiceRequest: std::fmt::Debug {
         if let ClientError::Service(status) = err {
             matches!(
                 status.code(),
-                tonic::Code::Unavailable | tonic::Code::DeadlineExceeded | tonic::Code::Unknown
+                tonic::Code::Unavailable
+                    | tonic::Code::DeadlineExceeded
+                    | tonic::Code::Cancelled
+                    | tonic::Code::Unknown
             )
         } else {
             false
