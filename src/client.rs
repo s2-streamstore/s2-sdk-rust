@@ -246,6 +246,7 @@ pub struct ClientConfig {
     pub(crate) retry_backoff_duration: Duration,
     pub(crate) max_attempts: usize,
     pub(crate) max_append_inflight_bytes: u64,
+    pub(crate) compression: bool,
 }
 
 impl ClientConfig {
@@ -263,6 +264,7 @@ impl ClientConfig {
             retry_backoff_duration: Duration::from_millis(100),
             max_attempts: 3,
             max_append_inflight_bytes: 100 * MIB_BYTES,
+            compression: true,
         }
     }
 
@@ -350,6 +352,15 @@ impl ClientConfig {
         assert!(max_attempts > 0, "max attempts must be greater than 0");
         Self {
             max_attempts,
+            ..self
+        }
+    }
+
+    /// Configure compression for requests and responses.
+    /// It's enabled by default.
+    pub fn with_compression(self, compression: bool) -> Self {
+        Self {
+            compression,
             ..self
         }
     }
@@ -616,6 +627,7 @@ impl StreamClient {
                 self.inner.stream_service_client(),
                 &self.stream,
                 req,
+                self.inner.config.compression,
             ))
             .await
     }
@@ -625,8 +637,12 @@ impl StreamClient {
         &self,
         req: types::ReadSessionRequest,
     ) -> Result<Streaming<types::ReadOutput>, ClientError> {
-        let request =
-            ReadSessionServiceRequest::new(self.inner.stream_service_client(), &self.stream, req);
+        let request = ReadSessionServiceRequest::new(
+            self.inner.stream_service_client(),
+            &self.stream,
+            req,
+            self.inner.config.compression,
+        );
         self.inner
             .send_retryable(request.clone())
             .await
@@ -653,6 +669,7 @@ impl StreamClient {
                 frame_signal,
                 &self.stream,
                 req,
+                self.inner.config.compression,
             ))
             .await
     }
@@ -671,6 +688,7 @@ impl StreamClient {
             self.clone(),
             req,
             response_tx,
+            self.inner.config.compression,
         ));
 
         Ok(Box::pin(ReceiverStream::new(response_rx)))
@@ -817,6 +835,7 @@ impl ClientInner {
     pub(crate) fn stream_service_client(&self) -> StreamServiceClient<Channel> {
         StreamServiceClient::new(self.channel.clone())
     }
+
     pub(crate) fn frame_monitoring_stream_service_client(
         &self,
         frame_signal: FrameSignal,

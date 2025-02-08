@@ -64,12 +64,16 @@ pub struct ReadServiceRequest {
 
 impl ReadServiceRequest {
     pub fn new(
-        client: StreamServiceClient<Channel>,
+        mut client: StreamServiceClient<Channel>,
         stream: impl Into<String>,
         req: types::ReadRequest,
+        compression: bool,
     ) -> Self {
+        if compression {
+            client = client.accept_compressed(CompressionEncoding::Zstd);
+        }
         Self {
-            client: client.accept_compressed(CompressionEncoding::Zstd),
+            client,
             stream: stream.into(),
             req,
         }
@@ -111,12 +115,16 @@ pub struct ReadSessionServiceRequest {
 
 impl ReadSessionServiceRequest {
     pub fn new(
-        client: StreamServiceClient<Channel>,
+        mut client: StreamServiceClient<Channel>,
         stream: impl Into<String>,
         req: types::ReadSessionRequest,
+        compression: bool,
     ) -> Self {
+        if compression {
+            client = client.accept_compressed(CompressionEncoding::Zstd);
+        }
         Self {
-            client: client.accept_compressed(CompressionEncoding::Zstd),
+            client,
             stream: stream.into(),
             req,
         }
@@ -181,14 +189,18 @@ pub struct AppendServiceRequest {
 
 impl AppendServiceRequest {
     pub fn new(
-        client: StreamServiceClient<RequestFrameMonitor>,
+        mut client: StreamServiceClient<RequestFrameMonitor>,
         append_retry_policy: AppendRetryPolicy,
         frame_signal: FrameSignal,
         stream: impl Into<String>,
         req: types::AppendInput,
+        compression: bool,
     ) -> Self {
+        if compression {
+            client = client.send_compressed(CompressionEncoding::Zstd);
+        }
         Self {
-            client: client.send_compressed(CompressionEncoding::Zstd),
+            client,
             append_retry_policy,
             frame_signal,
             stream: stream.into(),
@@ -256,12 +268,16 @@ where
     S: Send + futures::Stream<Item = types::AppendInput> + Unpin,
 {
     pub fn new(
-        client: StreamServiceClient<RequestFrameMonitor>,
+        mut client: StreamServiceClient<RequestFrameMonitor>,
         stream: impl Into<String>,
         req: S,
+        compression: bool,
     ) -> Self {
+        if compression {
+            client = client.send_compressed(CompressionEncoding::Zstd);
+        }
         Self {
-            client: client.send_compressed(CompressionEncoding::Zstd),
+            client,
             stream: stream.into(),
             req: Some(req),
         }

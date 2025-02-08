@@ -29,6 +29,7 @@ use crate::{
 async fn connect(
     stream_client: &StreamClient,
     frame_signal: FrameSignal,
+    compression: bool,
 ) -> Result<
     (
         mpsc::Sender<types::AppendInput>,
@@ -44,6 +45,7 @@ async fn connect(
             .frame_monitoring_stream_service_client(frame_signal.clone()),
         &stream_client.stream,
         ReceiverStream::new(input_rx),
+        compression,
     );
 
     Ok((input_tx, stream_client.inner.send(service_req).await?))
@@ -214,6 +216,7 @@ async fn session_inner<S>(
     frame_signal: FrameSignal,
     stream_client: StreamClient,
     output_tx: mpsc::Sender<Result<types::AppendOutput, ClientError>>,
+    compression: bool,
 ) -> Result<(), ClientError>
 where
     S: 'static + Send + Unpin + futures::Stream<Item = types::AppendInput>,
@@ -230,7 +233,8 @@ where
 
     assert!(*inflight_size <= stream_client.inner.config.max_append_inflight_bytes);
 
-    let (s2_input_tx, mut s2_ack_stream) = connect(&stream_client, frame_signal.clone()).await?;
+    let (s2_input_tx, mut s2_ack_stream) =
+        connect(&stream_client, frame_signal.clone(), compression).await?;
     let batch_ack_deadline = stream_client.inner.config.request_timeout;
 
     if !inflight.is_empty() {
@@ -346,6 +350,7 @@ pub(crate) async fn manage_session<S>(
     stream_client: StreamClient,
     input: S,
     output_tx: mpsc::Sender<Result<types::AppendOutput, ClientError>>,
+    compression: bool,
 ) where
     S: 'static + Send + Unpin + futures::Stream<Item = types::AppendInput>,
 {
@@ -367,6 +372,7 @@ pub(crate) async fn manage_session<S>(
             frame_signal.clone(),
             stream_client.clone(),
             output_tx.clone(),
+            compression,
         )
         .await
         {
