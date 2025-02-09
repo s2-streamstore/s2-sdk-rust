@@ -264,7 +264,7 @@ impl ClientConfig {
             retry_backoff_duration: Duration::from_millis(100),
             max_attempts: 3,
             max_append_inflight_bytes: 100 * MIB_BYTES,
-            compression: true,
+            compression: false,
         }
     }
 
@@ -357,7 +357,7 @@ impl ClientConfig {
     }
 
     /// Configure compression for requests and responses.
-    /// It's enabled by default.
+    /// Disabled by default.
     pub fn with_compression(self, compression: bool) -> Self {
         Self {
             compression,
