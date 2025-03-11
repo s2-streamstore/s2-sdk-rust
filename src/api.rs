@@ -35,22 +35,9 @@ pub struct CreateBasinRequest {
     /// Basin configuration.
     #[prost(message, optional, tag = "2")]
     pub config: ::core::option::Option<BasinConfig>,
-    /// Assignment of the basin to a cloud and region, or an explicit cell.
-    #[prost(oneof = "create_basin_request::Assignment", tags = "3, 4")]
-    pub assignment: ::core::option::Option<create_basin_request::Assignment>,
-}
-/// Nested message and enum types in `CreateBasinRequest`.
-pub mod create_basin_request {
-    /// Assignment of the basin to a cloud and region, or an explicit cell.
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Assignment {
-        /// Basin scope. It should be formatted as "{cloud}:{region}", e.g. "aws:us-east-1".
-        #[prost(string, tag = "3")]
-        Scope(::prost::alloc::string::String),
-        /// Explicit cell assignment, if it is owned by the account.
-        #[prost(string, tag = "4")]
-        Cell(::prost::alloc::string::String),
-    }
+    /// Basin scope.
+    #[prost(enumeration = "BasinScope", tag = "3")]
+    pub scope: i32,
 }
 /// Create basin response.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -353,11 +340,17 @@ pub struct ReadSessionRequest {
     /// new messages are written to the stream.
     #[prost(message, optional, tag = "3")]
     pub limit: ::core::option::Option<ReadLimit>,
+    /// Heartbeats can be enabled to monitor end-to-end session health.
+    /// A heartbeat will be sent when the initial switch to real-time tailing happens,
+    /// as well as when no records are available at a randomized interval between 5 and 15 seconds.
+    #[prost(bool, tag = "4")]
+    pub heartbeats: bool,
 }
 /// Read session response.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReadSessionResponse {
     /// Response details for a read.
+    /// This will not be set in case of a heartbeat message.
     #[prost(message, optional, tag = "1")]
     pub output: ::core::option::Option<ReadOutput>,
 }
@@ -390,6 +383,10 @@ pub struct BasinConfig {
     /// Default stream configuration.
     #[prost(message, optional, tag = "1")]
     pub default_stream_config: ::core::option::Option<StreamConfig>,
+    /// Create stream on append if it doesn't exist,
+    /// using the default stream configuration.
+    #[prost(bool, tag = "2")]
+    pub create_stream_on_append: bool,
 }
 /// Basin information.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -398,11 +395,8 @@ pub struct BasinInfo {
     #[prost(string, tag = "1")]
     pub name: ::prost::alloc::string::String,
     /// Basin scope.
-    #[prost(string, tag = "2")]
-    pub scope: ::prost::alloc::string::String,
-    /// Cell assignment.
-    #[prost(string, tag = "3")]
-    pub cell: ::prost::alloc::string::String,
+    #[prost(enumeration = "BasinScope", tag = "5")]
+    pub scope: i32,
     /// Basin state.
     #[prost(enumeration = "BasinState", tag = "4")]
     pub state: i32,
@@ -447,6 +441,35 @@ pub struct SequencedRecordBatch {
     /// Batch of sequenced records.
     #[prost(message, repeated, tag = "1")]
     pub records: ::prost::alloc::vec::Vec<SequencedRecord>,
+}
+/// Basin scope.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum BasinScope {
+    /// Unspecified basin scope.
+    Unspecified = 0,
+    /// aws us-east-1 region.
+    AwsUsEast1 = 1,
+}
+impl BasinScope {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "BASIN_SCOPE_UNSPECIFIED",
+            Self::AwsUsEast1 => "BASIN_SCOPE_AWS_US_EAST_1",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "BASIN_SCOPE_UNSPECIFIED" => Some(Self::Unspecified),
+            "BASIN_SCOPE_AWS_US_EAST_1" => Some(Self::AwsUsEast1),
+            _ => None,
+        }
+    }
 }
 /// Storage class for recent writes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
