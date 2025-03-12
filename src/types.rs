@@ -3,7 +3,7 @@
 use std::{ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
 
 use bytes::Bytes;
-use rand::{distributions::Uniform, Rng};
+use rand::{Rng, distributions::Uniform};
 use regex::Regex;
 use sync_docs::sync_docs;
 
@@ -59,11 +59,63 @@ macro_rules! metered_impl {
 }
 
 #[sync_docs]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BasinScope {
+    #[default]
+    Unspecified,
+    AwsUsEast1,
+}
+
+impl From<BasinScope> for api::BasinScope {
+    fn from(value: BasinScope) -> Self {
+        match value {
+            BasinScope::Unspecified => Self::Unspecified,
+            BasinScope::AwsUsEast1 => Self::AwsUsEast1,
+        }
+    }
+}
+
+impl From<api::BasinScope> for BasinScope {
+    fn from(value: api::BasinScope) -> Self {
+        match value {
+            api::BasinScope::Unspecified => Self::Unspecified,
+            api::BasinScope::AwsUsEast1 => Self::AwsUsEast1,
+        }
+    }
+}
+
+impl FromStr for BasinScope {
+    type Err = ConvertError;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "unspecified" => Ok(Self::Unspecified),
+            "aws:us-east-1" => Ok(Self::AwsUsEast1),
+            _ => Err("invalid basin scope value".into()),
+        }
+    }
+}
+
+impl From<BasinScope> for i32 {
+    fn from(value: BasinScope) -> Self {
+        api::BasinScope::from(value).into()
+    }
+}
+
+impl TryFrom<i32> for BasinScope {
+    type Error = ConvertError;
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        api::BasinScope::try_from(value)
+            .map(Into::into)
+            .map_err(|_| "invalid basin scope value".into())
+    }
+}
+
+#[sync_docs]
 #[derive(Debug, Clone)]
 pub struct CreateBasinRequest {
     pub basin: BasinName,
     pub config: Option<BasinConfig>,
-    // TODO: Add assignment (when it's supported).
+    pub scope: BasinScope,
 }
 
 impl CreateBasinRequest {
@@ -72,6 +124,7 @@ impl CreateBasinRequest {
         Self {
             basin,
             config: None,
+            scope: BasinScope::Unspecified,
         }
     }
 
@@ -82,15 +135,24 @@ impl CreateBasinRequest {
             ..self
         }
     }
+
+    /// Overwrite basin scope.
+    pub fn with_scope(self, scope: BasinScope) -> Self {
+        Self { scope, ..self }
+    }
 }
 
 impl From<CreateBasinRequest> for api::CreateBasinRequest {
     fn from(value: CreateBasinRequest) -> Self {
-        let CreateBasinRequest { basin, config } = value;
+        let CreateBasinRequest {
+            basin,
+            config,
+            scope,
+        } = value;
         Self {
             basin: basin.0,
             config: config.map(Into::into),
-            assignment: None,
+            scope: scope.into(),
         }
     }
 }
@@ -99,15 +161,18 @@ impl From<CreateBasinRequest> for api::CreateBasinRequest {
 #[derive(Debug, Clone, Default)]
 pub struct BasinConfig {
     pub default_stream_config: Option<StreamConfig>,
+    pub create_stream_on_append: bool,
 }
 
 impl From<BasinConfig> for api::BasinConfig {
     fn from(value: BasinConfig) -> Self {
         let BasinConfig {
             default_stream_config,
+            create_stream_on_append,
         } = value;
         Self {
             default_stream_config: default_stream_config.map(Into::into),
+            create_stream_on_append,
         }
     }
 }
@@ -117,9 +182,11 @@ impl TryFrom<api::BasinConfig> for BasinConfig {
     fn try_from(value: api::BasinConfig) -> Result<Self, Self::Error> {
         let api::BasinConfig {
             default_stream_config,
+            create_stream_on_append,
         } = value;
         Ok(Self {
             default_stream_config: default_stream_config.map(TryInto::try_into).transpose()?,
+            create_stream_on_append,
         })
     }
 }
@@ -320,23 +387,16 @@ impl std::fmt::Display for BasinState {
 #[derive(Debug, Clone)]
 pub struct BasinInfo {
     pub name: String,
-    pub scope: String,
-    pub cell: String,
+    pub scope: BasinScope,
     pub state: BasinState,
 }
 
 impl From<BasinInfo> for api::BasinInfo {
     fn from(value: BasinInfo) -> Self {
-        let BasinInfo {
-            name,
-            scope,
-            cell,
-            state,
-        } = value;
+        let BasinInfo { name, scope, state } = value;
         Self {
             name,
-            scope,
-            cell,
+            scope: scope.into(),
             state: state.into(),
         }
     }
@@ -345,16 +405,10 @@ impl From<BasinInfo> for api::BasinInfo {
 impl TryFrom<api::BasinInfo> for BasinInfo {
     type Error = ConvertError;
     fn try_from(value: api::BasinInfo) -> Result<Self, Self::Error> {
-        let api::BasinInfo {
-            name,
-            scope,
-            cell,
-            state,
-        } = value;
+        let api::BasinInfo { name, scope, state } = value;
         Ok(Self {
             name,
-            scope,
-            cell,
+            scope: scope.try_into()?,
             state: state.try_into()?,
         })
     }
@@ -1567,6 +1621,7 @@ impl ReadSessionRequest {
                 count: limit.count,
                 bytes: limit.bytes,
             }),
+            heartbeats: false,
         }
     }
 }

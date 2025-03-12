@@ -1,7 +1,7 @@
 use prost_types::method_options::IdempotencyLevel;
-use tonic::{transport::Channel, IntoRequest};
+use tonic::{IntoRequest, transport::Channel};
 
-use super::{add_s2_request_token_header, gen_s2_request_token, ServiceRequest};
+use super::{ServiceRequest, add_s2_request_token_header, gen_s2_request_token};
 use crate::{
     api::{self, basin_service_client::BasinServiceClient},
     types,

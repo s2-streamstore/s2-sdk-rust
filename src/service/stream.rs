@@ -1,5 +1,5 @@
 use prost_types::method_options::IdempotencyLevel;
-use tonic::{codec::CompressionEncoding, transport::Channel, IntoRequest};
+use tonic::{IntoRequest, codec::CompressionEncoding, transport::Channel};
 use tonic_side_effect::{FrameSignal, RequestFrameMonitor};
 
 use super::{
@@ -102,7 +102,7 @@ impl ServiceRequest for ReadServiceRequest {
         &self,
         resp: tonic::Response<Self::ApiResponse>,
     ) -> Result<Self::Response, types::ConvertError> {
-        resp.into_inner().try_into().map_err(Into::into)
+        resp.into_inner().try_into()
     }
 }
 
@@ -233,7 +233,7 @@ impl ServiceRequest for AppendServiceRequest {
         &self,
         resp: tonic::Response<Self::ApiResponse>,
     ) -> Result<Self::Response, types::ConvertError> {
-        resp.into_inner().try_into().map_err(Into::into)
+        resp.into_inner().try_into()
     }
 
     fn should_retry(&self, err: &ClientError) -> bool {

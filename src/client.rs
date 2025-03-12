@@ -35,7 +35,7 @@ use std::{env::VarError, fmt::Display, str::FromStr, time::Duration};
 
 use backon::{BackoffBuilder, ConstantBuilder, Retryable};
 use futures::StreamExt;
-use http::{uri::Authority, HeaderValue};
+use http::{HeaderValue, uri::Authority};
 use hyper_util::client::legacy::connect::HttpConnector;
 use secrecy::SecretString;
 use sync_docs::sync_docs;
@@ -54,6 +54,7 @@ use crate::{
     },
     append_session,
     service::{
+        ServiceRequest, ServiceStreamingResponse, Streaming,
         account::{
             CreateBasinServiceRequest, DeleteBasinServiceRequest, GetBasinConfigServiceRequest,
             ListBasinsServiceRequest, ReconfigureBasinServiceRequest,
@@ -67,9 +68,8 @@ use crate::{
             AppendServiceRequest, CheckTailServiceRequest, ReadServiceRequest,
             ReadSessionServiceRequest, ReadSessionStreamingResponse,
         },
-        ServiceRequest, ServiceStreamingResponse, Streaming,
     },
-    types::{self, MeteredBytes, MIB_BYTES},
+    types::{self, MIB_BYTES, MeteredBytes},
 };
 
 const DEFAULT_CONNECTOR: Option<HttpConnector> = None;
@@ -817,7 +817,7 @@ impl ClientInner {
             .await
     }
 
-    pub(crate) fn backoff_builder(&self) -> impl BackoffBuilder {
+    pub(crate) fn backoff_builder(&self) -> impl BackoffBuilder + use<> {
         ConstantBuilder::default()
             .with_delay(self.config.retry_backoff_duration)
             .with_max_times(self.config.max_attempts)

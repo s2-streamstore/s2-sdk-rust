@@ -7,7 +7,7 @@ use std::{
 
 use futures::StreamExt;
 use tokio::{
-    sync::{mpsc, mpsc::Permit, Mutex},
+    sync::{Mutex, mpsc, mpsc::Permit},
     time::Instant,
 };
 use tokio_muxt::{CoalesceMode, MuxTimer};
@@ -19,8 +19,8 @@ use tracing::debug;
 use crate::{
     client::{AppendRetryPolicy, ClientError, StreamClient},
     service::{
-        stream::{AppendSessionServiceRequest, AppendSessionStreamingResponse},
         ServiceStreamingResponse,
+        stream::{AppendSessionServiceRequest, AppendSessionStreamingResponse},
     },
     types,
     types::MeteredBytes,
