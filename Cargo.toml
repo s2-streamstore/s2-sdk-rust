@@ -2,7 +2,7 @@
 name = "streamstore"
 description = "Rust SDK for S2"
 version = "0.8.2"
-edition = "2021"
+edition = "2024"
 license = "Apache-2.0"
 keywords = ["wal", "grpc", "s2", "log", "stream"]
 repository = "https://github.com/s2-streamstore/s2-sdk-rust"

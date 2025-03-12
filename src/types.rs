@@ -89,7 +89,7 @@ impl FromStr for BasinScope {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "unspecified" => Ok(Self::Unspecified),
-            "aws_us_east_1" => Ok(Self::AwsUsEast1),
+            "aws:us-east-1" => Ok(Self::AwsUsEast1),
             _ => Err("invalid basin scope value".into()),
         }
     }
@@ -1593,7 +1593,6 @@ impl TryFrom<api::ReadResponse> for ReadOutput {
 pub struct ReadSessionRequest {
     pub start_seq_num: u64,
     pub limit: ReadLimit,
-    pub heartbeats: bool,
 }
 
 impl ReadSessionRequest {
@@ -1610,16 +1609,10 @@ impl ReadSessionRequest {
         Self { limit, ..self }
     }
 
-    /// Overwrite heartbeats.
-    pub fn with_heartbeats(self, heartbeats: bool) -> Self {
-        Self { heartbeats, ..self }
-    }
-
     pub(crate) fn into_api_type(self, stream: impl Into<String>) -> api::ReadSessionRequest {
         let Self {
             start_seq_num,
             limit,
-            heartbeats,
         } = self;
         api::ReadSessionRequest {
             stream: stream.into(),
@@ -1628,7 +1621,7 @@ impl ReadSessionRequest {
                 count: limit.count,
                 bytes: limit.bytes,
             }),
-            heartbeats,
+            heartbeats: false,
         }
     }
 }
