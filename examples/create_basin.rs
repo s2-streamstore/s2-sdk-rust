@@ -20,6 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let basin_config = BasinConfig {
         default_stream_config: Some(default_stream_config),
+        create_stream_on_append: false,
     };
 
     let create_basin_request = CreateBasinRequest::new(basin.clone()).with_config(basin_config);

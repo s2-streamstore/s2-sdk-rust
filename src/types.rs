@@ -3,7 +3,7 @@
 use std::{ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
 
 use bytes::Bytes;
-use rand::{distributions::Uniform, Rng};
+use rand::{Rng, distributions::Uniform};
 use regex::Regex;
 use sync_docs::sync_docs;
 
