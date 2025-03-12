@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2025-03-12
+
+### Features
+
+- Configurable option for compression ([#151](https://github.com/s2-streamstore/s2-sdk-rust/issues/151))
+
+### Miscellaneous Tasks
+
+- Upgrade proto ([#153](https://github.com/s2-streamstore/s2-sdk-rust/issues/153))
+- Proto update ([#154](https://github.com/s2-streamstore/s2-sdk-rust/issues/154))
+
 ## [0.8.2] - 2025-02-07
 
 ### Bug Fixes
