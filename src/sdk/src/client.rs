@@ -37,6 +37,13 @@ use backon::{BackoffBuilder, ConstantBuilder, Retryable};
 use futures::StreamExt;
 use http::{HeaderValue, uri::Authority};
 use hyper_util::client::legacy::connect::HttpConnector;
+use s2_types::{
+    api::{
+        account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient,
+        stream_service_client::StreamServiceClient,
+    },
+    types::{self, MIB_BYTES, MeteredBytes},
+};
 use secrecy::SecretString;
 use sync_docs::sync_docs;
 use tokio::{sync::mpsc, time::sleep};
@@ -46,13 +53,6 @@ use tonic::{
     transport::{Channel, ClientTlsConfig, Endpoint},
 };
 use tonic_side_effect::{FrameSignal, RequestFrameMonitor};
-use s2_types::{
-    types::{self, MIB_BYTES, MeteredBytes},
-    api::{
-        account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient,
-        stream_service_client::StreamServiceClient,
-    },
-};
 
 use crate::{
     append_session,

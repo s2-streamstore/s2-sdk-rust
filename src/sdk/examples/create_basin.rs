@@ -2,7 +2,9 @@ use std::time::Duration;
 
 use s2::{
     client::{Client, ClientConfig},
-    types::{BasinConfig, BasinName, CreateBasinRequest, RetentionAge, RetentionPolicy, StreamConfig},
+    types::{
+        BasinConfig, BasinName, CreateBasinRequest, RetentionAge, RetentionPolicy, StreamConfig,
+    },
 };
 
 #[tokio::main]

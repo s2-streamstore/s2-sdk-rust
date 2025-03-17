@@ -53,7 +53,6 @@ use std::{
 };
 
 use futures::{Stream, StreamExt};
-
 use s2_types::types;
 
 /// Options to configure batching scheme for [`AppendRecordsBatchingStream`].
@@ -303,11 +302,11 @@ mod tests {
     use bytes::Bytes;
     use futures::StreamExt as _;
     use rstest::rstest;
+    use s2_types::types::{self, AppendInput, AppendRecordBatch};
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnboundedReceiverStream;
 
     use super::{AppendRecordsBatchingOpts, AppendRecordsBatchingStream};
-    use s2_types::types::{self, AppendInput, AppendRecordBatch};
 
     #[rstest]
     #[case(Some(2), None)]

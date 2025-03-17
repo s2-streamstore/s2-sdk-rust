@@ -9,9 +9,9 @@ use std::{
 
 use futures::StreamExt;
 use prost_types::method_options::IdempotencyLevel;
+use s2_types::types;
 use secrecy::{ExposeSecret, SecretString};
 use tonic::metadata::{AsciiMetadataKey, AsciiMetadataValue, MetadataMap};
-use s2_types::types;
 
 use crate::client::ClientError;
 

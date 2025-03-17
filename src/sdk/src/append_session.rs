@@ -6,6 +6,7 @@ use std::{
 };
 
 use futures::StreamExt;
+use s2_types::types::{self, MeteredBytes};
 use tokio::{
     sync::{Mutex, mpsc, mpsc::Permit},
     time::Instant,
@@ -15,7 +16,6 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 use tonic_side_effect::FrameSignal;
 use tracing::debug;
-use s2_types::types::{self, MeteredBytes};
 
 use crate::{
     client::{AppendRetryPolicy, ClientError, StreamClient},

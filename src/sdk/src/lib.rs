@@ -82,5 +82,5 @@ pub mod batching;
 pub mod client;
 
 pub use client::{BasinClient, Client, ClientConfig, StreamClient};
-pub use service::Streaming;
 pub use s2_types::types;
+pub use service::Streaming;

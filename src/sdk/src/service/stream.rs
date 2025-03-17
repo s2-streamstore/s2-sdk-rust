@@ -1,10 +1,10 @@
 use prost_types::method_options::IdempotencyLevel;
-use tonic::{IntoRequest, codec::CompressionEncoding, transport::Channel};
-use tonic_side_effect::{FrameSignal, RequestFrameMonitor};
 use s2_types::{
     api::{self, stream_service_client::StreamServiceClient},
     types,
 };
+use tonic::{IntoRequest, codec::CompressionEncoding, transport::Channel};
+use tonic_side_effect::{FrameSignal, RequestFrameMonitor};
 
 use super::{
     ClientError, ServiceRequest, ServiceStreamingRequest, ServiceStreamingResponse,
