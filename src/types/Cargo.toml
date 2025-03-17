@@ -1,26 +1,26 @@
 [package]
 name = "streamstore_types"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-keywords.workspace = true
-repository.workspace = true
-homepage.workspace = true
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+keywords = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
 
 [lib]
 name = "s2_types"
 path = "src/lib.rs"
 
 [dependencies]
-bytes.workspace = true
+bytes = { workspace = true }
 fieldmask = { workspace = true, optional = true }
-prost.workspace = true
-prost-types.workspace = true
-rand.workspace = true
-regex.workspace = true
-sync_docs.workspace = true
-thiserror.workspace = true
-tonic.workspace = true
+prost = { workspace = true }
+prost-types = { workspace = true }
+rand = { workspace = true }
+regex = { workspace = true }
+sync_docs = { workspace = true }
+thiserror = { workspace = true }
+tonic = { workspace = true }
 
 [build-dependencies]
 tonic-build = { workspace = true, features = ["prost"], optional = true }

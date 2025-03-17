@@ -1,12 +1,12 @@
 [package]
 name = "streamstore"
 description = "Rust SDK for S2"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-keywords.workspace = true
-repository.workspace = true
-homepage.workspace = true
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+keywords = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
 
 [lib]
 name = "s2"
@@ -22,34 +22,34 @@ name = "create_basin"
 doc-scrape-examples = true
 
 [dependencies]
-async-stream.workspace = true
-backon.workspace = true
-bytes.workspace = true
-futures.workspace = true
-http.workspace = true
-hyper.workspace = true
-hyper-util.workspace = true
-prost-types.workspace = true
-rand.workspace = true
-regex.workspace = true
-secrecy.workspace = true
-streamstore_types.path = "../types"
-sync_docs.workspace = true
-thiserror.workspace = true
+async-stream = { workspace = true }
+backon = { workspace = true }
+bytes = { workspace = true }
+futures = { workspace = true }
+http = { workspace = true }
+hyper = { workspace = true }
+hyper-util = { workspace = true }
+prost-types = { workspace = true }
+rand = { workspace = true }
+regex = { workspace = true }
+secrecy = { workspace = true }
+streamstore_types = { path = "../types" }
+sync_docs = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
-tokio-muxt.workspace = true
-tokio-stream.workspace = true
+tokio-muxt = { workspace = true }
+tokio-stream = { workspace = true }
 tonic = { workspace = true, features = ["tls", "tls-webpki-roots", "zstd"] }
-tonic-side-effect.workspace = true
-tower-service.workspace = true
-tracing.workspace = true
+tonic-side-effect = { workspace = true }
+tower-service = { workspace = true }
+tracing = { workspace = true }
 uuid = { workspace = true, features = ["v4", "fast-rng"] }
 
 [dev-dependencies]
-rstest.workspace = true
-tokio = { workspace = true, features = ["full", "test-util"] }
-tokio-stream.workspace = true
+rstest = { workspace = true }
 streamstore_types = { path = "../types", features = ["test-utils"] }
+tokio = { workspace = true, features = ["full", "test-util"] }
+tokio-stream = { workspace = true }
 
 [features]
 connector = []
