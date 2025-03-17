@@ -24,7 +24,7 @@ jobs:
       - name: install rust
         uses: dtolnay/rust-toolchain@stable
       - name: publish to crates.io
-        run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish -p streamstore --token ${{ secrets.CRATES_IO_TOKEN }}
       - name: create release
         uses: softprops/action-gh-release@v2
         with:
