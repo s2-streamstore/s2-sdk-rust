@@ -39,7 +39,7 @@ jobs:
           version: "^1.0"
       - name: build protos
         run: |
-          cargo build --features prost-build
+          cargo build -p streamstore_types --features prost-build
 
       - name: Create Pull Request
         if: ${{ steps.submodules.outputs['proto--updated'] }}
@@ -47,6 +47,6 @@ jobs:
         with:
           committer: s2-helper[bot] <194906454+s2-helper[bot]@users.noreply.github.com>
           author: s2-helper[bot] <194906454+s2-helper[bot]@users.noreply.github.com>
-          title: chore - proto update
+          title: 'chore: proto update'
           branch: "proto/update-s2-protos-${{ steps.submodules.outputs['proto--latestShortCommitSha'] }}"
           body: ${{ steps.submodules.outputs.prBody }}

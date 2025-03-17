@@ -1,4 +1,8 @@
 use prost_types::method_options::IdempotencyLevel;
+use s2_types::{
+    api::{self, stream_service_client::StreamServiceClient},
+    types,
+};
 use tonic::{IntoRequest, codec::CompressionEncoding, transport::Channel};
 use tonic_side_effect::{FrameSignal, RequestFrameMonitor};
 
@@ -6,11 +10,7 @@ use super::{
     ClientError, ServiceRequest, ServiceStreamingRequest, ServiceStreamingResponse,
     StreamingRequest, StreamingResponse,
 };
-use crate::{
-    api::{self, stream_service_client::StreamServiceClient},
-    client::AppendRetryPolicy,
-    types,
-};
+use crate::client::AppendRetryPolicy;
 
 #[derive(Debug, Clone)]
 pub struct CheckTailServiceRequest {

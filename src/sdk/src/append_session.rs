@@ -6,6 +6,7 @@ use std::{
 };
 
 use futures::StreamExt;
+use s2_types::types::{self, MeteredBytes};
 use tokio::{
     sync::{Mutex, mpsc, mpsc::Permit},
     time::Instant,
@@ -22,8 +23,6 @@ use crate::{
         ServiceStreamingResponse,
         stream::{AppendSessionServiceRequest, AppendSessionStreamingResponse},
     },
-    types,
-    types::MeteredBytes,
 };
 
 async fn connect(

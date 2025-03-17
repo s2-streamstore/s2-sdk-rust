@@ -66,8 +66,8 @@ jobs:
           version: "^1.0"
       - name: check proto build up-to-date
         run: |
-          cargo build --features prost-build
-          git diff --exit-code src/api.rs && echo "Up-to-date" || {
+          cargo build -p streamstore_types --features prost-build
+          git diff --exit-code src/types/src/api.rs && echo "Up-to-date" || {
               echo "Not up-to-date"
               exit 1
           }
