@@ -1,7 +1,6 @@
 use std::{borrow::Borrow, ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
 
 use bytes::Bytes;
-use fieldmask::maskable_atomic;
 use rand::{Rng, distributions::Uniform};
 use regex::Regex;
 use sync_docs::sync_docs;
@@ -326,7 +325,7 @@ impl From<RetentionAge> for Duration {
 }
 
 #[cfg(feature = "fieldmask")]
-maskable_atomic!(impl RetentionAge {});
+fieldmask::maskable_atomic!(impl RetentionAge {});
 
 #[sync_docs(Age = "Age")]
 #[derive(Debug, Clone, PartialEq, Eq)]
