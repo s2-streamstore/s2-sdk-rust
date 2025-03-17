@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use s2::{
     client::{Client, ClientConfig},
-    types::{BasinConfig, BasinName, CreateBasinRequest, RetentionPolicy, StreamConfig},
+    types::{BasinConfig, BasinName, CreateBasinRequest, RetentionAge, RetentionPolicy, StreamConfig},
 };
 
 #[tokio::main]
@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let default_stream_config = StreamConfig::new().with_retention_policy(RetentionPolicy::Age(
         // Set the default retention age to 10 days.
-        Duration::from_secs(10 * 24 * 60 * 60),
+        RetentionAge(Duration::from_secs(10 * 24 * 60 * 60)),
     ));
 
     let basin_config = BasinConfig {

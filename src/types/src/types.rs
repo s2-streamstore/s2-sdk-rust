@@ -1,15 +1,15 @@
-//! Types for interacting with S2 services.
-
-use std::{ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
+use std::{borrow::Borrow, ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
 
 use bytes::Bytes;
+use fieldmask::maskable_atomic;
 use rand::{Rng, distributions::Uniform};
 use regex::Regex;
 use sync_docs::sync_docs;
 
 use crate::api;
 
-pub(crate) const MIB_BYTES: u64 = 1024 * 1024;
+/// Number of bytes in 1 MiB.
+pub const MIB_BYTES: u64 = 1024 * 1024;
 
 /// Error related to conversion from one type to another.
 #[derive(Debug, Clone, thiserror::Error)]
@@ -158,7 +158,8 @@ impl From<CreateBasinRequest> for api::CreateBasinRequest {
 }
 
 #[sync_docs]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "fieldmask", derive(fieldmask::Maskable))]
 pub struct BasinConfig {
     pub default_stream_config: Option<StreamConfig>,
     pub create_stream_on_append: bool,
@@ -192,7 +193,8 @@ impl TryFrom<api::BasinConfig> for BasinConfig {
 }
 
 #[sync_docs]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "fieldmask", derive(fieldmask::Maskable))]
 pub struct StreamConfig {
     pub storage_class: StorageClass,
     pub retention_policy: Option<RetentionPolicy>,
@@ -250,6 +252,7 @@ impl TryFrom<api::StreamConfig> for StreamConfig {
 
 #[sync_docs]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "fieldmask", derive(fieldmask::Maskable))]
 pub enum StorageClass {
     #[default]
     Unspecified,
@@ -304,10 +307,38 @@ impl TryFrom<i32> for StorageClass {
     }
 }
 
+/// A transparent wrapper over [`std::time::Duration`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RetentionAge(pub Duration);
+
+impl Deref for RetentionAge {
+    type Target = Duration;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<RetentionAge> for Duration {
+    fn from(value: RetentionAge) -> Self {
+        value.0
+    }
+}
+
+#[cfg(feature = "fieldmask")]
+maskable_atomic!(impl RetentionAge {});
+
 #[sync_docs(Age = "Age")]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "fieldmask", derive(fieldmask::Maskable))]
 pub enum RetentionPolicy {
-    Age(Duration),
+    Age(RetentionAge),
+}
+
+impl Default for RetentionPolicy {
+    fn default() -> Self {
+        Self::Age(RetentionAge::default())
+    }
 }
 
 impl From<RetentionPolicy> for api::stream_config::RetentionPolicy {
@@ -321,7 +352,9 @@ impl From<RetentionPolicy> for api::stream_config::RetentionPolicy {
 impl From<api::stream_config::RetentionPolicy> for RetentionPolicy {
     fn from(value: api::stream_config::RetentionPolicy) -> Self {
         match value {
-            api::stream_config::RetentionPolicy::Age(secs) => Self::Age(Duration::from_secs(secs)),
+            api::stream_config::RetentionPolicy::Age(secs) => {
+                Self::Age(RetentionAge(Duration::from_secs(secs)))
+            }
         }
     }
 }
@@ -1011,7 +1044,7 @@ impl CommandRecord {
 pub struct AppendRecord {
     headers: Vec<Header>,
     body: Bytes,
-    #[cfg(test)]
+    #[cfg(feature = "test-utils")]
     max_bytes: u64,
 }
 
@@ -1021,9 +1054,9 @@ impl AppendRecord {
     const MAX_BYTES: u64 = MIB_BYTES;
 
     fn validated(self) -> Result<Self, ConvertError> {
-        #[cfg(test)]
+        #[cfg(feature = "test-utils")]
         let max_bytes = self.max_bytes;
-        #[cfg(not(test))]
+        #[cfg(not(feature = "test-utils"))]
         let max_bytes = Self::MAX_BYTES;
 
         if self.metered_bytes() > max_bytes {
@@ -1038,17 +1071,14 @@ impl AppendRecord {
         Self {
             headers: Vec::new(),
             body: body.into(),
-            #[cfg(test)]
+            #[cfg(feature = "test-utils")]
             max_bytes: Self::MAX_BYTES,
         }
         .validated()
     }
 
-    #[cfg(test)]
-    pub(crate) fn with_max_bytes(
-        max_bytes: u64,
-        body: impl Into<Bytes>,
-    ) -> Result<Self, ConvertError> {
+    #[cfg(feature = "test-utils")]
+    pub fn with_max_bytes(max_bytes: u64, body: impl Into<Bytes>) -> Result<Self, ConvertError> {
         Self {
             headers: Vec::new(),
             body: body.into(),
@@ -1143,7 +1173,7 @@ pub struct AppendRecordBatch {
     records: Vec<AppendRecord>,
     metered_bytes: u64,
     max_capacity: usize,
-    #[cfg(test)]
+    #[cfg(feature = "test-utils")]
     max_bytes: u64,
 }
 
@@ -1193,14 +1223,14 @@ impl AppendRecordBatch {
             records: Vec::with_capacity(max_capacity),
             metered_bytes: 0,
             max_capacity,
-            #[cfg(test)]
+            #[cfg(feature = "test-utils")]
             max_bytes: Self::MAX_BYTES,
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn with_max_capacity_and_bytes(max_capacity: usize, max_bytes: u64) -> Self {
-        #[cfg(test)]
+    #[cfg(feature = "test-utils")]
+    pub fn with_max_capacity_and_bytes(max_capacity: usize, max_bytes: u64) -> Self {
+        #[cfg(feature = "test-utils")]
         assert!(
             max_bytes > 0 || max_bytes <= Self::MAX_BYTES,
             "Batch size must be between 1 byte and 1 MiB"
@@ -1257,12 +1287,12 @@ impl AppendRecordBatch {
         self.records.len()
     }
 
-    #[cfg(test)]
+    #[cfg(feature = "test-utils")]
     fn max_bytes(&self) -> u64 {
         self.max_bytes
     }
 
-    #[cfg(not(test))]
+    #[cfg(not(feature = "test-utils"))]
     fn max_bytes(&self) -> u64 {
         Self::MAX_BYTES
     }
@@ -1361,7 +1391,7 @@ impl AppendInput {
         }
     }
 
-    pub(crate) fn into_api_type(self, stream: impl Into<String>) -> api::AppendInput {
+    pub fn into_api_type(self, stream: impl Into<String>) -> api::AppendInput {
         let Self {
             records,
             match_seq_num,
@@ -1448,7 +1478,7 @@ impl ReadRequest {
 }
 
 impl ReadRequest {
-    pub(crate) fn try_into_api_type(
+    pub fn try_into_api_type(
         self,
         stream: impl Into<String>,
     ) -> Result<api::ReadRequest, ConvertError> {
@@ -1609,7 +1639,7 @@ impl ReadSessionRequest {
         Self { limit, ..self }
     }
 
-    pub(crate) fn into_api_type(self, stream: impl Into<String>) -> api::ReadSessionRequest {
+    pub fn into_api_type(self, stream: impl Into<String>) -> api::ReadSessionRequest {
         let Self {
             start_seq_num,
             limit,
@@ -1639,7 +1669,7 @@ impl TryFrom<api::ReadSessionResponse> for ReadOutput {
 ///
 /// Must be between 8 and 48 characters in length. Must comprise lowercase
 /// letters, numbers, and hyphens. Cannot begin or end with a hyphen.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BasinName(String);
 
 impl AsRef<str> for BasinName {
@@ -1650,7 +1680,14 @@ impl AsRef<str> for BasinName {
 
 impl Deref for BasinName {
     type Target = str;
+
     fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Borrow<str> for BasinName {
+    fn borrow(&self) -> &str {
         &self.0
     }
 }
@@ -1692,5 +1729,11 @@ impl FromStr for BasinName {
 impl std::fmt::Display for BasinName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
+    }
+}
+
+impl From<BasinName> for String {
+    fn from(value: BasinName) -> Self {
+        value.0
     }
 }

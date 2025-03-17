@@ -1,11 +1,11 @@
 use prost_types::method_options::IdempotencyLevel;
 use tonic::{IntoRequest, transport::Channel};
-
-use super::{ServiceRequest, add_s2_request_token_header, gen_s2_request_token};
-use crate::{
+use s2_types::{
     api::{self, basin_service_client::BasinServiceClient},
     types,
 };
+
+use super::{ServiceRequest, add_s2_request_token_header, gen_s2_request_token};
 
 #[derive(Debug, Clone)]
 pub struct ListStreamsServiceRequest {

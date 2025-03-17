@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use s2::{
     client::{BasinClient, ClientConfig},
-    types::{BasinName, ReconfigureStreamRequest, RetentionPolicy, StreamConfig},
+    types::{BasinName, ReconfigureStreamRequest, RetentionAge, RetentionPolicy, StreamConfig},
 };
 
 #[tokio::main]
@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let stream_config_updates = StreamConfig::new().with_retention_policy(RetentionPolicy::Age(
         // Change to retention policy to 1 day
-        Duration::from_secs(24 * 60 * 60),
+        RetentionAge(Duration::from_secs(24 * 60 * 60)),
     ));
 
     let reconfigure_stream_request = ReconfigureStreamRequest::new(stream)

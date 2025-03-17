@@ -11,8 +11,9 @@ use futures::StreamExt;
 use prost_types::method_options::IdempotencyLevel;
 use secrecy::{ExposeSecret, SecretString};
 use tonic::metadata::{AsciiMetadataKey, AsciiMetadataValue, MetadataMap};
+use s2_types::types;
 
-use crate::{client::ClientError, types};
+use crate::client::ClientError;
 
 pub async fn send_request<T: ServiceRequest>(
     mut service: T,

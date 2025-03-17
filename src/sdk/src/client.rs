@@ -46,12 +46,15 @@ use tonic::{
     transport::{Channel, ClientTlsConfig, Endpoint},
 };
 use tonic_side_effect::{FrameSignal, RequestFrameMonitor};
-
-use crate::{
+use s2_types::{
+    types::{self, MIB_BYTES, MeteredBytes},
     api::{
         account_service_client::AccountServiceClient, basin_service_client::BasinServiceClient,
         stream_service_client::StreamServiceClient,
     },
+};
+
+use crate::{
     append_session,
     service::{
         ServiceRequest, ServiceStreamingResponse, Streaming,
@@ -69,7 +72,6 @@ use crate::{
             ReadSessionServiceRequest, ReadSessionStreamingResponse,
         },
     },
-    types::{self, MIB_BYTES, MeteredBytes},
 };
 
 const DEFAULT_CONNECTOR: Option<HttpConnector> = None;

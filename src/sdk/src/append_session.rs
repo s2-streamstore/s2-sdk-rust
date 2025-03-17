@@ -15,6 +15,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 use tonic_side_effect::FrameSignal;
 use tracing::debug;
+use s2_types::types::{self, MeteredBytes};
 
 use crate::{
     client::{AppendRetryPolicy, ClientError, StreamClient},
@@ -22,8 +23,6 @@ use crate::{
         ServiceStreamingResponse,
         stream::{AppendSessionServiceRequest, AppendSessionStreamingResponse},
     },
-    types,
-    types::MeteredBytes,
 };
 
 async fn connect(
