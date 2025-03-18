@@ -360,6 +360,11 @@ pub struct StreamConfig {
     /// Storage class for recent writes. This is the main cost:performance knob in S2.
     #[prost(enumeration = "StorageClass", tag = "1")]
     pub storage_class: i32,
+    /// Controls how to handle timestamps when they are not provided by the client.
+    /// If this is false (or not set), the record's arrival time will be assigned as its timestamp.
+    /// If this is true, then any append without a client-specified timestamp will be rejected as invalid.
+    #[prost(bool, optional, tag = "3")]
+    pub require_client_timestamps: ::core::option::Option<bool>,
     /// Retention policy for the stream.
     /// If unspecified, the default is to retain records for 7 days.
     #[prost(oneof = "stream_config::RetentionPolicy", tags = "2")]
@@ -415,6 +420,12 @@ pub struct Header {
 /// Record to be appended to a stream.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AppendRecord {
+    /// Timestamp for this record in milliseconds since Unix epoch.
+    /// The service ensures monotonicity by adjusting it up if necessary to the maximum observed timestamp.
+    /// A timestamp detected to be in the future will be adjusted down.
+    /// If not provided, the semantics depend on the stream's `require_client_timestamps` config.
+    #[prost(uint64, optional, tag = "3")]
+    pub timestamp: ::core::option::Option<u64>,
     /// Series of name-value pairs for this record.
     #[prost(message, repeated, tag = "1")]
     pub headers: ::prost::alloc::vec::Vec<Header>,
@@ -425,9 +436,12 @@ pub struct AppendRecord {
 /// Record retrieved from a stream.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SequencedRecord {
-    /// Sequence number for this record.
+    /// Sequence number assigned to this record.
     #[prost(uint64, tag = "1")]
     pub seq_num: u64,
+    /// Timestamp for this record in milliseconds since Unix epoch.
+    #[prost(uint64, tag = "4")]
+    pub timestamp: u64,
     /// Series of name-value pairs for this record.
     #[prost(message, repeated, tag = "2")]
     pub headers: ::prost::alloc::vec::Vec<Header>,

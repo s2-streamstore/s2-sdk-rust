@@ -196,6 +196,7 @@ impl TryFrom<api::BasinConfig> for BasinConfig {
 pub struct StreamConfig {
     pub storage_class: StorageClass,
     pub retention_policy: Option<RetentionPolicy>,
+    pub require_client_timestamps: Option<bool>,
 }
 
 impl StreamConfig {
@@ -219,6 +220,14 @@ impl StreamConfig {
             ..self
         }
     }
+
+    /// Overwrite `require_client_timestamps`
+    pub fn with_require_client_timestamps(self, require_client_timestamps: bool) -> Self {
+        Self {
+            require_client_timestamps: Some(require_client_timestamps),
+            ..self
+        }
+    }
 }
 
 impl From<StreamConfig> for api::StreamConfig {
@@ -226,10 +235,12 @@ impl From<StreamConfig> for api::StreamConfig {
         let StreamConfig {
             storage_class,
             retention_policy,
+            require_client_timestamps,
         } = value;
         Self {
             storage_class: storage_class.into(),
             retention_policy: retention_policy.map(Into::into),
+            require_client_timestamps,
         }
     }
 }
@@ -240,10 +251,12 @@ impl TryFrom<api::StreamConfig> for StreamConfig {
         let api::StreamConfig {
             storage_class,
             retention_policy,
+            require_client_timestamps,
         } = value;
         Ok(Self {
             storage_class: storage_class.try_into()?,
             retention_policy: retention_policy.map(Into::into),
+            require_client_timestamps,
         })
     }
 }
@@ -975,6 +988,8 @@ pub enum CommandRecord {
         ///
         /// Set empty to clear the token.
         fencing_token: FencingToken,
+        /// Timestamp for the record.
+        timestamp: Option<u64>,
     },
     /// Request a trim till the sequence number.
     ///
@@ -986,6 +1001,8 @@ pub enum CommandRecord {
         /// This sequence number is only allowed to advance, and any regression
         /// will be ignored.
         seq_num: u64,
+        /// Timestamp for the record.
+        timestamp: Option<u64>,
     },
 }
 
@@ -995,13 +1012,31 @@ impl CommandRecord {
 
     /// Create a new fence command record.
     pub fn fence(fencing_token: FencingToken) -> Self {
-        Self::Fence { fencing_token }
+        Self::Fence {
+            fencing_token,
+            timestamp: None,
+        }
     }
 
     /// Create a new trim command record.
     pub fn trim(seq_num: impl Into<u64>) -> Self {
         Self::Trim {
             seq_num: seq_num.into(),
+            timestamp: None,
+        }
+    }
+
+    /// Overwrite timestamp.
+    pub fn with_timestamp(self, timestamp: u64) -> Self {
+        match self {
+            CommandRecord::Trim { seq_num, .. } => CommandRecord::Trim {
+                seq_num,
+                timestamp: Some(timestamp),
+            },
+            CommandRecord::Fence { fencing_token, .. } => CommandRecord::Fence {
+                fencing_token,
+                timestamp: Some(timestamp),
+            },
         }
     }
 }
@@ -1009,6 +1044,7 @@ impl CommandRecord {
 #[sync_docs]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppendRecord {
+    timestamp: Option<u64>,
     headers: Vec<Header>,
     body: Bytes,
     #[cfg(test)]
@@ -1036,6 +1072,7 @@ impl AppendRecord {
     /// Try creating a new append record with body.
     pub fn new(body: impl Into<Bytes>) -> Result<Self, ConvertError> {
         Self {
+            timestamp: None,
             headers: Vec::new(),
             body: body.into(),
             #[cfg(test)]
@@ -1050,6 +1087,7 @@ impl AppendRecord {
         body: impl Into<Bytes>,
     ) -> Result<Self, ConvertError> {
         Self {
+            timestamp: None,
             headers: Vec::new(),
             body: body.into(),
             max_bytes,
@@ -1066,6 +1104,14 @@ impl AppendRecord {
         .validated()
     }
 
+    /// Overwrite timestamp.
+    pub fn with_timestamp(self, timestamp: u64) -> Self {
+        Self {
+            timestamp: Some(timestamp),
+            ..self
+        }
+    }
+
     /// Body of the record.
     pub fn body(&self) -> &[u8] {
         &self.body
@@ -1076,9 +1122,15 @@ impl AppendRecord {
         &self.headers
     }
 
+    /// Timestamp for the record.
+    pub fn timestamp(&self) -> Option<u64> {
+        self.timestamp
+    }
+
     /// Consume the record and return parts.
     pub fn into_parts(self) -> AppendRecordParts {
         AppendRecordParts {
+            timestamp: self.timestamp,
             headers: self.headers,
             body: self.body,
         }
@@ -1086,13 +1138,19 @@ impl AppendRecord {
 
     /// Try creating the record from parts.
     pub fn try_from_parts(parts: AppendRecordParts) -> Result<Self, ConvertError> {
-        Self::new(parts.body)?.with_headers(parts.headers)
+        let record = Self::new(parts.body)?.with_headers(parts.headers)?;
+        if let Some(timestamp) = parts.timestamp {
+            Ok(record.with_timestamp(timestamp))
+        } else {
+            Ok(record)
+        }
     }
 }
 
 impl From<AppendRecord> for api::AppendRecord {
     fn from(value: AppendRecord) -> Self {
         Self {
+            timestamp: value.timestamp,
             headers: value.headers.into_iter().map(Into::into).collect(),
             body: value.body,
         }
@@ -1101,13 +1159,19 @@ impl From<AppendRecord> for api::AppendRecord {
 
 impl From<CommandRecord> for AppendRecord {
     fn from(value: CommandRecord) -> Self {
-        let (header_value, body) = match value {
-            CommandRecord::Fence { fencing_token } => (CommandRecord::FENCE, fencing_token.into()),
-            CommandRecord::Trim { seq_num } => {
-                (CommandRecord::TRIM, seq_num.to_be_bytes().to_vec())
-            }
+        let (timestamp, header_value, body) = match value {
+            CommandRecord::Fence {
+                fencing_token,
+                timestamp,
+            } => (timestamp, CommandRecord::FENCE, fencing_token.into()),
+            CommandRecord::Trim { seq_num, timestamp } => (
+                timestamp,
+                CommandRecord::TRIM,
+                seq_num.to_be_bytes().to_vec(),
+            ),
         };
         AppendRecordParts {
+            timestamp,
             headers: vec![Header::from_value(header_value)],
             body: body.into(),
         }
@@ -1119,6 +1183,7 @@ impl From<CommandRecord> for AppendRecord {
 #[sync_docs(AppendRecordParts = "AppendRecord")]
 #[derive(Debug, Clone)]
 pub struct AppendRecordParts {
+    pub timestamp: Option<u64>,
     pub headers: Vec<Header>,
     pub body: Bytes,
 }
@@ -1480,6 +1545,7 @@ impl ReadRequest {
 #[derive(Debug, Clone)]
 pub struct SequencedRecord {
     pub seq_num: u64,
+    pub timestamp: u64,
     pub headers: Vec<Header>,
     pub body: Bytes,
 }
@@ -1490,11 +1556,13 @@ impl From<api::SequencedRecord> for SequencedRecord {
     fn from(value: api::SequencedRecord) -> Self {
         let api::SequencedRecord {
             seq_num,
+            timestamp,
             headers,
             body,
         } = value;
         Self {
             seq_num,
+            timestamp,
             headers: headers.into_iter().map(Into::into).collect(),
             body,
         }
@@ -1517,12 +1585,18 @@ impl SequencedRecord {
         match header.value.as_ref() {
             CommandRecord::FENCE => {
                 let fencing_token = FencingToken::new(self.body.clone()).ok()?;
-                Some(CommandRecord::Fence { fencing_token })
+                Some(CommandRecord::Fence {
+                    fencing_token,
+                    timestamp: Some(self.timestamp),
+                })
             }
             CommandRecord::TRIM => {
                 let body: &[u8] = &self.body;
                 let seq_num = u64::from_be_bytes(body.try_into().ok()?);
-                Some(CommandRecord::Trim { seq_num })
+                Some(CommandRecord::Trim {
+                    seq_num,
+                    timestamp: Some(self.timestamp),
+                })
             }
             _ => None,
         }
