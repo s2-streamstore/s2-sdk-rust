@@ -972,13 +972,9 @@ impl TryFrom<Vec<u8>> for FencingToken {
     }
 }
 
-/// A command record is a special kind of [`AppendRecord`] that can be used to
-/// send command messages.
-///
-/// Such a record is signalled by a sole header with empty name. The header
-/// value represents the operation and record body acts as the payload.
+/// Command to send through a `CommandRecord`.
 #[derive(Debug, Clone)]
-pub enum CommandRecord {
+pub enum Command {
     /// Enforce a fencing token.
     ///
     /// Fencing is strongly consistent, and subsequent appends that specify a
@@ -988,8 +984,6 @@ pub enum CommandRecord {
         ///
         /// Set empty to clear the token.
         fencing_token: FencingToken,
-        /// Timestamp for the record.
-        timestamp: Option<u64>,
     },
     /// Request a trim till the sequence number.
     ///
@@ -1001,9 +995,20 @@ pub enum CommandRecord {
         /// This sequence number is only allowed to advance, and any regression
         /// will be ignored.
         seq_num: u64,
-        /// Timestamp for the record.
-        timestamp: Option<u64>,
     },
+}
+
+/// A command record is a special kind of [`AppendRecord`] that can be used to
+/// send command messages.
+///
+/// Such a record is signalled by a sole header with empty name. The header
+/// value represents the operation and record body acts as the payload.
+#[derive(Debug, Clone)]
+pub struct CommandRecord {
+    /// Command kind.
+    pub command: Command,
+    /// Timestamp for the record.
+    pub timestamp: Option<u64>,
 }
 
 impl CommandRecord {
@@ -1012,31 +1017,27 @@ impl CommandRecord {
 
     /// Create a new fence command record.
     pub fn fence(fencing_token: FencingToken) -> Self {
-        Self::Fence {
-            fencing_token,
+        Self {
+            command: Command::Fence { fencing_token },
             timestamp: None,
         }
     }
 
     /// Create a new trim command record.
     pub fn trim(seq_num: impl Into<u64>) -> Self {
-        Self::Trim {
-            seq_num: seq_num.into(),
+        Self {
+            command: Command::Trim {
+                seq_num: seq_num.into(),
+            },
             timestamp: None,
         }
     }
 
     /// Overwrite timestamp.
     pub fn with_timestamp(self, timestamp: u64) -> Self {
-        match self {
-            CommandRecord::Trim { seq_num, .. } => CommandRecord::Trim {
-                seq_num,
-                timestamp: Some(timestamp),
-            },
-            CommandRecord::Fence { fencing_token, .. } => CommandRecord::Fence {
-                fencing_token,
-                timestamp: Some(timestamp),
-            },
+        Self {
+            timestamp: Some(timestamp),
+            ..self
         }
     }
 }
@@ -1159,19 +1160,12 @@ impl From<AppendRecord> for api::AppendRecord {
 
 impl From<CommandRecord> for AppendRecord {
     fn from(value: CommandRecord) -> Self {
-        let (timestamp, header_value, body) = match value {
-            CommandRecord::Fence {
-                fencing_token,
-                timestamp,
-            } => (timestamp, CommandRecord::FENCE, fencing_token.into()),
-            CommandRecord::Trim { seq_num, timestamp } => (
-                timestamp,
-                CommandRecord::TRIM,
-                seq_num.to_be_bytes().to_vec(),
-            ),
+        let (header_value, body) = match value.command {
+            Command::Fence { fencing_token } => (CommandRecord::FENCE, fencing_token.into()),
+            Command::Trim { seq_num } => (CommandRecord::TRIM, seq_num.to_be_bytes().to_vec()),
         };
         AppendRecordParts {
-            timestamp,
+            timestamp: value.timestamp,
             headers: vec![Header::from_value(header_value)],
             body: body.into(),
         }
@@ -1585,16 +1579,16 @@ impl SequencedRecord {
         match header.value.as_ref() {
             CommandRecord::FENCE => {
                 let fencing_token = FencingToken::new(self.body.clone()).ok()?;
-                Some(CommandRecord::Fence {
-                    fencing_token,
+                Some(CommandRecord {
+                    command: Command::Fence { fencing_token },
                     timestamp: Some(self.timestamp),
                 })
             }
             CommandRecord::TRIM => {
                 let body: &[u8] = &self.body;
                 let seq_num = u64::from_be_bytes(body.try_into().ok()?);
-                Some(CommandRecord::Trim {
-                    seq_num,
+                Some(CommandRecord {
+                    command: Command::Trim { seq_num },
                     timestamp: Some(self.timestamp),
                 })
             }
