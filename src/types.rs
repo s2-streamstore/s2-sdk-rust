@@ -221,7 +221,7 @@ impl StreamConfig {
         }
     }
 
-    /// Overwrite `require_client_timestamps`
+    /// Overwrite `require_client_timestamps`.
     pub fn with_require_client_timestamps(self, require_client_timestamps: bool) -> Self {
         Self {
             require_client_timestamps: Some(require_client_timestamps),
