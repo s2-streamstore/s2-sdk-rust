@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0] - 2025-03-19
+
+### Features
+
+- [**breaking**] Timestamped records  ([#157](https://github.com/s2-streamstore/s2-sdk-rust/issues/157))
+
 ## [0.9.0] - 2025-03-12
 
 ### Features
