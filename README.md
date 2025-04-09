@@ -42,14 +42,14 @@ The Rust SDK provides ergonomic wrappers and utilities to interact with the
    cargo add streamstore
    ```
 
-1. Generate an authentication token by logging onto the web console at
+1. Generate an access token by logging onto the web console at
    [s2.dev](https://s2.dev/dashboard).
 
 1. Make a request using SDK client.
    ```rust
    #[tokio::main]
    async fn main() -> Result<(), Box<dyn std::error::Error>> {
-       let config = s2::ClientConfig::new("<YOUR AUTH TOKEN>");
+       let config = s2::ClientConfig::new("<YOUR ACCESS TOKEN>");
        let client = s2::Client::new(config);
 
        let basins = client.list_basins(Default::default()).await?;
@@ -67,7 +67,7 @@ example use cases demonstrating how to use the SDK effectively.
 Run any example using the following command:
 
 ```bash
-export S2_AUTH_TOKEN="<YOUR AUTH TOKEN>"
+export S2_ACCESS_TOKEN="<YOUR ACCESS TOKEN>"
 cargo run --example <example_name>
 ```
 

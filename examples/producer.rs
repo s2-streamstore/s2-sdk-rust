@@ -7,7 +7,7 @@ use s2::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("S2_AUTH_TOKEN")?;
+    let token = std::env::var("S2_ACCESS_TOKEN")?;
     let config = ClientConfig::new(token);
     let basin: BasinName = "my-favorite-basin".parse()?;
     let stream = "my-favorite-stream";
