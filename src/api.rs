@@ -91,6 +91,138 @@ pub struct ReconfigureBasinResponse {
     #[prost(message, optional, tag = "1")]
     pub config: ::core::option::Option<BasinConfig>,
 }
+/// Issue access token request.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IssueAccessTokenRequest {
+    /// Access token information.
+    #[prost(message, optional, tag = "1")]
+    pub info: ::core::option::Option<AccessTokenInfo>,
+}
+/// Read/Write permissions.
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct ReadWritePermissions {
+    /// Read permission.
+    #[prost(bool, tag = "1")]
+    pub read: bool,
+    /// Write permission.
+    #[prost(bool, tag = "2")]
+    pub write: bool,
+}
+/// Access permissions for a group.
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct PermittedOperationGroups {
+    /// Access permissions at account level.
+    #[prost(message, optional, tag = "1")]
+    pub account: ::core::option::Option<ReadWritePermissions>,
+    /// Access permissions at basin level.
+    #[prost(message, optional, tag = "2")]
+    pub basin: ::core::option::Option<ReadWritePermissions>,
+    /// Access permissions at stream level.
+    #[prost(message, optional, tag = "3")]
+    pub stream: ::core::option::Option<ReadWritePermissions>,
+}
+/// Revoke access token request.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RevokeAccessTokenRequest {
+    /// Token to revoke.
+    #[prost(string, tag = "1")]
+    pub id: ::prost::alloc::string::String,
+}
+/// Revoke access token response.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RevokeAccessTokenResponse {
+    /// Access token information.
+    #[prost(message, optional, tag = "1")]
+    pub info: ::core::option::Option<AccessTokenInfo>,
+}
+/// List access tokens request.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListAccessTokensRequest {
+    /// List access tokens that begin with this prefix.
+    #[prost(string, tag = "1")]
+    pub prefix: ::prost::alloc::string::String,
+    /// Only return access tokens that lexicographically start after this token ID.
+    #[prost(string, tag = "2")]
+    pub start_after: ::prost::alloc::string::String,
+    /// Number of results, up to a maximum of 1000.
+    #[prost(uint64, optional, tag = "3")]
+    pub limit: ::core::option::Option<u64>,
+}
+/// List access tokens response.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListAccessTokensResponse {
+    /// Access tokens information.
+    #[prost(message, repeated, tag = "1")]
+    pub tokens: ::prost::alloc::vec::Vec<AccessTokenInfo>,
+    /// If set, indicates there are more results that can be listed with `start_after`.
+    #[prost(bool, tag = "2")]
+    pub has_more: bool,
+}
+/// Access token information.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AccessTokenInfo {
+    /// Access token ID.
+    #[prost(string, tag = "1")]
+    pub id: ::prost::alloc::string::String,
+    /// Expiration time in seconds since Unix epoch.
+    #[prost(uint32, optional, tag = "2")]
+    pub expires_at: ::core::option::Option<u32>,
+    /// Namespace streams based on the configured stream-level scope, which must be a prefix.
+    /// Stream name arguments will be automatically prefixed, and the prefix will be stripped
+    /// when listing streams.
+    #[prost(bool, tag = "3")]
+    pub auto_prefix_streams: bool,
+    /// Access token scope.
+    #[prost(message, optional, tag = "4")]
+    pub scope: ::core::option::Option<AccessTokenScope>,
+}
+/// Access token scope.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AccessTokenScope {
+    /// Access permissions at basin level.
+    #[prost(message, optional, tag = "1")]
+    pub basins: ::core::option::Option<ResourceSet>,
+    /// Access permissions at stream level.
+    #[prost(message, optional, tag = "2")]
+    pub streams: ::core::option::Option<ResourceSet>,
+    /// Access permissions at token level.
+    #[prost(message, optional, tag = "3")]
+    pub tokens: ::core::option::Option<ResourceSet>,
+    /// Access permissions at operation group level.
+    #[prost(message, optional, tag = "4")]
+    pub op_groups: ::core::option::Option<PermittedOperationGroups>,
+    /// Operations allowed for the token.
+    /// A union of allowed operations and groups is used as an effective set of allowed operations.
+    #[prost(enumeration = "Operation", repeated, tag = "5")]
+    pub ops: ::prost::alloc::vec::Vec<i32>,
+}
+/// Set of named resources.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ResourceSet {
+    /// Matching rule.
+    #[prost(oneof = "resource_set::Matching", tags = "1, 2")]
+    pub matching: ::core::option::Option<resource_set::Matching>,
+}
+/// Nested message and enum types in `ResourceSet`.
+pub mod resource_set {
+    /// Matching rule.
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Matching {
+        /// Match only the resource with this exact name.
+        #[prost(string, tag = "1")]
+        Exact(::prost::alloc::string::String),
+        /// Match all resources that start with this prefix.
+        #[prost(string, tag = "2")]
+        Prefix(::prost::alloc::string::String),
+    }
+}
+/// Issue access token response.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IssueAccessTokenResponse {
+    /// Created token.
+    #[prost(string, tag = "1")]
+    pub token: ::prost::alloc::string::String,
+}
 /// Stream information.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StreamInfo {
@@ -270,27 +402,30 @@ pub struct AppendSessionResponse {
 /// Output from read response.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReadOutput {
-    /// Reply which can be a batch of records, or a sequence number if the request could not be satisfied.
+    /// Batch of records, or a sequence number if the read could not be satisfied.
+    /// An empty batch or a sequence number output will be a terminal message in a session.
     #[prost(oneof = "read_output::Output", tags = "1, 2, 3")]
     pub output: ::core::option::Option<read_output::Output>,
 }
 /// Nested message and enum types in `ReadOutput`.
 pub mod read_output {
-    /// Reply which can be a batch of records, or a sequence number if the request could not be satisfied.
+    /// Batch of records, or a sequence number if the read could not be satisfied.
+    /// An empty batch or a sequence number output will be a terminal message in a session.
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Output {
         /// Batch of records.
-        /// This batch can be empty only if a `ReadLimit` was provided in the associated read request, but the first record
-        /// that could have been returned would violate the limit.
+        /// It can only be empty when not in a session context (which implies a limit),
+        /// if the first record that could have been retrieved would violate the limit.
         #[prost(message, tag = "1")]
         Batch(super::SequencedRecordBatch),
-        /// Sequence number for the first record on this stream, in case the requested `start_seq_num` is smaller.
-        /// If returned in a streaming read session, this will be a terminal reply, to signal that there is uncertainty about whether some records may be omitted.
-        /// The client can re-establish the session starting at this sequence number.
+        /// Sequence number for the first record on this stream.
+        /// Typically this will be returned when the requested `start_seq_num` was smaller.
+        /// It may also be returned during a session, if the stream gets concurrently trimmed.
         #[prost(uint64, tag = "2")]
         FirstSeqNum(u64),
-        /// Sequence number for the next record on this stream, in case the requested `start_seq_num` was larger.
-        /// If returned in a streaming read session, this will be a terminal reply.
+        /// Sequence number that will be assigned to the next record on this stream.
+        /// This will be returned either because the requested `start_seq_num` was larger,
+        /// or in case of a limited read, equal to it.
         #[prost(uint64, tag = "3")]
         NextSeqNum(u64),
     }
@@ -304,7 +439,9 @@ pub struct ReadRequest {
     /// Starting sequence number (inclusive).
     #[prost(uint64, tag = "2")]
     pub start_seq_num: u64,
-    /// Limit on how many records can be returned upto a maximum of 1000, or 1MiB of metered bytes.
+    /// Limit how many records can be returned.
+    /// This will get capped at the default limit,
+    /// which is up to 1000 records or 1MiB of metered bytes.
     #[prost(message, optional, tag = "3")]
     pub limit: ::core::option::Option<ReadLimit>,
 }
@@ -481,6 +618,95 @@ impl BasinScope {
         match value {
             "BASIN_SCOPE_UNSPECIFIED" => Some(Self::Unspecified),
             "BASIN_SCOPE_AWS_US_EAST_1" => Some(Self::AwsUsEast1),
+            _ => None,
+        }
+    }
+}
+/// API operations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum Operation {
+    /// Unspecified operation.
+    Unspecified = 0,
+    /// List basins.
+    ListBasins = 1,
+    /// Create a basin.
+    CreateBasin = 2,
+    /// Delete a basin.
+    DeleteBasin = 3,
+    /// Update basin configuration.
+    ReconfigureBasin = 4,
+    /// Get basin configuration.
+    GetBasinConfig = 5,
+    /// Issue an access token.
+    IssueAccessToken = 6,
+    /// Revoke an access token.
+    RevokeAccessToken = 7,
+    /// List access tokens.
+    ListAccessTokens = 8,
+    /// List streams.
+    ListStreams = 9,
+    /// Create a stream.
+    CreateStream = 10,
+    /// Delete a stream.
+    DeleteStream = 11,
+    /// Get stream configuration.
+    GetStreamConfig = 12,
+    /// Update stream configuration.
+    ReconfigureStream = 13,
+    /// Check tail of a stream.
+    CheckTail = 14,
+    /// Append records to a stream.
+    Append = 15,
+    /// Read records from a stream.
+    Read = 16,
+}
+impl Operation {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "OPERATION_UNSPECIFIED",
+            Self::ListBasins => "OPERATION_LIST_BASINS",
+            Self::CreateBasin => "OPERATION_CREATE_BASIN",
+            Self::DeleteBasin => "OPERATION_DELETE_BASIN",
+            Self::ReconfigureBasin => "OPERATION_RECONFIGURE_BASIN",
+            Self::GetBasinConfig => "OPERATION_GET_BASIN_CONFIG",
+            Self::IssueAccessToken => "OPERATION_ISSUE_ACCESS_TOKEN",
+            Self::RevokeAccessToken => "OPERATION_REVOKE_ACCESS_TOKEN",
+            Self::ListAccessTokens => "OPERATION_LIST_ACCESS_TOKENS",
+            Self::ListStreams => "OPERATION_LIST_STREAMS",
+            Self::CreateStream => "OPERATION_CREATE_STREAM",
+            Self::DeleteStream => "OPERATION_DELETE_STREAM",
+            Self::GetStreamConfig => "OPERATION_GET_STREAM_CONFIG",
+            Self::ReconfigureStream => "OPERATION_RECONFIGURE_STREAM",
+            Self::CheckTail => "OPERATION_CHECK_TAIL",
+            Self::Append => "OPERATION_APPEND",
+            Self::Read => "OPERATION_READ",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "OPERATION_UNSPECIFIED" => Some(Self::Unspecified),
+            "OPERATION_LIST_BASINS" => Some(Self::ListBasins),
+            "OPERATION_CREATE_BASIN" => Some(Self::CreateBasin),
+            "OPERATION_DELETE_BASIN" => Some(Self::DeleteBasin),
+            "OPERATION_RECONFIGURE_BASIN" => Some(Self::ReconfigureBasin),
+            "OPERATION_GET_BASIN_CONFIG" => Some(Self::GetBasinConfig),
+            "OPERATION_ISSUE_ACCESS_TOKEN" => Some(Self::IssueAccessToken),
+            "OPERATION_REVOKE_ACCESS_TOKEN" => Some(Self::RevokeAccessToken),
+            "OPERATION_LIST_ACCESS_TOKENS" => Some(Self::ListAccessTokens),
+            "OPERATION_LIST_STREAMS" => Some(Self::ListStreams),
+            "OPERATION_CREATE_STREAM" => Some(Self::CreateStream),
+            "OPERATION_DELETE_STREAM" => Some(Self::DeleteStream),
+            "OPERATION_GET_STREAM_CONFIG" => Some(Self::GetStreamConfig),
+            "OPERATION_RECONFIGURE_STREAM" => Some(Self::ReconfigureStream),
+            "OPERATION_CHECK_TAIL" => Some(Self::CheckTail),
+            "OPERATION_APPEND" => Some(Self::Append),
+            "OPERATION_READ" => Some(Self::Read),
             _ => None,
         }
     }
@@ -774,6 +1000,87 @@ pub mod account_service_client {
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("s2.v1alpha.AccountService", "GetBasinConfig"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Issue a new access token.
+        pub async fn issue_access_token(
+            &mut self,
+            request: impl tonic::IntoRequest<super::IssueAccessTokenRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::IssueAccessTokenResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.AccountService/IssueAccessToken",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("s2.v1alpha.AccountService", "IssueAccessToken"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        /// Revoke an access token.
+        pub async fn revoke_access_token(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RevokeAccessTokenRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RevokeAccessTokenResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.AccountService/RevokeAccessToken",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("s2.v1alpha.AccountService", "RevokeAccessToken"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        /// List access tokens.
+        pub async fn list_access_tokens(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ListAccessTokensRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListAccessTokensResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/s2.v1alpha.AccountService/ListAccessTokens",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("s2.v1alpha.AccountService", "ListAccessTokens"),
+                );
             self.inner.unary(req, path, codec).await
         }
     }
@@ -1270,6 +1577,30 @@ pub mod account_service_server {
             tonic::Response<super::GetBasinConfigResponse>,
             tonic::Status,
         >;
+        /// Issue a new access token.
+        async fn issue_access_token(
+            &self,
+            request: tonic::Request<super::IssueAccessTokenRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::IssueAccessTokenResponse>,
+            tonic::Status,
+        >;
+        /// Revoke an access token.
+        async fn revoke_access_token(
+            &self,
+            request: tonic::Request<super::RevokeAccessTokenRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RevokeAccessTokenResponse>,
+            tonic::Status,
+        >;
+        /// List access tokens.
+        async fn list_access_tokens(
+            &self,
+            request: tonic::Request<super::ListAccessTokensRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListAccessTokensResponse>,
+            tonic::Status,
+        >;
     }
     /// Operate on an S2 account.
     #[derive(Debug)]
@@ -1560,6 +1891,144 @@ pub mod account_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetBasinConfigSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/s2.v1alpha.AccountService/IssueAccessToken" => {
+                    #[allow(non_camel_case_types)]
+                    struct IssueAccessTokenSvc<T: AccountService>(pub Arc<T>);
+                    impl<
+                        T: AccountService,
+                    > tonic::server::UnaryService<super::IssueAccessTokenRequest>
+                    for IssueAccessTokenSvc<T> {
+                        type Response = super::IssueAccessTokenResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::IssueAccessTokenRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as AccountService>::issue_access_token(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = IssueAccessTokenSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/s2.v1alpha.AccountService/RevokeAccessToken" => {
+                    #[allow(non_camel_case_types)]
+                    struct RevokeAccessTokenSvc<T: AccountService>(pub Arc<T>);
+                    impl<
+                        T: AccountService,
+                    > tonic::server::UnaryService<super::RevokeAccessTokenRequest>
+                    for RevokeAccessTokenSvc<T> {
+                        type Response = super::RevokeAccessTokenResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::RevokeAccessTokenRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as AccountService>::revoke_access_token(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RevokeAccessTokenSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/s2.v1alpha.AccountService/ListAccessTokens" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListAccessTokensSvc<T: AccountService>(pub Arc<T>);
+                    impl<
+                        T: AccountService,
+                    > tonic::server::UnaryService<super::ListAccessTokensRequest>
+                    for ListAccessTokensSvc<T> {
+                        type Response = super::ListAccessTokensResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::ListAccessTokensRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as AccountService>::list_access_tokens(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ListAccessTokensSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

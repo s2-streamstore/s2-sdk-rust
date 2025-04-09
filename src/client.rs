@@ -57,7 +57,9 @@ use crate::{
         ServiceRequest, ServiceStreamingResponse, Streaming,
         account::{
             CreateBasinServiceRequest, DeleteBasinServiceRequest, GetBasinConfigServiceRequest,
+            IssueAccessTokenServiceRequest, ListAccessTokensServiceRequest,
             ListBasinsServiceRequest, ReconfigureBasinServiceRequest,
+            RevokeAccessTokenServiceRequest,
         },
         basin::{
             CreateStreamServiceRequest, DeleteStreamServiceRequest, GetStreamConfigServiceRequest,
@@ -470,6 +472,45 @@ impl Client {
     ) -> Result<types::BasinConfig, ClientError> {
         self.inner
             .send_retryable(ReconfigureBasinServiceRequest::new(
+                self.inner.account_service_client(),
+                req,
+            ))
+            .await
+    }
+
+    #[sync_docs]
+    pub async fn issue_access_token(
+        &self,
+        req: types::IssueAccessTokenRequest,
+    ) -> Result<types::IssueAccessTokenResponse, ClientError> {
+        self.inner
+            .send_retryable(IssueAccessTokenServiceRequest::new(
+                self.inner.account_service_client(),
+                req,
+            ))
+            .await
+    }
+
+    #[sync_docs]
+    pub async fn revoke_access_token(
+        &self,
+        req: types::RevokeAccessTokenRequest,
+    ) -> Result<types::RevokeAccessTokenResponse, ClientError> {
+        self.inner
+            .send_retryable(RevokeAccessTokenServiceRequest::new(
+                self.inner.account_service_client(),
+                req,
+            ))
+            .await
+    }
+
+    #[sync_docs]
+    pub async fn list_access_tokens(
+        &self,
+        req: types::ListAccessTokensRequest,
+    ) -> Result<types::ListAccessTokensResponse, ClientError> {
+        self.inner
+            .send_retryable(ListAccessTokensServiceRequest::new(
                 self.inner.account_service_client(),
                 req,
             ))
