@@ -1786,7 +1786,7 @@ impl From<IssueAccessTokenRequest> for api::IssueAccessTokenRequest {
 }
 
 #[sync_docs]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AccessTokenInfo {
     pub id: String,
     pub expires_at: Option<u32>,
@@ -1799,9 +1799,7 @@ impl AccessTokenInfo {
     pub fn new(id: impl Into<String>) -> Self {
         Self {
             id: id.into(),
-            expires_at: None,
-            auto_prefix_streams: false,
-            scope: None,
+            ..Default::default()
         }
     }
 
