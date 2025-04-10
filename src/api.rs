@@ -660,6 +660,10 @@ pub enum Operation {
     Append = 15,
     /// Read records from a stream.
     Read = 16,
+    /// Trim records up to a sequence number.
+    Trim = 17,
+    /// Set a fencing token for a stream.
+    Fence = 18,
 }
 impl Operation {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -685,6 +689,8 @@ impl Operation {
             Self::CheckTail => "OPERATION_CHECK_TAIL",
             Self::Append => "OPERATION_APPEND",
             Self::Read => "OPERATION_READ",
+            Self::Trim => "OPERATION_TRIM",
+            Self::Fence => "OPERATION_FENCE",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -707,6 +713,8 @@ impl Operation {
             "OPERATION_CHECK_TAIL" => Some(Self::CheckTail),
             "OPERATION_APPEND" => Some(Self::Append),
             "OPERATION_READ" => Some(Self::Read),
+            "OPERATION_TRIM" => Some(Self::Trim),
+            "OPERATION_FENCE" => Some(Self::Fence),
             _ => None,
         }
     }

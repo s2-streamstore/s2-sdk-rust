@@ -1883,6 +1883,8 @@ pub enum Operation {
     CheckTail,
     Append,
     Read,
+    Trim,
+    Fence,
 }
 
 impl From<Operation> for i32 {
@@ -1920,6 +1922,8 @@ impl From<Operation> for api::Operation {
             Operation::CheckTail => Self::CheckTail,
             Operation::Append => Self::Append,
             Operation::Read => Self::Read,
+            Operation::Trim => Self::Trim,
+            Operation::Fence => Self::Fence,
         }
     }
 }
@@ -1944,6 +1948,8 @@ impl From<api::Operation> for Operation {
             api::Operation::CheckTail => Self::CheckTail,
             api::Operation::Append => Self::Append,
             api::Operation::Read => Self::Read,
+            api::Operation::Trim => Self::Trim,
+            api::Operation::Fence => Self::Fence,
         }
     }
 }
