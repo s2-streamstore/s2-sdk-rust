@@ -1994,9 +1994,9 @@ impl From<api::Operation> for Operation {
 #[sync_docs]
 #[derive(Debug, Clone, Default)]
 pub struct AccessTokenScope {
-    pub basins: Option<Matching>,
-    pub streams: Option<Matching>,
-    pub tokens: Option<Matching>,
+    pub basins: Option<ResourceSet>,
+    pub streams: Option<ResourceSet>,
+    pub tokens: Option<ResourceSet>,
     pub op_groups: Option<PermittedOperationGroups>,
     pub ops: HashSet<Operation>,
 }
@@ -2008,7 +2008,7 @@ impl AccessTokenScope {
     }
 
     /// Overwrite resource set for tokens.
-    pub fn with_basins(self, basins: Matching) -> Self {
+    pub fn with_basins(self, basins: ResourceSet) -> Self {
         Self {
             basins: Some(basins),
             ..self
@@ -2016,7 +2016,7 @@ impl AccessTokenScope {
     }
 
     /// Overwrite resource set for streams.
-    pub fn with_streams(self, streams: Matching) -> Self {
+    pub fn with_streams(self, streams: ResourceSet) -> Self {
         Self {
             streams: Some(streams),
             ..self
@@ -2024,7 +2024,7 @@ impl AccessTokenScope {
     }
 
     /// Overwrite resource set for tokens.
-    pub fn with_tokens(self, tokens: Matching) -> Self {
+    pub fn with_tokens(self, tokens: ResourceSet) -> Self {
         Self {
             tokens: Some(tokens),
             ..self
@@ -2097,35 +2097,35 @@ impl TryFrom<api::AccessTokenScope> for AccessTokenScope {
     }
 }
 
-impl From<Matching> for api::ResourceSet {
-    fn from(value: Matching) -> Self {
+impl From<ResourceSet> for api::ResourceSet {
+    fn from(value: ResourceSet) -> Self {
         Self {
             matching: Some(value.into()),
         }
     }
 }
 
-#[sync_docs]
+#[sync_docs(ResourceSet = "Matching")]
 #[derive(Debug, Clone)]
-pub enum Matching {
+pub enum ResourceSet {
     Exact(String),
     Prefix(String),
 }
 
-impl From<Matching> for api::resource_set::Matching {
-    fn from(value: Matching) -> Self {
+impl From<ResourceSet> for api::resource_set::Matching {
+    fn from(value: ResourceSet) -> Self {
         match value {
-            Matching::Exact(name) => api::resource_set::Matching::Exact(name),
-            Matching::Prefix(name) => api::resource_set::Matching::Prefix(name),
+            ResourceSet::Exact(name) => api::resource_set::Matching::Exact(name),
+            ResourceSet::Prefix(name) => api::resource_set::Matching::Prefix(name),
         }
     }
 }
 
-impl From<api::resource_set::Matching> for Matching {
+impl From<api::resource_set::Matching> for ResourceSet {
     fn from(value: api::resource_set::Matching) -> Self {
         match value {
-            api::resource_set::Matching::Exact(name) => Matching::Exact(name),
-            api::resource_set::Matching::Prefix(name) => Matching::Prefix(name),
+            api::resource_set::Matching::Exact(name) => ResourceSet::Exact(name),
+            api::resource_set::Matching::Prefix(name) => ResourceSet::Prefix(name),
         }
     }
 }
