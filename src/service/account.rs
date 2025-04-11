@@ -267,7 +267,7 @@ impl ServiceRequest for RevokeAccessTokenServiceRequest {
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
-        let req: api::RevokeAccessTokenRequest = self.id.clone().try_into()?;
+        let req: api::RevokeAccessTokenRequest = self.id.clone().into();
         Ok(req.into_request())
     }
 
