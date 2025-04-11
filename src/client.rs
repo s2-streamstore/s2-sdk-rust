@@ -481,12 +481,12 @@ impl Client {
     #[sync_docs]
     pub async fn issue_access_token(
         &self,
-        req: types::IssueAccessTokenRequest,
-    ) -> Result<types::IssueAccessTokenResponse, ClientError> {
+        info: types::AccessTokenInfo,
+    ) -> Result<String, ClientError> {
         self.inner
             .send_retryable(IssueAccessTokenServiceRequest::new(
                 self.inner.account_service_client(),
-                req,
+                info,
             ))
             .await
     }
@@ -494,12 +494,12 @@ impl Client {
     #[sync_docs]
     pub async fn revoke_access_token(
         &self,
-        req: types::RevokeAccessTokenRequest,
-    ) -> Result<types::RevokeAccessTokenResponse, ClientError> {
+        id: String,
+    ) -> Result<types::AccessTokenInfo, ClientError> {
         self.inner
             .send_retryable(RevokeAccessTokenServiceRequest::new(
                 self.inner.account_service_client(),
-                req,
+                id,
             ))
             .await
     }

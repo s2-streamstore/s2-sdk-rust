@@ -1,6 +1,6 @@
 //! Types for interacting with S2 services.
 
-use std::{ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
+use std::{collections::HashSet, ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
 
 use bytes::Bytes;
 use rand::{Rng, distributions::Uniform};
@@ -1763,32 +1763,67 @@ impl std::fmt::Display for BasinName {
     }
 }
 
-#[sync_docs]
+/// Access token ID.
+/// Must be between 1 and 50 characters.
 #[derive(Debug, Clone)]
-pub struct IssueAccessTokenRequest {
-    pub info: AccessTokenInfo,
-}
+pub struct AccessTokenId(String);
 
-impl IssueAccessTokenRequest {
-    /// Create a new request with access token info.
-    pub fn new(info: AccessTokenInfo) -> Self {
-        Self { info }
+impl AsRef<str> for AccessTokenId {
+    fn as_ref(&self) -> &str {
+        &self.0
     }
 }
 
-impl From<IssueAccessTokenRequest> for api::IssueAccessTokenRequest {
-    fn from(value: IssueAccessTokenRequest) -> Self {
-        let IssueAccessTokenRequest { info } = value;
+impl Deref for AccessTokenId {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl TryFrom<String> for AccessTokenId {
+    type Error = ConvertError;
+
+    fn try_from(name: String) -> Result<Self, Self::Error> {
+        if name.is_empty() {
+            return Err("Access token ID must not be empty".into());
+        }
+
+        if name.len() > 50 {
+            return Err("Access token ID must not exceed 50 characters".into());
+        }
+
+        Ok(Self(name))
+    }
+}
+
+impl From<AccessTokenId> for String {
+    fn from(value: AccessTokenId) -> Self {
+        value.0
+    }
+}
+
+impl FromStr for AccessTokenId {
+    type Err = ConvertError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.to_string().try_into()
+    }
+}
+
+impl From<AccessTokenInfo> for api::IssueAccessTokenRequest {
+    fn from(value: AccessTokenInfo) -> Self {
         Self {
-            info: Some(info.into()),
+            info: Some(value.into()),
         }
     }
 }
 
 #[sync_docs]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct AccessTokenInfo {
-    pub id: String,
+    pub id: AccessTokenId,
     pub expires_at: Option<u32>,
     pub auto_prefix_streams: bool,
     pub scope: Option<AccessTokenScope>,
@@ -1796,10 +1831,12 @@ pub struct AccessTokenInfo {
 
 impl AccessTokenInfo {
     /// Create a new access token info.
-    pub fn new(id: impl Into<String>) -> Self {
+    pub fn new(id: AccessTokenId) -> Self {
         Self {
-            id: id.into(),
-            ..Default::default()
+            id,
+            expires_at: None,
+            auto_prefix_streams: false,
+            scope: None,
         }
     }
 
@@ -1837,7 +1874,7 @@ impl From<AccessTokenInfo> for api::AccessTokenInfo {
             scope,
         } = value;
         Self {
-            id,
+            id: id.into(),
             expires_at,
             auto_prefix_streams,
             scope: scope.map(Into::into),
@@ -1855,7 +1892,7 @@ impl TryFrom<api::AccessTokenInfo> for AccessTokenInfo {
             scope,
         } = value;
         Ok(Self {
-            id,
+            id: id.try_into()?,
             expires_at,
             auto_prefix_streams,
             scope: scope.map(TryInto::try_into).transpose()?,
@@ -1864,7 +1901,7 @@ impl TryFrom<api::AccessTokenInfo> for AccessTokenInfo {
 }
 
 #[sync_docs]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Operation {
     Unspecified,
     ListBasins,
@@ -1957,11 +1994,11 @@ impl From<api::Operation> for Operation {
 #[sync_docs]
 #[derive(Debug, Clone, Default)]
 pub struct AccessTokenScope {
-    pub basins: Option<ResourceSet>,
-    pub streams: Option<ResourceSet>,
-    pub tokens: Option<ResourceSet>,
+    pub basins: Option<Matching>,
+    pub streams: Option<Matching>,
+    pub tokens: Option<Matching>,
     pub op_groups: Option<PermittedOperationGroups>,
-    pub ops: Vec<Operation>,
+    pub ops: HashSet<Operation>,
 }
 
 impl AccessTokenScope {
@@ -1971,7 +2008,7 @@ impl AccessTokenScope {
     }
 
     /// Overwrite resource set for tokens.
-    pub fn with_basins(self, basins: ResourceSet) -> Self {
+    pub fn with_basins(self, basins: Matching) -> Self {
         Self {
             basins: Some(basins),
             ..self
@@ -1979,7 +2016,7 @@ impl AccessTokenScope {
     }
 
     /// Overwrite resource set for streams.
-    pub fn with_streams(self, streams: ResourceSet) -> Self {
+    pub fn with_streams(self, streams: Matching) -> Self {
         Self {
             streams: Some(streams),
             ..self
@@ -1987,7 +2024,7 @@ impl AccessTokenScope {
     }
 
     /// Overwrite resource set for tokens.
-    pub fn with_tokens(self, tokens: ResourceSet) -> Self {
+    pub fn with_tokens(self, tokens: Matching) -> Self {
         Self {
             tokens: Some(tokens),
             ..self
@@ -2004,6 +2041,16 @@ impl AccessTokenScope {
 
     /// Overwrite operations.
     pub fn with_ops(self, ops: Vec<Operation>) -> Self {
+        Self {
+            ops: ops.into_iter().collect(),
+            ..self
+        }
+    }
+
+    /// Add an operation to operations.
+    pub fn with_op(self, op: Operation) -> Self {
+        let mut ops = self.ops;
+        ops.insert(op);
         Self { ops, ..self }
     }
 }
@@ -2038,47 +2085,22 @@ impl TryFrom<api::AccessTokenScope> for AccessTokenScope {
             ops,
         } = value;
         Ok(Self {
-            basins: basins.map(Into::into),
-            streams: streams.map(Into::into),
-            tokens: tokens.map(Into::into),
+            basins: basins.and_then(|set| set.matching.map(Into::into)),
+            streams: streams.and_then(|set| set.matching.map(Into::into)),
+            tokens: tokens.and_then(|set| set.matching.map(Into::into)),
             op_groups: op_groups.map(Into::into),
             ops: ops
                 .into_iter()
                 .map(Operation::try_from)
-                .collect::<Result<Vec<_>, _>>()?,
+                .collect::<Result<HashSet<_>, _>>()?,
         })
     }
 }
 
-#[sync_docs]
-#[derive(Debug, Clone)]
-pub struct ResourceSet {
-    pub matching: Matching,
-}
-
-impl ResourceSet {
-    /// Create a new resource set.
-    pub fn new(matching: Matching) -> Self {
-        Self { matching }
-    }
-}
-
-impl From<ResourceSet> for api::ResourceSet {
-    fn from(value: ResourceSet) -> Self {
-        let ResourceSet { matching } = value;
+impl From<Matching> for api::ResourceSet {
+    fn from(value: Matching) -> Self {
         Self {
-            matching: Some(matching.into()),
-        }
-    }
-}
-
-impl From<api::ResourceSet> for ResourceSet {
-    fn from(value: api::ResourceSet) -> Self {
-        let api::ResourceSet { matching } = value;
-        Self {
-            matching: matching
-                .map(Matching::from)
-                .unwrap_or(Matching::Exact(String::new())),
+            matching: Some(value.into()),
         }
     }
 }
@@ -2215,53 +2237,23 @@ impl From<api::ReadWritePermissions> for ReadWritePermissions {
     }
 }
 
-#[sync_docs]
-#[derive(Debug, Clone)]
-pub struct IssueAccessTokenResponse {
-    pub token: String,
-}
-
-impl From<api::IssueAccessTokenResponse> for IssueAccessTokenResponse {
+impl From<api::IssueAccessTokenResponse> for String {
     fn from(value: api::IssueAccessTokenResponse) -> Self {
-        let api::IssueAccessTokenResponse { token } = value;
-        Self { token }
+        value.token
     }
 }
 
-#[sync_docs]
-#[derive(Debug, Clone)]
-pub struct RevokeAccessTokenRequest {
-    pub id: String,
-}
-
-impl RevokeAccessTokenRequest {
-    /// Create a new request with access token id.
-    pub fn new(id: impl Into<String>) -> Self {
-        Self { id: id.into() }
+impl From<String> for api::RevokeAccessTokenRequest {
+    fn from(value: String) -> Self {
+        Self { id: value }
     }
 }
 
-impl From<RevokeAccessTokenRequest> for api::RevokeAccessTokenRequest {
-    fn from(value: RevokeAccessTokenRequest) -> Self {
-        let RevokeAccessTokenRequest { id } = value;
-        Self { id }
-    }
-}
-
-#[sync_docs]
-#[derive(Debug, Clone)]
-pub struct RevokeAccessTokenResponse {
-    pub info: AccessTokenInfo,
-}
-
-impl TryFrom<api::RevokeAccessTokenResponse> for RevokeAccessTokenResponse {
+impl TryFrom<api::RevokeAccessTokenResponse> for AccessTokenInfo {
     type Error = ConvertError;
     fn try_from(value: api::RevokeAccessTokenResponse) -> Result<Self, Self::Error> {
-        let api::RevokeAccessTokenResponse { info } = value;
-        let info = info.ok_or("missing access token info")?;
-        Ok(Self {
-            info: info.try_into()?,
-        })
+        let token_info = value.info.ok_or("access token info is missing")?;
+        token_info.try_into()
     }
 }
 

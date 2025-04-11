@@ -179,13 +179,13 @@ pub struct AccessTokenInfo {
 /// Access token scope.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AccessTokenScope {
-    /// Access permissions at basin level.
+    /// Basin name restrictions.
     #[prost(message, optional, tag = "1")]
     pub basins: ::core::option::Option<ResourceSet>,
-    /// Access permissions at stream level.
+    /// Stream name restrictions.
     #[prost(message, optional, tag = "2")]
     pub streams: ::core::option::Option<ResourceSet>,
-    /// Access permissions at token level.
+    /// Token ID restrictions.
     #[prost(message, optional, tag = "3")]
     pub tokens: ::core::option::Option<ResourceSet>,
     /// Access permissions at operation group level.

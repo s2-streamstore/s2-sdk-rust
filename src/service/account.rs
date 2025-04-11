@@ -214,18 +214,18 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
 #[derive(Debug, Clone)]
 pub struct IssueAccessTokenServiceRequest {
     client: AccountServiceClient<Channel>,
-    req: types::IssueAccessTokenRequest,
+    req: types::AccessTokenInfo,
 }
 
 impl IssueAccessTokenServiceRequest {
-    pub fn new(client: AccountServiceClient<Channel>, req: types::IssueAccessTokenRequest) -> Self {
+    pub fn new(client: AccountServiceClient<Channel>, req: types::AccessTokenInfo) -> Self {
         Self { client, req }
     }
 }
 
 impl ServiceRequest for IssueAccessTokenServiceRequest {
     type ApiRequest = api::IssueAccessTokenRequest;
-    type Response = types::IssueAccessTokenResponse;
+    type Response = String;
     type ApiResponse = api::IssueAccessTokenResponse;
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 
@@ -252,20 +252,17 @@ impl ServiceRequest for IssueAccessTokenServiceRequest {
 #[derive(Debug, Clone)]
 pub struct RevokeAccessTokenServiceRequest {
     client: AccountServiceClient<Channel>,
-    req: types::RevokeAccessTokenRequest,
+    req: String,
 }
 impl RevokeAccessTokenServiceRequest {
-    pub fn new(
-        client: AccountServiceClient<Channel>,
-        req: types::RevokeAccessTokenRequest,
-    ) -> Self {
+    pub fn new(client: AccountServiceClient<Channel>, req: String) -> Self {
         Self { client, req }
     }
 }
 
 impl ServiceRequest for RevokeAccessTokenServiceRequest {
     type ApiRequest = api::RevokeAccessTokenRequest;
-    type Response = types::RevokeAccessTokenResponse;
+    type Response = types::AccessTokenInfo;
     type ApiResponse = api::RevokeAccessTokenResponse;
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 

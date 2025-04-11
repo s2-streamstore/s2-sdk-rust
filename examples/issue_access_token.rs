@@ -1,6 +1,6 @@
 use s2::{
     client::{Client, ClientConfig},
-    types::{AccessTokenInfo, IssueAccessTokenRequest, IssueAccessTokenResponse},
+    types::{AccessTokenId, AccessTokenInfo},
 };
 
 #[tokio::main]
@@ -9,11 +9,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = ClientConfig::new(token);
     let client = Client::new(config);
 
-    let access_token_info = AccessTokenInfo::new("my-access-token");
-    let issue_access_token_req = IssueAccessTokenRequest::new(access_token_info);
-
-    let IssueAccessTokenResponse { token } =
-        client.issue_access_token(issue_access_token_req).await?;
+    let access_token_id: AccessTokenId = "my-access-token".parse()?;
+    let token = client
+        .issue_access_token(AccessTokenInfo::new(access_token_id))
+        .await?;
 
     println!("Access token: {token}");
 
