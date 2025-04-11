@@ -2243,9 +2243,12 @@ impl From<api::IssueAccessTokenResponse> for String {
     }
 }
 
-impl From<String> for api::RevokeAccessTokenRequest {
-    fn from(value: String) -> Self {
-        Self { id: value }
+impl TryFrom<AccessTokenId> for api::RevokeAccessTokenRequest {
+    type Error = ConvertError;
+    fn try_from(value: AccessTokenId) -> Result<Self, ConvertError> {
+        Ok(Self {
+            id: value.try_into().map_err(|_| "invalid access token ID")?,
+        })
     }
 }
 

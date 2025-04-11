@@ -214,12 +214,12 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
 #[derive(Debug, Clone)]
 pub struct IssueAccessTokenServiceRequest {
     client: AccountServiceClient<Channel>,
-    req: types::AccessTokenInfo,
+    info: types::AccessTokenInfo,
 }
 
 impl IssueAccessTokenServiceRequest {
-    pub fn new(client: AccountServiceClient<Channel>, req: types::AccessTokenInfo) -> Self {
-        Self { client, req }
+    pub fn new(client: AccountServiceClient<Channel>, info: types::AccessTokenInfo) -> Self {
+        Self { client, info }
     }
 }
 
@@ -230,7 +230,7 @@ impl ServiceRequest for IssueAccessTokenServiceRequest {
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
-        let req: api::IssueAccessTokenRequest = self.req.clone().into();
+        let req: api::IssueAccessTokenRequest = self.info.clone().into();
         Ok(req.into_request())
     }
 
@@ -252,11 +252,11 @@ impl ServiceRequest for IssueAccessTokenServiceRequest {
 #[derive(Debug, Clone)]
 pub struct RevokeAccessTokenServiceRequest {
     client: AccountServiceClient<Channel>,
-    req: String,
+    id: types::AccessTokenId,
 }
 impl RevokeAccessTokenServiceRequest {
-    pub fn new(client: AccountServiceClient<Channel>, req: String) -> Self {
-        Self { client, req }
+    pub fn new(client: AccountServiceClient<Channel>, id: types::AccessTokenId) -> Self {
+        Self { client, id }
     }
 }
 
@@ -267,7 +267,7 @@ impl ServiceRequest for RevokeAccessTokenServiceRequest {
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
 
     fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
-        let req: api::RevokeAccessTokenRequest = self.req.clone().into();
+        let req: api::RevokeAccessTokenRequest = self.id.clone().try_into()?;
         Ok(req.into_request())
     }
 

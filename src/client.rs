@@ -494,7 +494,7 @@ impl Client {
     #[sync_docs]
     pub async fn revoke_access_token(
         &self,
-        id: String,
+        id: types::AccessTokenId,
     ) -> Result<types::AccessTokenInfo, ClientError> {
         self.inner
             .send_retryable(RevokeAccessTokenServiceRequest::new(
