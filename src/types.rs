@@ -1924,6 +1924,35 @@ pub enum Operation {
     Fence,
 }
 
+impl FromStr for Operation {
+    type Err = ConvertError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "unspecified" => Ok(Self::Unspecified),
+            "list-basins" | "listbasins" => Ok(Self::ListBasins),
+            "create-basin" | "createbasin" => Ok(Self::CreateBasin),
+            "delete-basin" | "deletebasin" => Ok(Self::DeleteBasin),
+            "reconfigure-basin" | "reconfigurebasin" => Ok(Self::ReconfigureBasin),
+            "get-basin-config" | "getbasinconfig" => Ok(Self::GetBasinConfig),
+            "issue-access-token" | "issueaccesstoken" => Ok(Self::IssueAccessToken),
+            "revoke-access-token" | "revokeaccesstoken" => Ok(Self::RevokeAccessToken),
+            "list-access-tokens" | "listaccesstokens" => Ok(Self::ListAccessTokens),
+            "list-streams" | "liststreams" => Ok(Self::ListStreams),
+            "create-stream" | "createstream" => Ok(Self::CreateStream),
+            "delete-stream" | "deletestream" => Ok(Self::DeleteStream),
+            "get-stream-config" | "getstreamconfig" => Ok(Self::GetStreamConfig),
+            "reconfigure-stream" | "reconfigurestream" => Ok(Self::ReconfigureStream),
+            "check-tail" | "checktail" => Ok(Self::CheckTail),
+            "append" => Ok(Self::Append),
+            "read" => Ok(Self::Read),
+            "trim" => Ok(Self::Trim),
+            "fence" => Ok(Self::Fence),
+            _ => Err("invalid operation".into()),
+        }
+    }
+}
+
 impl From<Operation> for i32 {
     fn from(value: Operation) -> Self {
         api::Operation::from(value).into()
