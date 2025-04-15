@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.0] - 2025-04-15
+
+### Features
+
+- Access token methods [S2-758] ([#163](https://github.com/s2-streamstore/s2-sdk-rust/issues/163))
+
 ## [0.10.0] - 2025-03-19
 
 ### Features
