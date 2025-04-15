@@ -210,3 +210,115 @@ impl ServiceRequest for ReconfigureBasinServiceRequest {
         resp.into_inner().try_into()
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct IssueAccessTokenServiceRequest {
+    client: AccountServiceClient<Channel>,
+    info: types::AccessTokenInfo,
+}
+
+impl IssueAccessTokenServiceRequest {
+    pub fn new(client: AccountServiceClient<Channel>, info: types::AccessTokenInfo) -> Self {
+        Self { client, info }
+    }
+}
+
+impl ServiceRequest for IssueAccessTokenServiceRequest {
+    type ApiRequest = api::IssueAccessTokenRequest;
+    type Response = String;
+    type ApiResponse = api::IssueAccessTokenResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
+
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+        let req: api::IssueAccessTokenRequest = self.info.clone().into();
+        Ok(req.into_request())
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.issue_access_token(req).await
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        Ok(resp.into_inner().into())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RevokeAccessTokenServiceRequest {
+    client: AccountServiceClient<Channel>,
+    id: types::AccessTokenId,
+}
+impl RevokeAccessTokenServiceRequest {
+    pub fn new(client: AccountServiceClient<Channel>, id: types::AccessTokenId) -> Self {
+        Self { client, id }
+    }
+}
+
+impl ServiceRequest for RevokeAccessTokenServiceRequest {
+    type ApiRequest = api::RevokeAccessTokenRequest;
+    type Response = types::AccessTokenInfo;
+    type ApiResponse = api::RevokeAccessTokenResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::Idempotent;
+
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+        let req: api::RevokeAccessTokenRequest = self.id.clone().into();
+        Ok(req.into_request())
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.revoke_access_token(req).await
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ListAccessTokensServiceRequest {
+    client: AccountServiceClient<Channel>,
+    req: types::ListAccessTokensRequest,
+}
+impl ListAccessTokensServiceRequest {
+    pub fn new(client: AccountServiceClient<Channel>, req: types::ListAccessTokensRequest) -> Self {
+        Self { client, req }
+    }
+}
+
+impl ServiceRequest for ListAccessTokensServiceRequest {
+    type ApiRequest = api::ListAccessTokensRequest;
+    type Response = types::ListAccessTokensResponse;
+    type ApiResponse = api::ListAccessTokensResponse;
+    const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
+
+    fn prepare_request(&mut self) -> Result<tonic::Request<Self::ApiRequest>, types::ConvertError> {
+        let req: api::ListAccessTokensRequest = self.req.clone().try_into()?;
+        Ok(req.into_request())
+    }
+
+    async fn send(
+        &mut self,
+        req: tonic::Request<Self::ApiRequest>,
+    ) -> Result<tonic::Response<Self::ApiResponse>, tonic::Status> {
+        self.client.list_access_tokens(req).await
+    }
+
+    fn parse_response(
+        &self,
+        resp: tonic::Response<Self::ApiResponse>,
+    ) -> Result<Self::Response, types::ConvertError> {
+        resp.into_inner().try_into()
+    }
+}

@@ -1,6 +1,6 @@
 //! Types for interacting with S2 services.
 
-use std::{ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
+use std::{collections::HashSet, ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
 
 use bytes::Bytes;
 use rand::{Rng, distributions::Uniform};
@@ -162,6 +162,7 @@ impl From<CreateBasinRequest> for api::CreateBasinRequest {
 pub struct BasinConfig {
     pub default_stream_config: Option<StreamConfig>,
     pub create_stream_on_append: bool,
+    pub create_stream_on_read: bool,
 }
 
 impl From<BasinConfig> for api::BasinConfig {
@@ -169,10 +170,12 @@ impl From<BasinConfig> for api::BasinConfig {
         let BasinConfig {
             default_stream_config,
             create_stream_on_append,
+            create_stream_on_read,
         } = value;
         Self {
             default_stream_config: default_stream_config.map(Into::into),
             create_stream_on_append,
+            create_stream_on_read,
         }
     }
 }
@@ -183,10 +186,12 @@ impl TryFrom<api::BasinConfig> for BasinConfig {
         let api::BasinConfig {
             default_stream_config,
             create_stream_on_append,
+            create_stream_on_read,
         } = value;
         Ok(Self {
             default_stream_config: default_stream_config.map(TryInto::try_into).transpose()?,
             create_stream_on_append,
+            create_stream_on_read,
         })
     }
 }
@@ -1760,5 +1765,605 @@ impl FromStr for BasinName {
 impl std::fmt::Display for BasinName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
+    }
+}
+
+/// Access token ID.
+/// Must be between 1 and 50 characters.
+#[derive(Debug, Clone)]
+pub struct AccessTokenId(String);
+
+impl AsRef<str> for AccessTokenId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Deref for AccessTokenId {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl TryFrom<String> for AccessTokenId {
+    type Error = ConvertError;
+
+    fn try_from(name: String) -> Result<Self, Self::Error> {
+        if name.is_empty() {
+            return Err("Access token ID must not be empty".into());
+        }
+
+        if name.len() > 50 {
+            return Err("Access token ID must not exceed 50 characters".into());
+        }
+
+        Ok(Self(name))
+    }
+}
+
+impl From<AccessTokenId> for String {
+    fn from(value: AccessTokenId) -> Self {
+        value.0
+    }
+}
+
+impl FromStr for AccessTokenId {
+    type Err = ConvertError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.to_string().try_into()
+    }
+}
+
+impl From<AccessTokenInfo> for api::IssueAccessTokenRequest {
+    fn from(value: AccessTokenInfo) -> Self {
+        Self {
+            info: Some(value.into()),
+        }
+    }
+}
+
+#[sync_docs]
+#[derive(Debug, Clone)]
+pub struct AccessTokenInfo {
+    pub id: AccessTokenId,
+    pub expires_at: Option<u32>,
+    pub auto_prefix_streams: bool,
+    pub scope: Option<AccessTokenScope>,
+}
+
+impl AccessTokenInfo {
+    /// Create a new access token info.
+    pub fn new(id: AccessTokenId) -> Self {
+        Self {
+            id,
+            expires_at: None,
+            auto_prefix_streams: false,
+            scope: None,
+        }
+    }
+
+    /// Overwrite expiration time.
+    pub fn with_expires_at(self, expires_at: u32) -> Self {
+        Self {
+            expires_at: Some(expires_at),
+            ..self
+        }
+    }
+
+    /// Overwrite auto prefix streams.
+    pub fn with_auto_prefix_streams(self, auto_prefix_streams: bool) -> Self {
+        Self {
+            auto_prefix_streams,
+            ..self
+        }
+    }
+
+    /// Overwrite scope.
+    pub fn with_scope(self, scope: AccessTokenScope) -> Self {
+        Self {
+            scope: Some(scope),
+            ..self
+        }
+    }
+}
+
+impl From<AccessTokenInfo> for api::AccessTokenInfo {
+    fn from(value: AccessTokenInfo) -> Self {
+        let AccessTokenInfo {
+            id,
+            expires_at,
+            auto_prefix_streams,
+            scope,
+        } = value;
+        Self {
+            id: id.into(),
+            expires_at,
+            auto_prefix_streams,
+            scope: scope.map(Into::into),
+        }
+    }
+}
+
+impl TryFrom<api::AccessTokenInfo> for AccessTokenInfo {
+    type Error = ConvertError;
+    fn try_from(value: api::AccessTokenInfo) -> Result<Self, Self::Error> {
+        let api::AccessTokenInfo {
+            id,
+            expires_at,
+            auto_prefix_streams,
+            scope,
+        } = value;
+        Ok(Self {
+            id: id.try_into()?,
+            expires_at,
+            auto_prefix_streams,
+            scope: scope.map(TryInto::try_into).transpose()?,
+        })
+    }
+}
+
+#[sync_docs]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Operation {
+    Unspecified,
+    ListBasins,
+    CreateBasin,
+    DeleteBasin,
+    ReconfigureBasin,
+    GetBasinConfig,
+    IssueAccessToken,
+    RevokeAccessToken,
+    ListAccessTokens,
+    ListStreams,
+    CreateStream,
+    DeleteStream,
+    GetStreamConfig,
+    ReconfigureStream,
+    CheckTail,
+    Append,
+    Read,
+    Trim,
+    Fence,
+}
+
+impl FromStr for Operation {
+    type Err = ConvertError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "unspecified" => Ok(Self::Unspecified),
+            "list-basins" | "listbasins" => Ok(Self::ListBasins),
+            "create-basin" | "createbasin" => Ok(Self::CreateBasin),
+            "delete-basin" | "deletebasin" => Ok(Self::DeleteBasin),
+            "reconfigure-basin" | "reconfigurebasin" => Ok(Self::ReconfigureBasin),
+            "get-basin-config" | "getbasinconfig" => Ok(Self::GetBasinConfig),
+            "issue-access-token" | "issueaccesstoken" => Ok(Self::IssueAccessToken),
+            "revoke-access-token" | "revokeaccesstoken" => Ok(Self::RevokeAccessToken),
+            "list-access-tokens" | "listaccesstokens" => Ok(Self::ListAccessTokens),
+            "list-streams" | "liststreams" => Ok(Self::ListStreams),
+            "create-stream" | "createstream" => Ok(Self::CreateStream),
+            "delete-stream" | "deletestream" => Ok(Self::DeleteStream),
+            "get-stream-config" | "getstreamconfig" => Ok(Self::GetStreamConfig),
+            "reconfigure-stream" | "reconfigurestream" => Ok(Self::ReconfigureStream),
+            "check-tail" | "checktail" => Ok(Self::CheckTail),
+            "append" => Ok(Self::Append),
+            "read" => Ok(Self::Read),
+            "trim" => Ok(Self::Trim),
+            "fence" => Ok(Self::Fence),
+            _ => Err("invalid operation".into()),
+        }
+    }
+}
+
+impl From<Operation> for i32 {
+    fn from(value: Operation) -> Self {
+        api::Operation::from(value).into()
+    }
+}
+
+impl TryFrom<i32> for Operation {
+    type Error = ConvertError;
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        api::Operation::try_from(value)
+            .map_err(|_| "invalid operation".into())
+            .map(Into::into)
+    }
+}
+
+impl From<Operation> for api::Operation {
+    fn from(value: Operation) -> Self {
+        match value {
+            Operation::Unspecified => Self::Unspecified,
+            Operation::ListBasins => Self::ListBasins,
+            Operation::CreateBasin => Self::CreateBasin,
+            Operation::DeleteBasin => Self::DeleteBasin,
+            Operation::ReconfigureBasin => Self::ReconfigureBasin,
+            Operation::GetBasinConfig => Self::GetBasinConfig,
+            Operation::IssueAccessToken => Self::IssueAccessToken,
+            Operation::RevokeAccessToken => Self::RevokeAccessToken,
+            Operation::ListAccessTokens => Self::ListAccessTokens,
+            Operation::ListStreams => Self::ListStreams,
+            Operation::CreateStream => Self::CreateStream,
+            Operation::DeleteStream => Self::DeleteStream,
+            Operation::GetStreamConfig => Self::GetStreamConfig,
+            Operation::ReconfigureStream => Self::ReconfigureStream,
+            Operation::CheckTail => Self::CheckTail,
+            Operation::Append => Self::Append,
+            Operation::Read => Self::Read,
+            Operation::Trim => Self::Trim,
+            Operation::Fence => Self::Fence,
+        }
+    }
+}
+
+impl From<api::Operation> for Operation {
+    fn from(value: api::Operation) -> Self {
+        match value {
+            api::Operation::Unspecified => Self::Unspecified,
+            api::Operation::ListBasins => Self::ListBasins,
+            api::Operation::CreateBasin => Self::CreateBasin,
+            api::Operation::DeleteBasin => Self::DeleteBasin,
+            api::Operation::ReconfigureBasin => Self::ReconfigureBasin,
+            api::Operation::GetBasinConfig => Self::GetBasinConfig,
+            api::Operation::IssueAccessToken => Self::IssueAccessToken,
+            api::Operation::RevokeAccessToken => Self::RevokeAccessToken,
+            api::Operation::ListAccessTokens => Self::ListAccessTokens,
+            api::Operation::ListStreams => Self::ListStreams,
+            api::Operation::CreateStream => Self::CreateStream,
+            api::Operation::DeleteStream => Self::DeleteStream,
+            api::Operation::GetStreamConfig => Self::GetStreamConfig,
+            api::Operation::ReconfigureStream => Self::ReconfigureStream,
+            api::Operation::CheckTail => Self::CheckTail,
+            api::Operation::Append => Self::Append,
+            api::Operation::Read => Self::Read,
+            api::Operation::Trim => Self::Trim,
+            api::Operation::Fence => Self::Fence,
+        }
+    }
+}
+
+#[sync_docs]
+#[derive(Debug, Clone, Default)]
+pub struct AccessTokenScope {
+    pub basins: Option<ResourceSet>,
+    pub streams: Option<ResourceSet>,
+    pub tokens: Option<ResourceSet>,
+    pub op_groups: Option<PermittedOperationGroups>,
+    pub ops: HashSet<Operation>,
+}
+
+impl AccessTokenScope {
+    /// Create a new access token scope.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Overwrite resource set for tokens.
+    pub fn with_basins(self, basins: ResourceSet) -> Self {
+        Self {
+            basins: Some(basins),
+            ..self
+        }
+    }
+
+    /// Overwrite resource set for streams.
+    pub fn with_streams(self, streams: ResourceSet) -> Self {
+        Self {
+            streams: Some(streams),
+            ..self
+        }
+    }
+
+    /// Overwrite resource set for tokens.
+    pub fn with_tokens(self, tokens: ResourceSet) -> Self {
+        Self {
+            tokens: Some(tokens),
+            ..self
+        }
+    }
+
+    /// Overwrite operation groups.
+    pub fn with_op_groups(self, op_groups: PermittedOperationGroups) -> Self {
+        Self {
+            op_groups: Some(op_groups),
+            ..self
+        }
+    }
+
+    /// Overwrite operations.
+    pub fn with_ops(self, ops: impl IntoIterator<Item = Operation>) -> Self {
+        Self {
+            ops: ops.into_iter().collect(),
+            ..self
+        }
+    }
+
+    /// Add an operation to operations.
+    pub fn with_op(self, op: Operation) -> Self {
+        let mut ops = self.ops;
+        ops.insert(op);
+        Self { ops, ..self }
+    }
+}
+
+impl From<AccessTokenScope> for api::AccessTokenScope {
+    fn from(value: AccessTokenScope) -> Self {
+        let AccessTokenScope {
+            basins,
+            streams,
+            tokens,
+            op_groups,
+            ops,
+        } = value;
+        Self {
+            basins: basins.map(Into::into),
+            streams: streams.map(Into::into),
+            tokens: tokens.map(Into::into),
+            op_groups: op_groups.map(Into::into),
+            ops: ops.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl TryFrom<api::AccessTokenScope> for AccessTokenScope {
+    type Error = ConvertError;
+    fn try_from(value: api::AccessTokenScope) -> Result<Self, Self::Error> {
+        let api::AccessTokenScope {
+            basins,
+            streams,
+            tokens,
+            op_groups,
+            ops,
+        } = value;
+        Ok(Self {
+            basins: basins.and_then(|set| set.matching.map(Into::into)),
+            streams: streams.and_then(|set| set.matching.map(Into::into)),
+            tokens: tokens.and_then(|set| set.matching.map(Into::into)),
+            op_groups: op_groups.map(Into::into),
+            ops: ops
+                .into_iter()
+                .map(Operation::try_from)
+                .collect::<Result<HashSet<_>, _>>()?,
+        })
+    }
+}
+
+impl From<ResourceSet> for api::ResourceSet {
+    fn from(value: ResourceSet) -> Self {
+        Self {
+            matching: Some(value.into()),
+        }
+    }
+}
+
+#[sync_docs(ResourceSet = "Matching")]
+#[derive(Debug, Clone)]
+pub enum ResourceSet {
+    Exact(String),
+    Prefix(String),
+}
+
+impl From<ResourceSet> for api::resource_set::Matching {
+    fn from(value: ResourceSet) -> Self {
+        match value {
+            ResourceSet::Exact(name) => api::resource_set::Matching::Exact(name),
+            ResourceSet::Prefix(name) => api::resource_set::Matching::Prefix(name),
+        }
+    }
+}
+
+impl From<api::resource_set::Matching> for ResourceSet {
+    fn from(value: api::resource_set::Matching) -> Self {
+        match value {
+            api::resource_set::Matching::Exact(name) => ResourceSet::Exact(name),
+            api::resource_set::Matching::Prefix(name) => ResourceSet::Prefix(name),
+        }
+    }
+}
+
+#[sync_docs]
+#[derive(Debug, Clone, Default)]
+pub struct PermittedOperationGroups {
+    pub account: Option<ReadWritePermissions>,
+    pub basin: Option<ReadWritePermissions>,
+    pub stream: Option<ReadWritePermissions>,
+}
+
+impl PermittedOperationGroups {
+    /// Create a new permitted operation groups.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Overwrite account read-write permissions.
+    pub fn with_account(self, account: ReadWritePermissions) -> Self {
+        Self {
+            account: Some(account),
+            ..self
+        }
+    }
+
+    /// Overwrite basin read-write permissions.
+    pub fn with_basin(self, basin: ReadWritePermissions) -> Self {
+        Self {
+            basin: Some(basin),
+            ..self
+        }
+    }
+
+    /// Overwrite stream read-write permissions.
+    pub fn with_stream(self, stream: ReadWritePermissions) -> Self {
+        Self {
+            stream: Some(stream),
+            ..self
+        }
+    }
+}
+
+impl From<PermittedOperationGroups> for api::PermittedOperationGroups {
+    fn from(value: PermittedOperationGroups) -> Self {
+        let PermittedOperationGroups {
+            account,
+            basin,
+            stream,
+        } = value;
+        Self {
+            account: account.map(Into::into),
+            basin: basin.map(Into::into),
+            stream: stream.map(Into::into),
+        }
+    }
+}
+
+impl From<api::PermittedOperationGroups> for PermittedOperationGroups {
+    fn from(value: api::PermittedOperationGroups) -> Self {
+        let api::PermittedOperationGroups {
+            account,
+            basin,
+            stream,
+        } = value;
+        Self {
+            account: account.map(Into::into),
+            basin: basin.map(Into::into),
+            stream: stream.map(Into::into),
+        }
+    }
+}
+
+#[sync_docs]
+#[derive(Debug, Clone, Default)]
+pub struct ReadWritePermissions {
+    pub read: bool,
+    pub write: bool,
+}
+
+impl ReadWritePermissions {
+    /// Create a new read-write permission.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Overwrite read permission.
+    pub fn with_read(self, read: bool) -> Self {
+        Self { read, ..self }
+    }
+
+    /// Overwrite write permission.
+    pub fn with_write(self, write: bool) -> Self {
+        Self { write, ..self }
+    }
+}
+
+impl From<ReadWritePermissions> for api::ReadWritePermissions {
+    fn from(value: ReadWritePermissions) -> Self {
+        let ReadWritePermissions { read, write } = value;
+        Self { read, write }
+    }
+}
+
+impl From<api::ReadWritePermissions> for ReadWritePermissions {
+    fn from(value: api::ReadWritePermissions) -> Self {
+        let api::ReadWritePermissions { read, write } = value;
+        Self { read, write }
+    }
+}
+
+impl From<api::IssueAccessTokenResponse> for String {
+    fn from(value: api::IssueAccessTokenResponse) -> Self {
+        value.token
+    }
+}
+
+impl From<AccessTokenId> for api::RevokeAccessTokenRequest {
+    fn from(value: AccessTokenId) -> Self {
+        Self { id: value.into() }
+    }
+}
+
+impl TryFrom<api::RevokeAccessTokenResponse> for AccessTokenInfo {
+    type Error = ConvertError;
+    fn try_from(value: api::RevokeAccessTokenResponse) -> Result<Self, Self::Error> {
+        let token_info = value.info.ok_or("access token info is missing")?;
+        token_info.try_into()
+    }
+}
+
+#[sync_docs]
+#[derive(Debug, Clone, Default)]
+pub struct ListAccessTokensRequest {
+    pub prefix: String,
+    pub start_after: String,
+    pub limit: Option<usize>,
+}
+
+impl ListAccessTokensRequest {
+    /// Create a new request with prefix.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Overwrite prefix.
+    pub fn with_prefix(self, prefix: impl Into<String>) -> Self {
+        Self {
+            prefix: prefix.into(),
+            ..self
+        }
+    }
+
+    /// Overwrite start after.
+    pub fn with_start_after(self, start_after: impl Into<String>) -> Self {
+        Self {
+            start_after: start_after.into(),
+            ..self
+        }
+    }
+
+    /// Overwrite limit.
+    pub fn with_limit(self, limit: impl Into<Option<usize>>) -> Self {
+        Self {
+            limit: limit.into(),
+            ..self
+        }
+    }
+}
+
+impl TryFrom<ListAccessTokensRequest> for api::ListAccessTokensRequest {
+    type Error = ConvertError;
+    fn try_from(value: ListAccessTokensRequest) -> Result<Self, Self::Error> {
+        let ListAccessTokensRequest {
+            prefix,
+            start_after,
+            limit,
+        } = value;
+        Ok(Self {
+            prefix,
+            start_after,
+            limit: limit
+                .map(TryInto::try_into)
+                .transpose()
+                .map_err(|_| "request limit does not fit into u64 bounds")?,
+        })
+    }
+}
+
+#[sync_docs]
+#[derive(Debug, Clone)]
+pub struct ListAccessTokensResponse {
+    pub tokens: Vec<AccessTokenInfo>,
+    pub has_more: bool,
+}
+
+impl TryFrom<api::ListAccessTokensResponse> for ListAccessTokensResponse {
+    type Error = ConvertError;
+    fn try_from(value: api::ListAccessTokensResponse) -> Result<Self, Self::Error> {
+        let api::ListAccessTokensResponse { tokens, has_more } = value;
+        let tokens = tokens
+            .into_iter()
+            .map(TryInto::try_into)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self { tokens, has_more })
     }
 }

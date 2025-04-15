@@ -5,7 +5,7 @@ use s2::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("S2_AUTH_TOKEN")?;
+    let token = std::env::var("S2_ACCESS_TOKEN")?;
     let config = ClientConfig::new(token);
     let client = Client::new(config);
 
@@ -16,6 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let basin_config_updates = BasinConfig {
         default_stream_config: Some(default_stream_config_updates),
         create_stream_on_append: true,
+        create_stream_on_read: true,
     };
 
     let reconfigure_basin_request = ReconfigureBasinRequest::new(basin)
