@@ -162,6 +162,7 @@ impl From<CreateBasinRequest> for api::CreateBasinRequest {
 pub struct BasinConfig {
     pub default_stream_config: Option<StreamConfig>,
     pub create_stream_on_append: bool,
+    pub create_stream_on_read: bool,
 }
 
 impl From<BasinConfig> for api::BasinConfig {
@@ -169,10 +170,12 @@ impl From<BasinConfig> for api::BasinConfig {
         let BasinConfig {
             default_stream_config,
             create_stream_on_append,
+            create_stream_on_read,
         } = value;
         Self {
             default_stream_config: default_stream_config.map(Into::into),
             create_stream_on_append,
+            create_stream_on_read,
         }
     }
 }
@@ -183,10 +186,12 @@ impl TryFrom<api::BasinConfig> for BasinConfig {
         let api::BasinConfig {
             default_stream_config,
             create_stream_on_append,
+            create_stream_on_read,
         } = value;
         Ok(Self {
             default_stream_config: default_stream_config.map(TryInto::try_into).transpose()?,
             create_stream_on_append,
+            create_stream_on_read,
         })
     }
 }
@@ -2069,7 +2074,7 @@ impl AccessTokenScope {
     }
 
     /// Overwrite operations.
-    pub fn with_ops(self, ops: Vec<Operation>) -> Self {
+    pub fn with_ops(self, ops: impl IntoIterator<Item = Operation>) -> Self {
         Self {
             ops: ops.into_iter().collect(),
             ..self

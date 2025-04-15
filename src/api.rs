@@ -162,9 +162,11 @@ pub struct ListAccessTokensResponse {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AccessTokenInfo {
     /// Access token ID.
+    /// It must be unique to the account and between 1 and 50 characters.
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
     /// Expiration time in seconds since Unix epoch.
+    /// If not set, the expiration will be set to that of the requestor's token.
     #[prost(uint32, optional, tag = "2")]
     pub expires_at: ::core::option::Option<u32>,
     /// Namespace streams based on the configured stream-level scope, which must be a prefix.
@@ -179,13 +181,13 @@ pub struct AccessTokenInfo {
 /// Access token scope.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AccessTokenScope {
-    /// Basin name restrictions.
+    /// Basin names allowed.
     #[prost(message, optional, tag = "1")]
     pub basins: ::core::option::Option<ResourceSet>,
-    /// Stream name restrictions.
+    /// Stream names allowed.
     #[prost(message, optional, tag = "2")]
     pub streams: ::core::option::Option<ResourceSet>,
-    /// Token ID restrictions.
+    /// Token IDs allowed.
     #[prost(message, optional, tag = "3")]
     pub tokens: ::core::option::Option<ResourceSet>,
     /// Access permissions at operation group level.
@@ -209,9 +211,11 @@ pub mod resource_set {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Matching {
         /// Match only the resource with this exact name.
+        /// Use an empty string to match no resources.
         #[prost(string, tag = "1")]
         Exact(::prost::alloc::string::String),
         /// Match all resources that start with this prefix.
+        /// Use an empty string to match all resource.
         #[prost(string, tag = "2")]
         Prefix(::prost::alloc::string::String),
     }
@@ -529,6 +533,10 @@ pub struct BasinConfig {
     /// using the default stream configuration.
     #[prost(bool, tag = "2")]
     pub create_stream_on_append: bool,
+    /// Create stream on read if it doesn't exist,
+    /// using the default stream configuration.
+    #[prost(bool, tag = "3")]
+    pub create_stream_on_read: bool,
 }
 /// Basin information.
 #[derive(Clone, PartialEq, ::prost::Message)]
