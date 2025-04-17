@@ -1627,7 +1627,6 @@ impl From<api::SequencedRecordBatch> for SequencedRecordBatch {
 #[derive(Debug, Clone)]
 pub enum ReadOutput {
     Batch(SequencedRecordBatch),
-    FirstSeqNum(u64),
     NextSeqNum(u64),
 }
 
@@ -1635,9 +1634,6 @@ impl From<api::read_output::Output> for ReadOutput {
     fn from(value: api::read_output::Output) -> Self {
         match value {
             api::read_output::Output::Batch(batch) => Self::Batch(batch.into()),
-            api::read_output::Output::FirstSeqNum(first_seq_num) => {
-                Self::FirstSeqNum(first_seq_num)
-            }
             api::read_output::Output::NextSeqNum(next_seq_num) => Self::NextSeqNum(next_seq_num),
         }
     }

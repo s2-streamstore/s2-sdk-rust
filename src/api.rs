@@ -403,33 +403,28 @@ pub struct AppendSessionResponse {
     #[prost(message, optional, tag = "1")]
     pub output: ::core::option::Option<AppendOutput>,
 }
-/// Output from read response.
+/// Output of a read.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReadOutput {
-    /// Batch of records, or a sequence number if the read could not be satisfied.
-    /// An empty batch or a sequence number output will be a terminal message in a session.
-    #[prost(oneof = "read_output::Output", tags = "1, 2, 3")]
+    /// Batch of records or the next sequence number on the stream.
+    #[prost(oneof = "read_output::Output", tags = "1, 3")]
     pub output: ::core::option::Option<read_output::Output>,
 }
 /// Nested message and enum types in `ReadOutput`.
 pub mod read_output {
-    /// Batch of records, or a sequence number if the read could not be satisfied.
-    /// An empty batch or a sequence number output will be a terminal message in a session.
+    /// Batch of records or the next sequence number on the stream.
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Output {
         /// Batch of records.
-        /// It can only be empty when not in a session context (which implies a limit),
-        /// if the first record that could have been retrieved would violate the limit.
+        /// It can only be empty outside of a session context,
+        /// if the request cannot be satisfied without violating its limit.
         #[prost(message, tag = "1")]
         Batch(super::SequencedRecordBatch),
-        /// Sequence number for the first record on this stream.
-        /// Typically this will be returned when the requested `start_seq_num` was smaller.
-        /// It may also be returned during a session, if the stream gets concurrently trimmed.
-        #[prost(uint64, tag = "2")]
-        FirstSeqNum(u64),
-        /// Sequence number that will be assigned to the next record on this stream.
-        /// This will be returned either because the requested `start_seq_num` was larger,
-        /// or in case of a limited read, equal to it.
+        /// Tail of the stream, i.e. sequence number that will be assigned to the next record.
+        /// It will primarily be returned either because the requested starting point was larger,
+        /// or only in case of a limited read, equal to the tail.
+        /// It will also be returned if there are no records on the stream between the requested
+        /// starting point and the tail.
         #[prost(uint64, tag = "3")]
         NextSeqNum(u64),
     }
@@ -456,6 +451,7 @@ pub struct ReadResponse {
     #[prost(message, optional, tag = "1")]
     pub output: ::core::option::Option<ReadOutput>,
 }
+/// Limit how many records can be retrieved.
 /// If both count and bytes are specified, either limit may be hit.
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct ReadLimit {
