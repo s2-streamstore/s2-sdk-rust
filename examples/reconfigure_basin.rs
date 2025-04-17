@@ -13,11 +13,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let default_stream_config_updates =
         StreamConfig::new().with_storage_class(StorageClass::Standard);
-    let basin_config_updates = BasinConfig {
-        default_stream_config: Some(default_stream_config_updates),
-        create_stream_on_append: true,
-        create_stream_on_read: true,
-    };
+    let basin_config_updates = BasinConfig::new()
+        .with_default_stream_config(default_stream_config_updates)
+        .with_create_stream_on_append(true)
+        .with_create_stream_on_read(true);
 
     let reconfigure_basin_request = ReconfigureBasinRequest::new(basin)
         .with_config(basin_config_updates)
