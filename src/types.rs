@@ -165,6 +165,37 @@ pub struct BasinConfig {
     pub create_stream_on_read: bool,
 }
 
+impl BasinConfig {
+    /// Create a new basin config.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Overwrite the default stream config.
+    pub fn with_default_stream_config(self, default_stream_config: StreamConfig) -> Self {
+        Self {
+            default_stream_config: Some(default_stream_config),
+            ..self
+        }
+    }
+
+    /// Overwrite `create_stream_on_append`.
+    pub fn with_create_stream_on_append(self, create_stream_on_append: bool) -> Self {
+        Self {
+            create_stream_on_append,
+            ..self
+        }
+    }
+
+    /// Overwrite `create_stream_on_read`.
+    pub fn with_create_stream_on_read(self, create_stream_on_read: bool) -> Self {
+        Self {
+            create_stream_on_read,
+            ..self
+        }
+    }
+}
+
 impl From<BasinConfig> for api::BasinConfig {
     fn from(value: BasinConfig) -> Self {
         let BasinConfig {
@@ -205,7 +236,7 @@ pub struct StreamConfig {
 }
 
 impl StreamConfig {
-    /// Create a new request.
+    /// Create a new stream config.
     pub fn new() -> Self {
         Self::default()
     }
@@ -1487,6 +1518,29 @@ impl TryFrom<api::AppendSessionResponse> for AppendOutput {
 pub struct ReadLimit {
     pub count: Option<u64>,
     pub bytes: Option<u64>,
+}
+
+impl ReadLimit {
+    /// Create a new read limit.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Overwrite count limit.
+    pub fn with_count(self, count: u64) -> Self {
+        Self {
+            count: Some(count),
+            ..self
+        }
+    }
+
+    /// Overwrite bytes limit.
+    pub fn with_bytes(self, bytes: u64) -> Self {
+        Self {
+            bytes: Some(bytes),
+            ..self
+        }
+    }
 }
 
 #[sync_docs]

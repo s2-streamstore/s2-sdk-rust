@@ -18,11 +18,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Duration::from_secs(10 * 24 * 60 * 60),
     ));
 
-    let basin_config = BasinConfig {
-        default_stream_config: Some(default_stream_config),
-        create_stream_on_append: false,
-        create_stream_on_read: false,
-    };
+    let basin_config = BasinConfig::new()
+        .with_default_stream_config(default_stream_config)
+        .with_create_stream_on_append(false)
+        .with_create_stream_on_read(false);
 
     let create_basin_request = CreateBasinRequest::new(basin.clone()).with_config(basin_config);
 
