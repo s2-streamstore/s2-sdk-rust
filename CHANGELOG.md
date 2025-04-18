@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0] - 2025-04-18
+
+### Features
+
+- [**breaking**] Remove `ReadOutput::FirstSeqNum` ([#169](https://github.com/s2-streamstore/s2-sdk-rust/issues/169))
+
+### Bug Fixes
+
+- Access token example ([#168](https://github.com/s2-streamstore/s2-sdk-rust/issues/168))
+
+### Miscellaneous Tasks
+
+- Add missing builders ([#170](https://github.com/s2-streamstore/s2-sdk-rust/issues/170))
+- Dependency upgrades ([#171](https://github.com/s2-streamstore/s2-sdk-rust/issues/171))
+
 ## [0.11.0] - 2025-04-15
 
 ### Features
