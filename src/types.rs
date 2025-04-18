@@ -3,7 +3,7 @@
 use std::{collections::HashSet, ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
 
 use bytes::Bytes;
-use rand::{Rng, distributions::Uniform};
+use rand::Rng;
 use regex::Regex;
 use sync_docs::sync_docs;
 
@@ -952,8 +952,8 @@ impl FencingToken {
     /// Generate a random fencing token with `n` bytes.
     pub fn generate(n: usize) -> Result<Self, ConvertError> {
         Self::new(
-            rand::thread_rng()
-                .sample_iter(&Uniform::new_inclusive(0, u8::MAX))
+            rand::rng()
+                .sample_iter(rand::distr::StandardUniform)
                 .take(n)
                 .collect::<Bytes>(),
         )
