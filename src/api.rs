@@ -27,7 +27,7 @@ pub struct ListBasinsResponse {
 /// Create basin request.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateBasinRequest {
-    /// Basin name, which must be globally unique. It can be omitted to let the service assign a unique name.
+    /// Basin name, which must be globally unique.
     /// The name must be between 8 and 48 characters, comprising lowercase letters, numbers and hyphens.
     /// It cannot begin or end with a hyphen.
     #[prost(string, tag = "1")]
