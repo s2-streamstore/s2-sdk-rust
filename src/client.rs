@@ -697,10 +697,7 @@ impl StreamClient {
     }
 
     #[sync_docs]
-    pub async fn append(
-        &self,
-        req: types::AppendInput,
-    ) -> Result<types::AppendAck, ClientError> {
+    pub async fn append(&self, req: types::AppendInput) -> Result<types::AppendAck, ClientError> {
         let frame_signal = FrameSignal::new();
         self.inner
             .send_retryable(AppendServiceRequest::new(
