@@ -1463,7 +1463,7 @@ pub mod stream_service_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-        /// Check the sequence number that will be assigned to the next record on a stream.
+        /// Check the tail of the stream.
         pub async fn check_tail(
             &mut self,
             request: impl tonic::IntoRequest<super::CheckTailRequest>,
@@ -2562,7 +2562,7 @@ pub mod stream_service_server {
     /// Generated trait containing gRPC methods that should be implemented for use with StreamServiceServer.
     #[async_trait]
     pub trait StreamService: std::marker::Send + std::marker::Sync + 'static {
-        /// Check the sequence number that will be assigned to the next record on a stream.
+        /// Check the tail of the stream.
         async fn check_tail(
             &self,
             request: tonic::Request<super::CheckTailRequest>,
