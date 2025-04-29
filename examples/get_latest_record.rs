@@ -1,6 +1,6 @@
 use s2::{
     client::{ClientConfig, StreamClient},
-    types::{BasinName, ReadLimit, ReadRequest},
+    types::{BasinName, ReadLimit, ReadRequest, ReadStart},
 };
 
 #[tokio::main]
@@ -20,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let latest_seq_num = tail - 1;
 
     let read_limit = ReadLimit::new().with_count(1);
-    let read_request = ReadRequest::new(latest_seq_num).with_limit(read_limit);
+    let read_request = ReadRequest::new(ReadStart::SeqNum(latest_seq_num)).with_limit(read_limit);
     let latest_record = stream_client.read(read_request).await?;
 
     println!("{latest_record:#?}");

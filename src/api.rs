@@ -27,7 +27,7 @@ pub struct ListBasinsResponse {
 /// Create basin request.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateBasinRequest {
-    /// Basin name, which must be globally unique. It can be omitted to let the service assign a unique name.
+    /// Basin name, which must be globally unique.
     /// The name must be between 8 and 48 characters, comprising lowercase letters, numbers and hyphens.
     /// It cannot begin or end with a hyphen.
     #[prost(string, tag = "1")]
@@ -340,8 +340,13 @@ pub struct CheckTailRequest {
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct CheckTailResponse {
     /// Sequence number that will be assigned to the next record on the stream.
+    /// It will be 0 for a stream that has not been written to.
     #[prost(uint64, tag = "1")]
     pub next_seq_num: u64,
+    /// Timestamp of the last durable record on the stream.
+    /// It starts out as 0 for a new stream.
+    #[prost(uint64, tag = "2")]
+    pub last_timestamp: u64,
 }
 /// Input for append requests.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -366,14 +371,23 @@ pub struct AppendOutput {
     /// Sequence number of first record appended.
     #[prost(uint64, tag = "1")]
     pub start_seq_num: u64,
+    /// Timestamp of the first record appended.
+    #[prost(uint64, tag = "4")]
+    pub start_timestamp: u64,
     /// Sequence number of last record appended + 1.
     /// `end_seq_num - start_seq_num` will be the number of records in the batch.
     #[prost(uint64, tag = "2")]
     pub end_seq_num: u64,
-    /// Sequence number of last durable record on the stream + 1.
+    /// Timestamp of the last record appended.
+    #[prost(uint64, tag = "5")]
+    pub end_timestamp: u64,
+    /// Tail of the stream, i.e. sequence number that will be assigned to the next record.
     /// This can be greater than `end_seq_num` in case of concurrent appends.
     #[prost(uint64, tag = "3")]
     pub next_seq_num: u64,
+    /// Timestamp of the last durable record on the stream.
+    #[prost(uint64, tag = "6")]
+    pub last_timestamp: u64,
 }
 /// Append request.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -416,15 +430,15 @@ pub mod read_output {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Output {
         /// Batch of records.
-        /// It can only be empty outside of a session context,
+        /// It can only be empty when not in a session context,
         /// if the request cannot be satisfied without violating its limit.
         #[prost(message, tag = "1")]
         Batch(super::SequencedRecordBatch),
         /// Tail of the stream, i.e. sequence number that will be assigned to the next record.
-        /// It will primarily be returned either because the requested starting point was larger,
-        /// or only in case of a limited read, equal to the tail.
-        /// It will also be returned if there are no records on the stream between the requested
-        /// starting point and the tail.
+        /// It will be returned if the requested starting position is greater than the tail,
+        /// or only in case of a limited read, equal to it.
+        /// It will also be returned if there are no records on the stream between the
+        /// requested starting position and the tail.
         #[prost(uint64, tag = "3")]
         NextSeqNum(u64),
     }
@@ -435,14 +449,32 @@ pub struct ReadRequest {
     /// Stream name.
     #[prost(string, tag = "1")]
     pub stream: ::prost::alloc::string::String,
-    /// Starting sequence number (inclusive).
-    #[prost(uint64, tag = "2")]
-    pub start_seq_num: u64,
     /// Limit how many records can be returned.
     /// This will get capped at the default limit,
     /// which is up to 1000 records or 1MiB of metered bytes.
     #[prost(message, optional, tag = "3")]
     pub limit: ::core::option::Option<ReadLimit>,
+    /// Starting position for records.
+    /// Retrieved batches will start at the first record whose position is greater than or equal to it.
+    #[prost(oneof = "read_request::Start", tags = "2, 4, 5")]
+    pub start: ::core::option::Option<read_request::Start>,
+}
+/// Nested message and enum types in `ReadRequest`.
+pub mod read_request {
+    /// Starting position for records.
+    /// Retrieved batches will start at the first record whose position is greater than or equal to it.
+    #[derive(Clone, Copy, PartialEq, ::prost::Oneof)]
+    pub enum Start {
+        /// Sequence number.
+        #[prost(uint64, tag = "2")]
+        SeqNum(u64),
+        /// Timestamp.
+        #[prost(uint64, tag = "4")]
+        Timestamp(u64),
+        /// Number of records before the tail, i.e. before the next sequence number.
+        #[prost(uint64, tag = "5")]
+        TailOffset(u64),
+    }
 }
 /// Read response.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -468,9 +500,6 @@ pub struct ReadSessionRequest {
     /// Stream name.
     #[prost(string, tag = "1")]
     pub stream: ::prost::alloc::string::String,
-    /// Starting sequence number (inclusive).
-    #[prost(uint64, tag = "2")]
-    pub start_seq_num: u64,
     /// Limit on how many records can be returned. When a limit is specified, the session will be terminated as soon as
     /// the limit is met, or when the current tail of the stream is reached -- whichever occurs first.
     /// If no limit is specified, the session will remain open after catching up to the tail, and continue tailing as
@@ -482,6 +511,27 @@ pub struct ReadSessionRequest {
     /// as well as when no records are available at a randomized interval between 5 and 15 seconds.
     #[prost(bool, tag = "4")]
     pub heartbeats: bool,
+    /// Starting position for records.
+    /// Retrieved batches will start at the first record whose position is greater than or equal to it.
+    #[prost(oneof = "read_session_request::Start", tags = "2, 5, 6")]
+    pub start: ::core::option::Option<read_session_request::Start>,
+}
+/// Nested message and enum types in `ReadSessionRequest`.
+pub mod read_session_request {
+    /// Starting position for records.
+    /// Retrieved batches will start at the first record whose position is greater than or equal to it.
+    #[derive(Clone, Copy, PartialEq, ::prost::Oneof)]
+    pub enum Start {
+        /// Sequence number.
+        #[prost(uint64, tag = "2")]
+        SeqNum(u64),
+        /// Timestamp.
+        #[prost(uint64, tag = "5")]
+        Timestamp(u64),
+        /// Number of records before the tail, i.e. the next sequence number.
+        #[prost(uint64, tag = "6")]
+        TailOffset(u64),
+    }
 }
 /// Read session response.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -498,10 +548,14 @@ pub struct StreamConfig {
     #[prost(enumeration = "StorageClass", tag = "1")]
     pub storage_class: i32,
     /// Controls how to handle timestamps when they are not provided by the client.
-    /// If this is false (or not set), the record's arrival time will be assigned as its timestamp.
+    /// If this is false (or not set), the record's arrival time in milliseconds since Unix epoch will be assigned as its timestamp.
     /// If this is true, then any append without a client-specified timestamp will be rejected as invalid.
     #[prost(bool, optional, tag = "3")]
     pub require_client_timestamps: ::core::option::Option<bool>,
+    /// Allow client timestamps to exceed the arrival time in milliseconds since Unix epoch.
+    /// If this is false (or not set), client timestamps will be capped at the arrival time.
+    #[prost(bool, optional, tag = "4")]
+    pub uncapped_client_timestamps: ::core::option::Option<bool>,
     /// Retention policy for the stream.
     /// If unspecified, the default is to retain records for 7 days.
     #[prost(oneof = "stream_config::RetentionPolicy", tags = "2")]
@@ -561,10 +615,9 @@ pub struct Header {
 /// Record to be appended to a stream.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AppendRecord {
-    /// Timestamp for this record in milliseconds since Unix epoch.
-    /// The service ensures monotonicity by adjusting it up if necessary to the maximum observed timestamp.
-    /// A timestamp detected to be in the future will be adjusted down.
-    /// If not provided, the semantics depend on the stream's `require_client_timestamps` config.
+    /// Timestamp for this record.
+    /// The service will always ensure monotonicity by adjusting it up if necessary to the maximum observed timestamp.
+    /// Refer to the config documentation for `require_client_timestamps` and `uncapped_client_timestamps` to control whether client-specified timestamps are required, and whether they are allowed to exceed the arrival time.
     #[prost(uint64, optional, tag = "3")]
     pub timestamp: ::core::option::Option<u64>,
     /// Series of name-value pairs for this record.
@@ -580,7 +633,7 @@ pub struct SequencedRecord {
     /// Sequence number assigned to this record.
     #[prost(uint64, tag = "1")]
     pub seq_num: u64,
-    /// Timestamp for this record in milliseconds since Unix epoch.
+    /// Timestamp for this record.
     #[prost(uint64, tag = "4")]
     pub timestamp: u64,
     /// Series of name-value pairs for this record.

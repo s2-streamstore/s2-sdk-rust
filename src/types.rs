@@ -233,6 +233,7 @@ pub struct StreamConfig {
     pub storage_class: StorageClass,
     pub retention_policy: Option<RetentionPolicy>,
     pub require_client_timestamps: Option<bool>,
+    pub uncapped_client_timestamps: Option<bool>,
 }
 
 impl StreamConfig {
@@ -264,6 +265,14 @@ impl StreamConfig {
             ..self
         }
     }
+
+    /// Overwrite `uncapped_client_timestamps`.
+    pub fn with_uncapped_client_timestamps(self, uncapped_client_timestamps: bool) -> Self {
+        Self {
+            uncapped_client_timestamps: Some(uncapped_client_timestamps),
+            ..self
+        }
+    }
 }
 
 impl From<StreamConfig> for api::StreamConfig {
@@ -272,11 +281,13 @@ impl From<StreamConfig> for api::StreamConfig {
             storage_class,
             retention_policy,
             require_client_timestamps,
+            uncapped_client_timestamps,
         } = value;
         Self {
             storage_class: storage_class.into(),
             retention_policy: retention_policy.map(Into::into),
             require_client_timestamps,
+            uncapped_client_timestamps,
         }
     }
 }
@@ -288,11 +299,13 @@ impl TryFrom<api::StreamConfig> for StreamConfig {
             storage_class,
             retention_policy,
             require_client_timestamps,
+            uncapped_client_timestamps,
         } = value;
         Ok(Self {
             storage_class: storage_class.try_into()?,
             retention_policy: retention_policy.map(Into::into),
             require_client_timestamps,
+            uncapped_client_timestamps,
         })
     }
 }
@@ -882,7 +895,7 @@ impl TryFrom<api::ReconfigureStreamResponse> for StreamConfig {
 
 impl From<api::CheckTailResponse> for u64 {
     fn from(value: api::CheckTailResponse) -> Self {
-        let api::CheckTailResponse { next_seq_num } = value;
+        let api::CheckTailResponse { next_seq_num, .. } = value;
         next_seq_num
     }
 }
@@ -1476,21 +1489,30 @@ impl AppendInput {
 #[derive(Debug, Clone)]
 pub struct AppendOutput {
     pub start_seq_num: u64,
+    pub start_timestamp: u64,
     pub end_seq_num: u64,
+    pub end_timestamp: u64,
     pub next_seq_num: u64,
+    pub last_timestamp: u64,
 }
 
 impl From<api::AppendOutput> for AppendOutput {
     fn from(value: api::AppendOutput) -> Self {
         let api::AppendOutput {
             start_seq_num,
+            start_timestamp,
             end_seq_num,
+            end_timestamp,
             next_seq_num,
+            last_timestamp,
         } = value;
         Self {
             start_seq_num,
+            start_timestamp,
             end_seq_num,
+            end_timestamp,
             next_seq_num,
+            last_timestamp,
         }
     }
 }
@@ -1543,18 +1565,57 @@ impl ReadLimit {
     }
 }
 
+/// Starting point for read requests.
+#[derive(Debug, Clone)]
+pub enum ReadStart {
+    /// Sequence number.
+    SeqNum(u64),
+    /// Timestamp.
+    Timestamp(u64),
+    /// Number of records before the tail, i.e. the next sequence number.
+    TailOffset(u64),
+}
+
+impl Default for ReadStart {
+    fn default() -> Self {
+        Self::SeqNum(0)
+    }
+}
+
+impl From<ReadStart> for api::read_request::Start {
+    fn from(start: ReadStart) -> Self {
+        match start {
+            ReadStart::SeqNum(seq_num) => api::read_request::Start::SeqNum(seq_num),
+            ReadStart::Timestamp(timestamp) => api::read_request::Start::Timestamp(timestamp),
+            ReadStart::TailOffset(offset) => api::read_request::Start::TailOffset(offset),
+        }
+    }
+}
+
+impl From<ReadStart> for api::read_session_request::Start {
+    fn from(start: ReadStart) -> Self {
+        match start {
+            ReadStart::SeqNum(seq_num) => api::read_session_request::Start::SeqNum(seq_num),
+            ReadStart::Timestamp(timestamp) => {
+                api::read_session_request::Start::Timestamp(timestamp)
+            }
+            ReadStart::TailOffset(offset) => api::read_session_request::Start::TailOffset(offset),
+        }
+    }
+}
+
 #[sync_docs]
 #[derive(Debug, Clone, Default)]
 pub struct ReadRequest {
-    pub start_seq_num: u64,
+    pub start: ReadStart,
     pub limit: ReadLimit,
 }
 
 impl ReadRequest {
-    /// Create a new request with start sequence number.
-    pub fn new(start_seq_num: u64) -> Self {
+    /// Create a new request with the specified starting point.
+    pub fn new(start: ReadStart) -> Self {
         Self {
-            start_seq_num,
+            start,
             ..Default::default()
         }
     }
@@ -1570,10 +1631,7 @@ impl ReadRequest {
         self,
         stream: impl Into<String>,
     ) -> Result<api::ReadRequest, ConvertError> {
-        let Self {
-            start_seq_num,
-            limit,
-        } = self;
+        let Self { start, limit } = self;
 
         let limit = if limit.count > Some(1000) {
             Err("read limit: count must not exceed 1000 for unary request")
@@ -1588,7 +1646,7 @@ impl ReadRequest {
 
         Ok(api::ReadRequest {
             stream: stream.into(),
-            start_seq_num,
+            start: Some(start.into()),
             limit: Some(limit),
         })
     }
@@ -1714,15 +1772,15 @@ impl TryFrom<api::ReadResponse> for ReadOutput {
 #[sync_docs]
 #[derive(Debug, Clone, Default)]
 pub struct ReadSessionRequest {
-    pub start_seq_num: u64,
+    pub start: ReadStart,
     pub limit: ReadLimit,
 }
 
 impl ReadSessionRequest {
-    /// Create a new request with start sequene number.
-    pub fn new(start_seq_num: u64) -> Self {
+    /// Create a new request with the specified starting point.
+    pub fn new(start: ReadStart) -> Self {
         Self {
-            start_seq_num,
+            start,
             ..Default::default()
         }
     }
@@ -1733,13 +1791,10 @@ impl ReadSessionRequest {
     }
 
     pub(crate) fn into_api_type(self, stream: impl Into<String>) -> api::ReadSessionRequest {
-        let Self {
-            start_seq_num,
-            limit,
-        } = self;
+        let Self { start, limit } = self;
         api::ReadSessionRequest {
             stream: stream.into(),
-            start_seq_num,
+            start: Some(start.into()),
             limit: Some(api::ReadLimit {
                 count: limit.count,
                 bytes: limit.bytes,

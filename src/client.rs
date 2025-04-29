@@ -71,7 +71,7 @@ use crate::{
             ReadSessionServiceRequest, ReadSessionStreamingResponse,
         },
     },
-    types::{self, MIB_BYTES, MeteredBytes},
+    types::{self, MIB_BYTES, MeteredBytes, ReadStart},
 };
 
 const DEFAULT_CONNECTOR: Option<HttpConnector> = None;
@@ -916,7 +916,7 @@ fn read_resumption_stream(
                     if let Ok(types::ReadOutput::Batch(types::SequencedRecordBatch { records })) = &item {
                         let req = request.req_mut();
                         if let Some(record) = records.last() {
-                            req.start_seq_num = record.seq_num + 1;
+                            req.start = ReadStart::SeqNum(record.seq_num + 1);
                         }
                         if let Some(count) = req.limit.count.as_mut() {
                             *count = count.saturating_sub(records.len() as u64);
