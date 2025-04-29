@@ -153,7 +153,7 @@ pub struct ListAccessTokensRequest {
 pub struct ListAccessTokensResponse {
     /// Access tokens information.
     #[prost(message, repeated, tag = "1")]
-    pub tokens: ::prost::alloc::vec::Vec<AccessTokenInfo>,
+    pub access_tokens: ::prost::alloc::vec::Vec<AccessTokenInfo>,
     /// If set, indicates there are more results that can be listed with `start_after`.
     #[prost(bool, tag = "2")]
     pub has_more: bool,

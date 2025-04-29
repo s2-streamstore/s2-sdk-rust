@@ -2490,8 +2490,11 @@ pub struct ListAccessTokensResponse {
 impl TryFrom<api::ListAccessTokensResponse> for ListAccessTokensResponse {
     type Error = ConvertError;
     fn try_from(value: api::ListAccessTokensResponse) -> Result<Self, Self::Error> {
-        let api::ListAccessTokensResponse { tokens, has_more } = value;
-        let access_tokens = tokens
+        let api::ListAccessTokensResponse {
+            access_tokens,
+            has_more,
+        } = value;
+        let access_tokens = access_tokens
             .into_iter()
             .map(TryInto::try_into)
             .collect::<Result<Vec<_>, _>>()?;
