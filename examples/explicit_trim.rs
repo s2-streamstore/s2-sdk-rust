@@ -12,12 +12,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stream_client = StreamClient::new(config, basin, stream);
 
     let tail = stream_client.check_tail().await?;
-    if tail == 0 {
+    if tail.seq_num == 0 {
         println!("Empty stream");
         return Ok(());
     }
 
-    let latest_seq_num = tail - 1;
+    let latest_seq_num = tail.seq_num - 1;
     let trim_request = CommandRecord::trim(latest_seq_num);
 
     let append_record_batch = AppendRecordBatch::try_from_iter([trim_request])

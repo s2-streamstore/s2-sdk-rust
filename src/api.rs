@@ -141,7 +141,7 @@ pub struct ListAccessTokensRequest {
     /// List access tokens that begin with this prefix.
     #[prost(string, tag = "1")]
     pub prefix: ::prost::alloc::string::String,
-    /// Only return access tokens that lexicographically start after this token ID.
+    /// Only return access tokens that lexicographically start after this ID.
     #[prost(string, tag = "2")]
     pub start_after: ::prost::alloc::string::String,
     /// Number of results, up to a maximum of 1000.
@@ -189,7 +189,7 @@ pub struct AccessTokenScope {
     pub streams: ::core::option::Option<ResourceSet>,
     /// Token IDs allowed.
     #[prost(message, optional, tag = "3")]
-    pub tokens: ::core::option::Option<ResourceSet>,
+    pub access_tokens: ::core::option::Option<ResourceSet>,
     /// Access permissions at operation group level.
     #[prost(message, optional, tag = "4")]
     pub op_groups: ::core::option::Option<PermittedOperationGroups>,
@@ -223,9 +223,9 @@ pub mod resource_set {
 /// Issue access token response.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct IssueAccessTokenResponse {
-    /// Created token.
+    /// Created access token.
     #[prost(string, tag = "1")]
-    pub token: ::prost::alloc::string::String,
+    pub access_token: ::prost::alloc::string::String,
 }
 /// Stream information.
 #[derive(Clone, PartialEq, ::prost::Message)]

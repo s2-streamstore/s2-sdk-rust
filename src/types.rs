@@ -893,11 +893,27 @@ impl TryFrom<api::ReconfigureStreamResponse> for StreamConfig {
     }
 }
 
-impl From<api::CheckTailResponse> for u64 {
+impl From<api::CheckTailResponse> for StreamPosition {
     fn from(value: api::CheckTailResponse) -> Self {
-        let api::CheckTailResponse { next_seq_num, .. } = value;
-        next_seq_num
+        let api::CheckTailResponse {
+            next_seq_num,
+            last_timestamp,
+        } = value;
+        StreamPosition {
+            seq_num: next_seq_num,
+            timestamp: last_timestamp,
+        }
     }
+}
+
+/// Position of a record in a stream.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamPosition {
+    /// Sequence number assigned by the service.
+    pub seq_num: u64,
+    /// Timestamp, which may be user-specified or assigned by the service.
+    /// If it is assigned by the service, it will represent milliseconds since Unix epoch.
+    pub timestamp: u64,
 }
 
 #[sync_docs]
@@ -1485,18 +1501,23 @@ impl AppendInput {
     }
 }
 
-#[sync_docs]
+/// Acknowledgment to an append request.
 #[derive(Debug, Clone)]
-pub struct AppendOutput {
-    pub start_seq_num: u64,
-    pub start_timestamp: u64,
-    pub end_seq_num: u64,
-    pub end_timestamp: u64,
-    pub next_seq_num: u64,
-    pub last_timestamp: u64,
+pub struct AppendAck {
+    /// Sequence number and timestamp of the first record that was appended.
+    pub start: StreamPosition,
+    /// Sequence number of the last record that was appended + 1,
+    /// and timestamp of the last record that was appended.
+    /// The difference between `end.seq_num` and `start.seq_num`
+    /// will be the number of records appended.
+    pub end: StreamPosition,
+    /// Sequence number that will be assigned to the next record on the stream,
+    /// and timestamp of the last record on the stream.
+    /// This can be greater than the `end` position in case of concurrent appends.
+    pub tail: StreamPosition,
 }
 
-impl From<api::AppendOutput> for AppendOutput {
+impl From<api::AppendOutput> for AppendAck {
     fn from(value: api::AppendOutput) -> Self {
         let api::AppendOutput {
             start_seq_num,
@@ -1506,18 +1527,23 @@ impl From<api::AppendOutput> for AppendOutput {
             next_seq_num,
             last_timestamp,
         } = value;
-        Self {
-            start_seq_num,
-            start_timestamp,
-            end_seq_num,
-            end_timestamp,
-            next_seq_num,
-            last_timestamp,
-        }
+        let start = StreamPosition {
+            seq_num: start_seq_num,
+            timestamp: start_timestamp,
+        };
+        let end = StreamPosition {
+            seq_num: end_seq_num,
+            timestamp: end_timestamp,
+        };
+        let tail = StreamPosition {
+            seq_num: next_seq_num,
+            timestamp: last_timestamp,
+        };
+        Self { start, end, tail }
     }
 }
 
-impl TryFrom<api::AppendResponse> for AppendOutput {
+impl TryFrom<api::AppendResponse> for AppendAck {
     type Error = ConvertError;
     fn try_from(value: api::AppendResponse) -> Result<Self, Self::Error> {
         let api::AppendResponse { output } = value;
@@ -1526,7 +1552,7 @@ impl TryFrom<api::AppendResponse> for AppendOutput {
     }
 }
 
-impl TryFrom<api::AppendSessionResponse> for AppendOutput {
+impl TryFrom<api::AppendSessionResponse> for AppendAck {
     type Error = ConvertError;
     fn try_from(value: api::AppendSessionResponse) -> Result<Self, Self::Error> {
         let api::AppendSessionResponse { output } = value;
@@ -2135,7 +2161,7 @@ impl From<api::Operation> for Operation {
 pub struct AccessTokenScope {
     pub basins: Option<ResourceSet>,
     pub streams: Option<ResourceSet>,
-    pub tokens: Option<ResourceSet>,
+    pub access_tokens: Option<ResourceSet>,
     pub op_groups: Option<PermittedOperationGroups>,
     pub ops: HashSet<Operation>,
 }
@@ -2146,7 +2172,7 @@ impl AccessTokenScope {
         Self::default()
     }
 
-    /// Overwrite resource set for tokens.
+    /// Overwrite resource set for access tokens.
     pub fn with_basins(self, basins: ResourceSet) -> Self {
         Self {
             basins: Some(basins),
@@ -2162,10 +2188,10 @@ impl AccessTokenScope {
         }
     }
 
-    /// Overwrite resource set for tokens.
-    pub fn with_tokens(self, tokens: ResourceSet) -> Self {
+    /// Overwrite resource set for access tokens.
+    pub fn with_tokens(self, access_tokens: ResourceSet) -> Self {
         Self {
-            tokens: Some(tokens),
+            access_tokens: Some(access_tokens),
             ..self
         }
     }
@@ -2199,14 +2225,14 @@ impl From<AccessTokenScope> for api::AccessTokenScope {
         let AccessTokenScope {
             basins,
             streams,
-            tokens,
+            access_tokens,
             op_groups,
             ops,
         } = value;
         Self {
             basins: basins.map(Into::into),
             streams: streams.map(Into::into),
-            tokens: tokens.map(Into::into),
+            access_tokens: access_tokens.map(Into::into),
             op_groups: op_groups.map(Into::into),
             ops: ops.into_iter().map(Into::into).collect(),
         }
@@ -2219,14 +2245,14 @@ impl TryFrom<api::AccessTokenScope> for AccessTokenScope {
         let api::AccessTokenScope {
             basins,
             streams,
-            tokens,
+            access_tokens,
             op_groups,
             ops,
         } = value;
         Ok(Self {
             basins: basins.and_then(|set| set.matching.map(Into::into)),
             streams: streams.and_then(|set| set.matching.map(Into::into)),
-            tokens: tokens.and_then(|set| set.matching.map(Into::into)),
+            access_tokens: access_tokens.and_then(|set| set.matching.map(Into::into)),
             op_groups: op_groups.map(Into::into),
             ops: ops
                 .into_iter()
@@ -2378,7 +2404,7 @@ impl From<api::ReadWritePermissions> for ReadWritePermissions {
 
 impl From<api::IssueAccessTokenResponse> for String {
     fn from(value: api::IssueAccessTokenResponse) -> Self {
-        value.token
+        value.access_token
     }
 }
 
@@ -2457,7 +2483,7 @@ impl TryFrom<ListAccessTokensRequest> for api::ListAccessTokensRequest {
 #[sync_docs]
 #[derive(Debug, Clone)]
 pub struct ListAccessTokensResponse {
-    pub tokens: Vec<AccessTokenInfo>,
+    pub access_tokens: Vec<AccessTokenInfo>,
     pub has_more: bool,
 }
 
@@ -2465,10 +2491,13 @@ impl TryFrom<api::ListAccessTokensResponse> for ListAccessTokensResponse {
     type Error = ConvertError;
     fn try_from(value: api::ListAccessTokensResponse) -> Result<Self, Self::Error> {
         let api::ListAccessTokensResponse { tokens, has_more } = value;
-        let tokens = tokens
+        let access_tokens = tokens
             .into_iter()
             .map(TryInto::try_into)
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self { tokens, has_more })
+        Ok(Self {
+            access_tokens,
+            has_more,
+        })
     }
 }

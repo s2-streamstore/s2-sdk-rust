@@ -71,7 +71,7 @@ use crate::{
             ReadSessionServiceRequest, ReadSessionStreamingResponse,
         },
     },
-    types::{self, MIB_BYTES, MeteredBytes, ReadStart},
+    types::{self, MIB_BYTES, MeteredBytes, ReadStart, StreamPosition},
 };
 
 const DEFAULT_CONNECTOR: Option<HttpConnector> = None;
@@ -652,7 +652,7 @@ impl StreamClient {
     }
 
     #[sync_docs]
-    pub async fn check_tail(&self) -> Result<u64, ClientError> {
+    pub async fn check_tail(&self) -> Result<StreamPosition, ClientError> {
         self.inner
             .send_retryable(CheckTailServiceRequest::new(
                 self.inner.stream_service_client(),
@@ -700,7 +700,7 @@ impl StreamClient {
     pub async fn append(
         &self,
         req: types::AppendInput,
-    ) -> Result<types::AppendOutput, ClientError> {
+    ) -> Result<types::AppendAck, ClientError> {
         let frame_signal = FrameSignal::new();
         self.inner
             .send_retryable(AppendServiceRequest::new(
@@ -720,7 +720,7 @@ impl StreamClient {
     pub async fn append_session<S>(
         &self,
         req: S,
-    ) -> Result<Streaming<types::AppendOutput>, ClientError>
+    ) -> Result<Streaming<types::AppendAck>, ClientError>
     where
         S: 'static + Send + Unpin + futures::Stream<Item = types::AppendInput>,
     {
