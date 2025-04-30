@@ -98,8 +98,12 @@ where
     /// Stream of `AppendInput` from client.
     request_stream: S,
 
+    total_batches: usize,
+
     /// Number of records received from client, over the course of this append session.
     total_records: usize,
+
+    total_batches_acknowledged: usize,
 
     /// Number of acknowledged records from S2, over the course of this append session.
     total_records_acknowledged: usize,
@@ -138,15 +142,10 @@ async fn resend(
     inflight_size: &mut u64,
     s2_input_tx: mpsc::Sender<types::AppendInput>,
     s2_ack_stream: &mut ServiceStreamingResponse<AppendSessionStreamingResponse>,
+    total_batches_acknowledged: &mut usize,
     total_records_acknowledged: &mut usize,
     output_tx: mpsc::Sender<Result<types::AppendOutput, ClientError>>,
 ) -> Result<(), ClientError> {
-    debug!(
-        inflight_len = inflight.len(),
-        inflight_bytes = inflight_size,
-        "resending"
-    );
-
     let mut resend_index = 0;
     let mut resend_tx_finished = false;
     let mut stashed_ack = None;
@@ -180,6 +179,8 @@ async fn resend(
             }
 
             client_permit = output_tx.reserve(), if stashed_ack.is_some() => {
+                *total_batches_acknowledged += 1;
+
                 let ack_range = ack_and_pop(
                     stashed_ack.take().expect("stashed ack")?,
                     inflight,
@@ -226,7 +227,9 @@ where
         inflight,
         inflight_size,
         request_stream,
+        total_batches,
         total_records,
+        total_batches_acknowledged,
         total_records_acknowledged,
         stashed_request,
     } = lock.deref_mut();
@@ -237,6 +240,14 @@ where
         connect(&stream_client, frame_signal.clone(), compression).await?;
     let batch_ack_deadline = stream_client.inner.config.request_timeout;
 
+    debug!(
+        inflight_len = inflight.len(),
+        inflight_bytes = inflight_size,
+        total_batches,
+        total_batches_acknowledged,
+        "before maybe resend"
+    );
+
     if !inflight.is_empty() {
         resend(
             batch_ack_deadline,
@@ -244,6 +255,7 @@ where
             inflight_size,
             s2_input_tx.clone(),
             &mut s2_ack_stream,
+            total_batches_acknowledged,
             total_records_acknowledged,
             output_tx.clone(),
         )
@@ -290,6 +302,7 @@ where
 
                 *inflight_size += metered_bytes;
                 *total_records += append_input.records.len();
+                *total_batches += 1;
                 inflight.push_back(InflightBatch {
                     start,
                     metered_bytes,
@@ -306,6 +319,8 @@ where
             }
 
             client_permit = output_tx.reserve(), if stashed_ack.is_some() => {
+                *total_batches_acknowledged += 1;
+
                 let ack_range = ack_and_pop(
                     stashed_ack.take().expect("stashed ack")?,
                     inflight,
@@ -358,7 +373,9 @@ pub(crate) async fn manage_session<S>(
         inflight: Default::default(),
         inflight_size: Default::default(),
         request_stream: input,
+        total_batches: 0,
         total_records: 0,
+        total_batches_acknowledged: 0,
         total_records_acknowledged: 0,
         stashed_request: None,
     }));
@@ -400,18 +417,32 @@ pub(crate) async fn manage_session<S>(
                         })
                         .unwrap_or(true)
                 };
-                let retryable_error = {
-                    match &e {
-                        ClientError::Service(status) => {
-                            matches!(
-                                status.code(),
-                                tonic::Code::Unavailable
-                                    | tonic::Code::DeadlineExceeded
-                                    | tonic::Code::Unknown
-                            )
-                        }
-                        ClientError::Conversion(_) => false,
-                    }
+                let (retryable_error, retry_backoff_duration) = {
+                    let mut retry_backoff_duration =
+                        stream_client.inner.config.retry_backoff_duration;
+                    (
+                        match &e {
+                            ClientError::Service(status) => {
+                                if let Some(value) = status.metadata().get("retry-after-ms") {
+                                    let retry_after_ms: u64 = value
+                                        .to_str()
+                                        .expect("should be a valid ASCII metadata value")
+                                        .parse()
+                                        .expect("should be parseable as a u64");
+                                    retry_backoff_duration = Duration::from_millis(retry_after_ms);
+                                }
+                                matches!(
+                                    status.code(),
+                                    tonic::Code::Unavailable
+                                        | tonic::Code::DeadlineExceeded
+                                        | tonic::Code::Unknown
+                                        | tonic::Code::ResourceExhausted
+                                )
+                            }
+                            ClientError::Conversion(_) => false,
+                        },
+                        retry_backoff_duration,
+                    )
                 };
                 let policy_compliant = {
                     match stream_client.inner.config.append_retry_policy {
@@ -425,7 +456,7 @@ pub(crate) async fn manage_session<S>(
                 };
 
                 if remaining_attempts && enough_time && retryable_error && policy_compliant {
-                    tokio::time::sleep(stream_client.inner.config.retry_backoff_duration).await;
+                    tokio::time::sleep(retry_backoff_duration).await;
                     attempts += 1;
                     debug!(attempts, ?e, "retrying");
                 } else {
