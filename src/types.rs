@@ -233,6 +233,7 @@ pub struct StreamConfig {
     pub storage_class: StorageClass,
     pub retention_policy: Option<RetentionPolicy>,
     pub require_client_timestamps: Option<bool>,
+    pub uncapped_client_timestamps: Option<bool>,
 }
 
 impl StreamConfig {
@@ -264,6 +265,14 @@ impl StreamConfig {
             ..self
         }
     }
+
+    /// Overwrite `uncapped_client_timestamps`.
+    pub fn with_uncapped_client_timestamps(self, uncapped_client_timestamps: bool) -> Self {
+        Self {
+            uncapped_client_timestamps: Some(uncapped_client_timestamps),
+            ..self
+        }
+    }
 }
 
 impl From<StreamConfig> for api::StreamConfig {
@@ -272,11 +281,13 @@ impl From<StreamConfig> for api::StreamConfig {
             storage_class,
             retention_policy,
             require_client_timestamps,
+            uncapped_client_timestamps,
         } = value;
         Self {
             storage_class: storage_class.into(),
             retention_policy: retention_policy.map(Into::into),
             require_client_timestamps,
+            uncapped_client_timestamps,
         }
     }
 }
@@ -288,11 +299,13 @@ impl TryFrom<api::StreamConfig> for StreamConfig {
             storage_class,
             retention_policy,
             require_client_timestamps,
+            uncapped_client_timestamps,
         } = value;
         Ok(Self {
             storage_class: storage_class.try_into()?,
             retention_policy: retention_policy.map(Into::into),
             require_client_timestamps,
+            uncapped_client_timestamps,
         })
     }
 }
@@ -880,11 +893,27 @@ impl TryFrom<api::ReconfigureStreamResponse> for StreamConfig {
     }
 }
 
-impl From<api::CheckTailResponse> for u64 {
+impl From<api::CheckTailResponse> for StreamPosition {
     fn from(value: api::CheckTailResponse) -> Self {
-        let api::CheckTailResponse { next_seq_num } = value;
-        next_seq_num
+        let api::CheckTailResponse {
+            next_seq_num,
+            last_timestamp,
+        } = value;
+        StreamPosition {
+            seq_num: next_seq_num,
+            timestamp: last_timestamp,
+        }
     }
+}
+
+/// Position of a record in a stream.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamPosition {
+    /// Sequence number assigned by the service.
+    pub seq_num: u64,
+    /// Timestamp, which may be user-specified or assigned by the service.
+    /// If it is assigned by the service, it will represent milliseconds since Unix epoch.
+    pub timestamp: u64,
 }
 
 #[sync_docs]
@@ -1472,30 +1501,49 @@ impl AppendInput {
     }
 }
 
-#[sync_docs]
+/// Acknowledgment to an append request.
 #[derive(Debug, Clone)]
-pub struct AppendOutput {
-    pub start_seq_num: u64,
-    pub end_seq_num: u64,
-    pub next_seq_num: u64,
+pub struct AppendAck {
+    /// Sequence number and timestamp of the first record that was appended.
+    pub start: StreamPosition,
+    /// Sequence number of the last record that was appended + 1,
+    /// and timestamp of the last record that was appended.
+    /// The difference between `end.seq_num` and `start.seq_num`
+    /// will be the number of records appended.
+    pub end: StreamPosition,
+    /// Sequence number that will be assigned to the next record on the stream,
+    /// and timestamp of the last record on the stream.
+    /// This can be greater than the `end` position in case of concurrent appends.
+    pub tail: StreamPosition,
 }
 
-impl From<api::AppendOutput> for AppendOutput {
+impl From<api::AppendOutput> for AppendAck {
     fn from(value: api::AppendOutput) -> Self {
         let api::AppendOutput {
             start_seq_num,
+            start_timestamp,
             end_seq_num,
+            end_timestamp,
             next_seq_num,
+            last_timestamp,
         } = value;
-        Self {
-            start_seq_num,
-            end_seq_num,
-            next_seq_num,
-        }
+        let start = StreamPosition {
+            seq_num: start_seq_num,
+            timestamp: start_timestamp,
+        };
+        let end = StreamPosition {
+            seq_num: end_seq_num,
+            timestamp: end_timestamp,
+        };
+        let tail = StreamPosition {
+            seq_num: next_seq_num,
+            timestamp: last_timestamp,
+        };
+        Self { start, end, tail }
     }
 }
 
-impl TryFrom<api::AppendResponse> for AppendOutput {
+impl TryFrom<api::AppendResponse> for AppendAck {
     type Error = ConvertError;
     fn try_from(value: api::AppendResponse) -> Result<Self, Self::Error> {
         let api::AppendResponse { output } = value;
@@ -1504,7 +1552,7 @@ impl TryFrom<api::AppendResponse> for AppendOutput {
     }
 }
 
-impl TryFrom<api::AppendSessionResponse> for AppendOutput {
+impl TryFrom<api::AppendSessionResponse> for AppendAck {
     type Error = ConvertError;
     fn try_from(value: api::AppendSessionResponse) -> Result<Self, Self::Error> {
         let api::AppendSessionResponse { output } = value;
@@ -1543,18 +1591,57 @@ impl ReadLimit {
     }
 }
 
+/// Starting point for read requests.
+#[derive(Debug, Clone)]
+pub enum ReadStart {
+    /// Sequence number.
+    SeqNum(u64),
+    /// Timestamp.
+    Timestamp(u64),
+    /// Number of records before the tail, i.e. the next sequence number.
+    TailOffset(u64),
+}
+
+impl Default for ReadStart {
+    fn default() -> Self {
+        Self::SeqNum(0)
+    }
+}
+
+impl From<ReadStart> for api::read_request::Start {
+    fn from(start: ReadStart) -> Self {
+        match start {
+            ReadStart::SeqNum(seq_num) => api::read_request::Start::SeqNum(seq_num),
+            ReadStart::Timestamp(timestamp) => api::read_request::Start::Timestamp(timestamp),
+            ReadStart::TailOffset(offset) => api::read_request::Start::TailOffset(offset),
+        }
+    }
+}
+
+impl From<ReadStart> for api::read_session_request::Start {
+    fn from(start: ReadStart) -> Self {
+        match start {
+            ReadStart::SeqNum(seq_num) => api::read_session_request::Start::SeqNum(seq_num),
+            ReadStart::Timestamp(timestamp) => {
+                api::read_session_request::Start::Timestamp(timestamp)
+            }
+            ReadStart::TailOffset(offset) => api::read_session_request::Start::TailOffset(offset),
+        }
+    }
+}
+
 #[sync_docs]
 #[derive(Debug, Clone, Default)]
 pub struct ReadRequest {
-    pub start_seq_num: u64,
+    pub start: ReadStart,
     pub limit: ReadLimit,
 }
 
 impl ReadRequest {
-    /// Create a new request with start sequence number.
-    pub fn new(start_seq_num: u64) -> Self {
+    /// Create a new request with the specified starting point.
+    pub fn new(start: ReadStart) -> Self {
         Self {
-            start_seq_num,
+            start,
             ..Default::default()
         }
     }
@@ -1570,10 +1657,7 @@ impl ReadRequest {
         self,
         stream: impl Into<String>,
     ) -> Result<api::ReadRequest, ConvertError> {
-        let Self {
-            start_seq_num,
-            limit,
-        } = self;
+        let Self { start, limit } = self;
 
         let limit = if limit.count > Some(1000) {
             Err("read limit: count must not exceed 1000 for unary request")
@@ -1588,7 +1672,7 @@ impl ReadRequest {
 
         Ok(api::ReadRequest {
             stream: stream.into(),
-            start_seq_num,
+            start: Some(start.into()),
             limit: Some(limit),
         })
     }
@@ -1714,15 +1798,15 @@ impl TryFrom<api::ReadResponse> for ReadOutput {
 #[sync_docs]
 #[derive(Debug, Clone, Default)]
 pub struct ReadSessionRequest {
-    pub start_seq_num: u64,
+    pub start: ReadStart,
     pub limit: ReadLimit,
 }
 
 impl ReadSessionRequest {
-    /// Create a new request with start sequene number.
-    pub fn new(start_seq_num: u64) -> Self {
+    /// Create a new request with the specified starting point.
+    pub fn new(start: ReadStart) -> Self {
         Self {
-            start_seq_num,
+            start,
             ..Default::default()
         }
     }
@@ -1733,13 +1817,10 @@ impl ReadSessionRequest {
     }
 
     pub(crate) fn into_api_type(self, stream: impl Into<String>) -> api::ReadSessionRequest {
-        let Self {
-            start_seq_num,
-            limit,
-        } = self;
+        let Self { start, limit } = self;
         api::ReadSessionRequest {
             stream: stream.into(),
-            start_seq_num,
+            start: Some(start.into()),
             limit: Some(api::ReadLimit {
                 count: limit.count,
                 bytes: limit.bytes,
@@ -2080,7 +2161,7 @@ impl From<api::Operation> for Operation {
 pub struct AccessTokenScope {
     pub basins: Option<ResourceSet>,
     pub streams: Option<ResourceSet>,
-    pub tokens: Option<ResourceSet>,
+    pub access_tokens: Option<ResourceSet>,
     pub op_groups: Option<PermittedOperationGroups>,
     pub ops: HashSet<Operation>,
 }
@@ -2091,7 +2172,7 @@ impl AccessTokenScope {
         Self::default()
     }
 
-    /// Overwrite resource set for tokens.
+    /// Overwrite resource set for access tokens.
     pub fn with_basins(self, basins: ResourceSet) -> Self {
         Self {
             basins: Some(basins),
@@ -2107,10 +2188,10 @@ impl AccessTokenScope {
         }
     }
 
-    /// Overwrite resource set for tokens.
-    pub fn with_tokens(self, tokens: ResourceSet) -> Self {
+    /// Overwrite resource set for access tokens.
+    pub fn with_tokens(self, access_tokens: ResourceSet) -> Self {
         Self {
-            tokens: Some(tokens),
+            access_tokens: Some(access_tokens),
             ..self
         }
     }
@@ -2144,14 +2225,14 @@ impl From<AccessTokenScope> for api::AccessTokenScope {
         let AccessTokenScope {
             basins,
             streams,
-            tokens,
+            access_tokens,
             op_groups,
             ops,
         } = value;
         Self {
             basins: basins.map(Into::into),
             streams: streams.map(Into::into),
-            tokens: tokens.map(Into::into),
+            access_tokens: access_tokens.map(Into::into),
             op_groups: op_groups.map(Into::into),
             ops: ops.into_iter().map(Into::into).collect(),
         }
@@ -2164,14 +2245,14 @@ impl TryFrom<api::AccessTokenScope> for AccessTokenScope {
         let api::AccessTokenScope {
             basins,
             streams,
-            tokens,
+            access_tokens,
             op_groups,
             ops,
         } = value;
         Ok(Self {
             basins: basins.and_then(|set| set.matching.map(Into::into)),
             streams: streams.and_then(|set| set.matching.map(Into::into)),
-            tokens: tokens.and_then(|set| set.matching.map(Into::into)),
+            access_tokens: access_tokens.and_then(|set| set.matching.map(Into::into)),
             op_groups: op_groups.map(Into::into),
             ops: ops
                 .into_iter()
@@ -2323,7 +2404,7 @@ impl From<api::ReadWritePermissions> for ReadWritePermissions {
 
 impl From<api::IssueAccessTokenResponse> for String {
     fn from(value: api::IssueAccessTokenResponse) -> Self {
-        value.token
+        value.access_token
     }
 }
 
@@ -2402,18 +2483,24 @@ impl TryFrom<ListAccessTokensRequest> for api::ListAccessTokensRequest {
 #[sync_docs]
 #[derive(Debug, Clone)]
 pub struct ListAccessTokensResponse {
-    pub tokens: Vec<AccessTokenInfo>,
+    pub access_tokens: Vec<AccessTokenInfo>,
     pub has_more: bool,
 }
 
 impl TryFrom<api::ListAccessTokensResponse> for ListAccessTokensResponse {
     type Error = ConvertError;
     fn try_from(value: api::ListAccessTokensResponse) -> Result<Self, Self::Error> {
-        let api::ListAccessTokensResponse { tokens, has_more } = value;
-        let tokens = tokens
+        let api::ListAccessTokensResponse {
+            access_tokens,
+            has_more,
+        } = value;
+        let access_tokens = access_tokens
             .into_iter()
             .map(TryInto::try_into)
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self { tokens, has_more })
+        Ok(Self {
+            access_tokens,
+            has_more,
+        })
     }
 }

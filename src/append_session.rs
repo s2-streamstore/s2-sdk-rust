@@ -111,21 +111,21 @@ where
 /// Handle S2 acknowledgment by forwarding it to the client,
 /// and updating the inflight data.
 fn ack_and_pop(
-    s2_ack: types::AppendOutput,
+    s2_ack: types::AppendAck,
     inflight: &mut VecDeque<InflightBatch>,
     inflight_size: &mut u64,
-    permit: Permit<'_, Result<types::AppendOutput, ClientError>>,
+    permit: Permit<'_, Result<types::AppendAck, ClientError>>,
 ) -> Range<u64> {
     let corresponding_batch = inflight.pop_front().expect("inflight should not be empty");
 
     assert_eq!(
-        (s2_ack.end_seq_num - s2_ack.start_seq_num) as usize,
+        (s2_ack.end.seq_num - s2_ack.start.seq_num) as usize,
         corresponding_batch.inner.records.len(),
         "number of acknowledged records from S2 should equal amount from first inflight batch"
     );
 
     *inflight_size -= corresponding_batch.metered_bytes;
-    let ack_range = s2_ack.start_seq_num..s2_ack.end_seq_num;
+    let ack_range = s2_ack.start.seq_num..s2_ack.end.seq_num;
 
     permit.send(Ok(s2_ack));
 
@@ -139,7 +139,7 @@ async fn resend(
     s2_input_tx: mpsc::Sender<types::AppendInput>,
     s2_ack_stream: &mut ServiceStreamingResponse<AppendSessionStreamingResponse>,
     total_records_acknowledged: &mut usize,
-    output_tx: mpsc::Sender<Result<types::AppendOutput, ClientError>>,
+    output_tx: mpsc::Sender<Result<types::AppendAck, ClientError>>,
 ) -> Result<(), ClientError> {
     debug!(
         inflight_len = inflight.len(),
@@ -215,7 +215,7 @@ async fn session_inner<S>(
     state: Arc<Mutex<AppendState<S>>>,
     frame_signal: FrameSignal,
     stream_client: StreamClient,
-    output_tx: mpsc::Sender<Result<types::AppendOutput, ClientError>>,
+    output_tx: mpsc::Sender<Result<types::AppendAck, ClientError>>,
     compression: bool,
 ) -> Result<(), ClientError>
 where
@@ -349,7 +349,7 @@ where
 pub(crate) async fn manage_session<S>(
     stream_client: StreamClient,
     input: S,
-    output_tx: mpsc::Sender<Result<types::AppendOutput, ClientError>>,
+    output_tx: mpsc::Sender<Result<types::AppendAck, ClientError>>,
     compression: bool,
 ) where
     S: 'static + Send + Unpin + futures::Stream<Item = types::AppendInput>,

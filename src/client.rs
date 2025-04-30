@@ -71,7 +71,7 @@ use crate::{
             ReadSessionServiceRequest, ReadSessionStreamingResponse,
         },
     },
-    types::{self, MIB_BYTES, MeteredBytes},
+    types::{self, MIB_BYTES, MeteredBytes, ReadStart, StreamPosition},
 };
 
 const DEFAULT_CONNECTOR: Option<HttpConnector> = None;
@@ -652,7 +652,7 @@ impl StreamClient {
     }
 
     #[sync_docs]
-    pub async fn check_tail(&self) -> Result<u64, ClientError> {
+    pub async fn check_tail(&self) -> Result<StreamPosition, ClientError> {
         self.inner
             .send_retryable(CheckTailServiceRequest::new(
                 self.inner.stream_service_client(),
@@ -697,10 +697,7 @@ impl StreamClient {
     }
 
     #[sync_docs]
-    pub async fn append(
-        &self,
-        req: types::AppendInput,
-    ) -> Result<types::AppendOutput, ClientError> {
+    pub async fn append(&self, req: types::AppendInput) -> Result<types::AppendAck, ClientError> {
         let frame_signal = FrameSignal::new();
         self.inner
             .send_retryable(AppendServiceRequest::new(
@@ -720,7 +717,7 @@ impl StreamClient {
     pub async fn append_session<S>(
         &self,
         req: S,
-    ) -> Result<Streaming<types::AppendOutput>, ClientError>
+    ) -> Result<Streaming<types::AppendAck>, ClientError>
     where
         S: 'static + Send + Unpin + futures::Stream<Item = types::AppendInput>,
     {
@@ -916,7 +913,7 @@ fn read_resumption_stream(
                     if let Ok(types::ReadOutput::Batch(types::SequencedRecordBatch { records })) = &item {
                         let req = request.req_mut();
                         if let Some(record) = records.last() {
-                            req.start_seq_num = record.seq_num + 1;
+                            req.start = ReadStart::SeqNum(record.seq_num + 1);
                         }
                         if let Some(count) = req.limit.count.as_mut() {
                             *count = count.saturating_sub(records.len() as u64);

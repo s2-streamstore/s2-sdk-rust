@@ -9,7 +9,7 @@ use super::{
 use crate::{
     api::{self, stream_service_client::StreamServiceClient},
     client::AppendRetryPolicy,
-    types,
+    types::{self, StreamPosition},
 };
 
 #[derive(Debug, Clone)]
@@ -29,7 +29,7 @@ impl CheckTailServiceRequest {
 
 impl ServiceRequest for CheckTailServiceRequest {
     type ApiRequest = api::CheckTailRequest;
-    type Response = u64;
+    type Response = StreamPosition;
     type ApiResponse = api::CheckTailResponse;
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::NoSideEffects;
 
@@ -211,7 +211,7 @@ impl AppendServiceRequest {
 
 impl ServiceRequest for AppendServiceRequest {
     type ApiRequest = api::AppendRequest;
-    type Response = types::AppendOutput;
+    type Response = types::AppendAck;
     type ApiResponse = api::AppendResponse;
     const IDEMPOTENCY_LEVEL: IdempotencyLevel = IdempotencyLevel::IdempotencyUnknown;
 
@@ -349,7 +349,7 @@ impl StreamingRequest for AppendSessionStreamingRequest {
 pub struct AppendSessionStreamingResponse;
 
 impl StreamingResponse for AppendSessionStreamingResponse {
-    type ResponseItem = types::AppendOutput;
+    type ResponseItem = types::AppendAck;
     type ApiResponseItem = api::AppendSessionResponse;
 
     fn parse_response_item(

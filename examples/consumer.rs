@@ -1,7 +1,7 @@
 use futures::StreamExt;
 use s2::{
     client::{ClientConfig, StreamClient},
-    types::{BasinName, ReadSessionRequest},
+    types::{BasinName, ReadSessionRequest, ReadStart},
 };
 use tokio::select;
 
@@ -14,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stream_client = StreamClient::new(config, basin, stream);
 
     let start_seq_num = 0;
-    let read_session_request = ReadSessionRequest::new(start_seq_num);
+    let read_session_request = ReadSessionRequest::new(ReadStart::SeqNum(start_seq_num));
     let mut read_stream = stream_client.read_session(read_session_request).await?;
 
     loop {

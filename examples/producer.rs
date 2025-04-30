@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fencing_token_append_input = AppendInput::new(fencing_token_batch);
     let set_fencing_token = stream_client.append(fencing_token_append_input).await?;
 
-    let match_seq_num = set_fencing_token.next_seq_num; // Tail
+    let match_seq_num = set_fencing_token.tail.seq_num;
 
     // Stream of records
     let append_stream = futures::stream::iter([
