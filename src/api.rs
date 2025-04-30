@@ -162,7 +162,7 @@ pub struct ListAccessTokensResponse {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AccessTokenInfo {
     /// Access token ID.
-    /// It must be unique to the account and between 1 and 50 characters.
+    /// It must be unique to the account and between 1 and 96 characters.
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
     /// Expiration time in seconds since Unix epoch.
