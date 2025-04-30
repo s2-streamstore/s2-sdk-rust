@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.0] - 2025-04-30
+
+### Features
+
+- [**breaking**] Updated read APIs ([#174](https://github.com/s2-streamstore/s2-sdk-rust/issues/174))
+
 ## [0.12.0] - 2025-04-18
 
 ### Features
