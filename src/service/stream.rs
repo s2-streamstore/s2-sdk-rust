@@ -244,6 +244,7 @@ impl ServiceRequest for AppendServiceRequest {
                     | tonic::Code::DeadlineExceeded
                     | tonic::Code::Cancelled
                     | tonic::Code::Unknown
+                    | tonic::Code::ResourceExhausted
             );
             let policy_compliant = match self.append_retry_policy {
                 AppendRetryPolicy::All => true,

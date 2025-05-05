@@ -844,6 +844,21 @@ impl ClientInner {
         retry_fn
             .retry(backoff_builder)
             .when(|e| service_req.should_retry(e))
+            .adjust(|e, backoff_duration| match e {
+                ClientError::Service(s) => {
+                    if let Some(value) = s.metadata().get("retry-after-ms") {
+                        let retry_after_ms: u64 = value
+                            .to_str()
+                            .expect("should be a valid ASCII metadata value")
+                            .parse()
+                            .expect("should be parseable as u64");
+                        Some(Duration::from_millis(retry_after_ms))
+                    } else {
+                        backoff_duration
+                    }
+                }
+                _ => backoff_duration,
+            })
             .await
     }
 
