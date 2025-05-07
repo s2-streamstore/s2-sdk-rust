@@ -476,8 +476,8 @@ impl std::fmt::Display for BasinState {
 #[derive(Debug, Clone)]
 pub struct BasinInfo {
     pub name: String,
-    pub scope: Option<BasinScope>,
-    pub state: Option<BasinState>,
+    pub scope: BasinScope,
+    pub state: BasinState,
 }
 
 impl From<BasinInfo> for api::BasinInfo {
@@ -485,8 +485,8 @@ impl From<BasinInfo> for api::BasinInfo {
         let BasinInfo { name, scope, state } = value;
         Self {
             name,
-            scope: scope.map(api::BasinScope::from).unwrap_or_default().into(),
-            state: state.map(api::BasinState::from).unwrap_or_default().into(),
+            scope: api::BasinScope::from(scope).into(),
+            state: api::BasinState::from(state).into(),
         }
     }
 }
@@ -496,13 +496,17 @@ impl TryFrom<api::BasinInfo> for BasinInfo {
 
     fn try_from(value: api::BasinInfo) -> Result<Self, Self::Error> {
         let api::BasinInfo { name, scope, state } = value;
-        let scope = api::BasinScope::try_from(scope)
+        let scope: Option<BasinScope> = api::BasinScope::try_from(scope)
             .map_err(|e| format!("invalid basin scope: {e}"))?
             .into();
-        let state = api::BasinState::try_from(state)
+        let state: Option<BasinState> = api::BasinState::try_from(state)
             .map_err(|e| format!("invalid basin state: {e}"))?
             .into();
-        Ok(Self { name, scope, state })
+        Ok(Self {
+            name,
+            scope: scope.ok_or_else(|| "unspecified scope")?,
+            state: state.ok_or_else(|| "unspecified basin state")?,
+        })
     }
 }
 
