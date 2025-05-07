@@ -491,18 +491,12 @@ impl From<BasinInfo> for api::BasinInfo {
     }
 }
 
-impl TryFrom<api::BasinInfo> for BasinInfo {
-    type Error = ConvertError;
-
-    fn try_from(value: api::BasinInfo) -> Result<Self, Self::Error> {
-        let api::BasinInfo { name, scope, state } = value;
-        let scope = api::BasinScope::try_from(scope)
-            .map_err(|e| format!("invalid basin scope: {e}"))?
-            .into();
-        let state = api::BasinState::try_from(state)
-            .map_err(|e| format!("invalid basin state: {e}"))?
-            .into();
-        Ok(Self { name, scope, state })
+impl From<api::BasinInfo> for BasinInfo {
+    fn from(value: api::BasinInfo) -> Self {
+        let scope = value.scope().into();
+        let state = value.state().into();
+        let name = value.name;
+        Self { name, scope, state }
     }
 }
 
@@ -511,7 +505,7 @@ impl TryFrom<api::CreateBasinResponse> for BasinInfo {
     fn try_from(value: api::CreateBasinResponse) -> Result<Self, Self::Error> {
         let api::CreateBasinResponse { info } = value;
         let info = info.ok_or("missing basin info")?;
-        info.try_into()
+        Ok(info.into())
     }
 }
 
@@ -736,10 +730,7 @@ impl TryFrom<api::ListBasinsResponse> for ListBasinsResponse {
     fn try_from(value: api::ListBasinsResponse) -> Result<Self, ConvertError> {
         let api::ListBasinsResponse { basins, has_more } = value;
         Ok(Self {
-            basins: basins
-                .into_iter()
-                .map(TryInto::try_into)
-                .collect::<Result<Vec<BasinInfo>, ConvertError>>()?,
+            basins: basins.into_iter().map(Into::into).collect(),
             has_more,
         })
     }
