@@ -228,12 +228,49 @@ impl TryFrom<api::BasinConfig> for BasinConfig {
 }
 
 #[sync_docs]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TimestampingMode {
+    #[default]
+    Unspecified,
+    ClientPrefer,
+    ClientRequire,
+    Arrival,
+}
+
+#[sync_docs(TimestampingConfig = "Timestamping")]
+#[derive(Debug, Clone, Default)]
+/// Timestamping behavior.
+pub struct TimestampingConfig {
+    pub mode: TimestampingMode,
+    pub uncapped: Option<bool>,
+}
+
+impl TimestampingConfig {
+    /// Create a new timestamping config.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Overwrite timestamping mode.
+    pub fn with_mode(self, mode: TimestampingMode) -> Self {
+        Self { mode, ..self }
+    }
+
+    /// Overwrite the uncapped knob.
+    pub fn with_uncapped(self, uncapped: bool) -> Self {
+        Self {
+            uncapped: Some(uncapped),
+            ..self
+        }
+    }
+}
+
+#[sync_docs]
 #[derive(Debug, Clone, Default)]
 pub struct StreamConfig {
     pub storage_class: StorageClass,
     pub retention_policy: Option<RetentionPolicy>,
-    pub require_client_timestamps: Option<bool>,
-    pub uncapped_client_timestamps: Option<bool>,
+    pub timestamping: Option<TimestampingConfig>,
 }
 
 impl StreamConfig {
@@ -258,19 +295,31 @@ impl StreamConfig {
         }
     }
 
-    /// Overwrite `require_client_timestamps`.
-    pub fn with_require_client_timestamps(self, require_client_timestamps: bool) -> Self {
+    /// Overwrite timestamping config.
+    pub fn with_timestamping(self, timestamping: TimestampingConfig) -> Self {
         Self {
-            require_client_timestamps: Some(require_client_timestamps),
+            timestamping: Some(timestamping),
             ..self
         }
     }
+}
 
-    /// Overwrite `uncapped_client_timestamps`.
-    pub fn with_uncapped_client_timestamps(self, uncapped_client_timestamps: bool) -> Self {
+impl From<TimestampingMode> for api::TimestampingMode {
+    fn from(value: TimestampingMode) -> Self {
+        match value {
+            TimestampingMode::Unspecified => Self::Unspecified,
+            TimestampingMode::ClientPrefer => Self::ClientPrefer,
+            TimestampingMode::ClientRequire => Self::ClientRequire,
+            TimestampingMode::Arrival => Self::Arrival,
+        }
+    }
+}
+
+impl From<TimestampingConfig> for api::stream_config::Timestamping {
+    fn from(value: TimestampingConfig) -> Self {
         Self {
-            uncapped_client_timestamps: Some(uncapped_client_timestamps),
-            ..self
+            mode: api::TimestampingMode::from(value.mode).into(),
+            uncapped: value.uncapped,
         }
     }
 }
@@ -280,32 +329,52 @@ impl From<StreamConfig> for api::StreamConfig {
         let StreamConfig {
             storage_class,
             retention_policy,
-            require_client_timestamps,
-            uncapped_client_timestamps,
+            timestamping,
         } = value;
         Self {
             storage_class: storage_class.into(),
             retention_policy: retention_policy.map(Into::into),
-            require_client_timestamps,
-            uncapped_client_timestamps,
+            timestamping: timestamping.map(Into::into),
         }
+    }
+}
+
+impl From<api::TimestampingMode> for TimestampingMode {
+    fn from(value: api::TimestampingMode) -> Self {
+        match value {
+            api::TimestampingMode::Unspecified => Self::Unspecified,
+            api::TimestampingMode::ClientPrefer => Self::ClientPrefer,
+            api::TimestampingMode::ClientRequire => Self::ClientRequire,
+            api::TimestampingMode::Arrival => Self::Arrival,
+        }
+    }
+}
+
+impl TryFrom<api::stream_config::Timestamping> for TimestampingConfig {
+    type Error = ConvertError;
+
+    fn try_from(value: api::stream_config::Timestamping) -> Result<Self, Self::Error> {
+        let mode = api::TimestampingMode::try_from(value.mode)
+            .map_err(|_| "invalid timestamping mode")?
+            .into();
+        let uncapped = value.uncapped;
+        Ok(Self { mode, uncapped })
     }
 }
 
 impl TryFrom<api::StreamConfig> for StreamConfig {
     type Error = ConvertError;
+
     fn try_from(value: api::StreamConfig) -> Result<Self, Self::Error> {
         let api::StreamConfig {
             storage_class,
             retention_policy,
-            require_client_timestamps,
-            uncapped_client_timestamps,
+            timestamping,
         } = value;
         Ok(Self {
             storage_class: storage_class.try_into()?,
             retention_policy: retention_policy.map(Into::into),
-            require_client_timestamps,
-            uncapped_client_timestamps,
+            timestamping: timestamping.map(TryInto::try_into).transpose()?,
         })
     }
 }
