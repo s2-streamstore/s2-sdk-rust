@@ -195,19 +195,18 @@ impl From<BasinConfig> for api::BasinConfig {
     }
 }
 
-impl TryFrom<api::BasinConfig> for BasinConfig {
-    type Error = ConvertError;
-    fn try_from(value: api::BasinConfig) -> Result<Self, Self::Error> {
+impl From<api::BasinConfig> for BasinConfig {
+    fn from(value: api::BasinConfig) -> Self {
         let api::BasinConfig {
             default_stream_config,
             create_stream_on_append,
             create_stream_on_read,
         } = value;
-        Ok(Self {
-            default_stream_config: default_stream_config.map(TryInto::try_into).transpose()?,
+        Self {
+            default_stream_config: default_stream_config.map(Into::into),
             create_stream_on_append,
             create_stream_on_read,
-        })
+        }
     }
 }
 
@@ -284,15 +283,11 @@ impl From<TimestampingConfig> for api::stream_config::Timestamping {
     }
 }
 
-impl TryFrom<api::stream_config::Timestamping> for TimestampingConfig {
-    type Error = ConvertError;
-
-    fn try_from(value: api::stream_config::Timestamping) -> Result<Self, Self::Error> {
-        let mode = api::TimestampingMode::try_from(value.mode)
-            .map_err(|e| format!("timestamping mode: {e}"))?
-            .into();
+impl From<api::stream_config::Timestamping> for TimestampingConfig {
+    fn from(value: api::stream_config::Timestamping) -> Self {
+        let mode = value.mode().into();
         let uncapped = value.uncapped;
-        Ok(Self { mode, uncapped })
+        Self { mode, uncapped }
     }
 }
 
@@ -353,23 +348,13 @@ impl From<StreamConfig> for api::StreamConfig {
     }
 }
 
-impl TryFrom<api::StreamConfig> for StreamConfig {
-    type Error = ConvertError;
-
-    fn try_from(value: api::StreamConfig) -> Result<Self, Self::Error> {
-        let api::StreamConfig {
-            storage_class,
-            retention_policy,
-            timestamping,
-        } = value;
-        let storage_class = api::StorageClass::try_from(storage_class)
-            .map_err(|e| format!("storage class: {e}"))?
-            .into();
-        Ok(Self {
-            storage_class,
-            retention_policy: retention_policy.map(Into::into),
-            timestamping: timestamping.map(TryInto::try_into).transpose()?,
-        })
+impl From<api::StreamConfig> for StreamConfig {
+    fn from(value: api::StreamConfig) -> Self {
+        Self {
+            storage_class: value.storage_class().into(),
+            retention_policy: value.retention_policy.map(Into::into),
+            timestamping: value.timestamping.map(Into::into),
+        }
     }
 }
 
@@ -609,19 +594,21 @@ impl From<api::ListStreamsResponse> for ListStreamsResponse {
 
 impl TryFrom<api::GetBasinConfigResponse> for BasinConfig {
     type Error = ConvertError;
+
     fn try_from(value: api::GetBasinConfigResponse) -> Result<Self, Self::Error> {
         let api::GetBasinConfigResponse { config } = value;
         let config = config.ok_or("missing basin config")?;
-        config.try_into()
+        Ok(config.into())
     }
 }
 
 impl TryFrom<api::GetStreamConfigResponse> for StreamConfig {
     type Error = ConvertError;
+
     fn try_from(value: api::GetStreamConfigResponse) -> Result<Self, Self::Error> {
         let api::GetStreamConfigResponse { config } = value;
         let config = config.ok_or("missing stream config")?;
-        config.try_into()
+        Ok(config.into())
     }
 }
 
@@ -851,7 +838,7 @@ impl TryFrom<api::ReconfigureBasinResponse> for BasinConfig {
     fn try_from(value: api::ReconfigureBasinResponse) -> Result<Self, Self::Error> {
         let api::ReconfigureBasinResponse { config } = value;
         let config = config.ok_or("missing basin config")?;
-        config.try_into()
+        Ok(config.into())
     }
 }
 
@@ -910,7 +897,7 @@ impl TryFrom<api::ReconfigureStreamResponse> for StreamConfig {
     fn try_from(value: api::ReconfigureStreamResponse) -> Result<Self, Self::Error> {
         let api::ReconfigureStreamResponse { config } = value;
         let config = config.ok_or("missing stream config")?;
-        config.try_into()
+        Ok(config.into())
     }
 }
 
@@ -1921,7 +1908,7 @@ impl std::fmt::Display for BasinName {
 }
 
 /// Access token ID.
-/// Must be between 1 and 50 characters.
+/// Must be between 1 and 96 characters.
 #[derive(Debug, Clone)]
 pub struct AccessTokenId(String);
 
@@ -1947,8 +1934,8 @@ impl TryFrom<String> for AccessTokenId {
             return Err("Access token ID must not be empty".into());
         }
 
-        if name.len() > 50 {
-            return Err("Access token ID must not exceed 50 characters".into());
+        if name.len() > 96 {
+            return Err("Access token ID must not exceed 96 characters".into());
         }
 
         Ok(Self(name))
@@ -2041,6 +2028,7 @@ impl From<AccessTokenInfo> for api::AccessTokenInfo {
 
 impl TryFrom<api::AccessTokenInfo> for AccessTokenInfo {
     type Error = ConvertError;
+
     fn try_from(value: api::AccessTokenInfo) -> Result<Self, Self::Error> {
         let api::AccessTokenInfo {
             id,
@@ -2052,7 +2040,7 @@ impl TryFrom<api::AccessTokenInfo> for AccessTokenInfo {
             id: id.try_into()?,
             expires_at,
             auto_prefix_streams,
-            scope: scope.map(TryInto::try_into).transpose()?,
+            scope: scope.map(Into::into),
         })
     }
 }
@@ -2246,10 +2234,8 @@ impl From<AccessTokenScope> for api::AccessTokenScope {
     }
 }
 
-impl TryFrom<api::AccessTokenScope> for AccessTokenScope {
-    type Error = ConvertError;
-
-    fn try_from(value: api::AccessTokenScope) -> Result<Self, Self::Error> {
+impl From<api::AccessTokenScope> for AccessTokenScope {
+    fn from(value: api::AccessTokenScope) -> Self {
         let api::AccessTokenScope {
             basins,
             streams,
@@ -2257,22 +2243,18 @@ impl TryFrom<api::AccessTokenScope> for AccessTokenScope {
             op_groups,
             ops,
         } = value;
-        let mut operations = HashSet::with_capacity(ops.len());
-        for op in ops {
-            let operation: Option<Operation> = api::Operation::try_from(op)
-                .map_err(|e| format!("invalid operation: {e}"))?
-                .into();
-            if let Some(operation) = operation {
-                operations.insert(operation);
-            }
-        }
-        Ok(Self {
+        Self {
             basins: basins.and_then(|set| set.matching.map(Into::into)),
             streams: streams.and_then(|set| set.matching.map(Into::into)),
             access_tokens: access_tokens.and_then(|set| set.matching.map(Into::into)),
             op_groups: op_groups.map(Into::into),
-            ops: operations,
-        })
+            ops: ops
+                .into_iter()
+                .map(api::Operation::try_from)
+                .flat_map(Result::ok)
+                .flat_map(<Option<Operation>>::from)
+                .collect(),
+        }
     }
 }
 
