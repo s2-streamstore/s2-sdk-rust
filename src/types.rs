@@ -59,27 +59,24 @@ macro_rules! metered_impl {
 }
 
 #[sync_docs]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BasinScope {
-    #[default]
-    Unspecified,
     AwsUsEast1,
 }
 
 impl From<BasinScope> for api::BasinScope {
     fn from(value: BasinScope) -> Self {
         match value {
-            BasinScope::Unspecified => Self::Unspecified,
             BasinScope::AwsUsEast1 => Self::AwsUsEast1,
         }
     }
 }
 
-impl From<api::BasinScope> for BasinScope {
+impl From<api::BasinScope> for Option<BasinScope> {
     fn from(value: api::BasinScope) -> Self {
         match value {
-            api::BasinScope::Unspecified => Self::Unspecified,
-            api::BasinScope::AwsUsEast1 => Self::AwsUsEast1,
+            api::BasinScope::Unspecified => None,
+            api::BasinScope::AwsUsEast1 => Some(BasinScope::AwsUsEast1),
         }
     }
 }
@@ -88,25 +85,9 @@ impl FromStr for BasinScope {
     type Err = ConvertError;
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
-            "unspecified" => Ok(Self::Unspecified),
             "aws:us-east-1" => Ok(Self::AwsUsEast1),
             _ => Err("invalid basin scope value".into()),
         }
-    }
-}
-
-impl From<BasinScope> for i32 {
-    fn from(value: BasinScope) -> Self {
-        api::BasinScope::from(value).into()
-    }
-}
-
-impl TryFrom<i32> for BasinScope {
-    type Error = ConvertError;
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
-        api::BasinScope::try_from(value)
-            .map(Into::into)
-            .map_err(|_| "invalid basin scope value".into())
     }
 }
 
@@ -115,7 +96,7 @@ impl TryFrom<i32> for BasinScope {
 pub struct CreateBasinRequest {
     pub basin: BasinName,
     pub config: Option<BasinConfig>,
-    pub scope: BasinScope,
+    pub scope: Option<BasinScope>,
 }
 
 impl CreateBasinRequest {
@@ -124,7 +105,7 @@ impl CreateBasinRequest {
         Self {
             basin,
             config: None,
-            scope: BasinScope::Unspecified,
+            scope: None,
         }
     }
 
@@ -138,7 +119,10 @@ impl CreateBasinRequest {
 
     /// Overwrite basin scope.
     pub fn with_scope(self, scope: BasinScope) -> Self {
-        Self { scope, ..self }
+        Self {
+            scope: Some(scope),
+            ..self
+        }
     }
 }
 
@@ -152,7 +136,7 @@ impl From<CreateBasinRequest> for api::CreateBasinRequest {
         Self {
             basin: basin.0,
             config: config.map(Into::into),
-            scope: scope.into(),
+            scope: scope.map(api::BasinScope::from).unwrap_or_default().into(),
         }
     }
 }
@@ -228,20 +212,39 @@ impl TryFrom<api::BasinConfig> for BasinConfig {
 }
 
 #[sync_docs]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimestampingMode {
-    #[default]
-    Unspecified,
     ClientPrefer,
     ClientRequire,
     Arrival,
+}
+
+impl From<TimestampingMode> for api::TimestampingMode {
+    fn from(value: TimestampingMode) -> Self {
+        match value {
+            TimestampingMode::ClientPrefer => Self::ClientPrefer,
+            TimestampingMode::ClientRequire => Self::ClientRequire,
+            TimestampingMode::Arrival => Self::Arrival,
+        }
+    }
+}
+
+impl From<api::TimestampingMode> for Option<TimestampingMode> {
+    fn from(value: api::TimestampingMode) -> Self {
+        match value {
+            api::TimestampingMode::Unspecified => None,
+            api::TimestampingMode::ClientPrefer => Some(TimestampingMode::ClientPrefer),
+            api::TimestampingMode::ClientRequire => Some(TimestampingMode::ClientRequire),
+            api::TimestampingMode::Arrival => Some(TimestampingMode::Arrival),
+        }
+    }
 }
 
 #[sync_docs(TimestampingConfig = "Timestamping")]
 #[derive(Debug, Clone, Default)]
 /// Timestamping behavior.
 pub struct TimestampingConfig {
-    pub mode: TimestampingMode,
+    pub mode: Option<TimestampingMode>,
     pub uncapped: Option<bool>,
 }
 
@@ -253,7 +256,10 @@ impl TimestampingConfig {
 
     /// Overwrite timestamping mode.
     pub fn with_mode(self, mode: TimestampingMode) -> Self {
-        Self { mode, ..self }
+        Self {
+            mode: Some(mode),
+            ..self
+        }
     }
 
     /// Overwrite the uncapped knob.
@@ -265,10 +271,35 @@ impl TimestampingConfig {
     }
 }
 
+impl From<TimestampingConfig> for api::stream_config::Timestamping {
+    fn from(value: TimestampingConfig) -> Self {
+        Self {
+            mode: value
+                .mode
+                .map(api::TimestampingMode::from)
+                .unwrap_or_default()
+                .into(),
+            uncapped: value.uncapped,
+        }
+    }
+}
+
+impl TryFrom<api::stream_config::Timestamping> for TimestampingConfig {
+    type Error = ConvertError;
+
+    fn try_from(value: api::stream_config::Timestamping) -> Result<Self, Self::Error> {
+        let mode = api::TimestampingMode::try_from(value.mode)
+            .map_err(|e| format!("timestamping mode: {e}"))?
+            .into();
+        let uncapped = value.uncapped;
+        Ok(Self { mode, uncapped })
+    }
+}
+
 #[sync_docs]
 #[derive(Debug, Clone, Default)]
 pub struct StreamConfig {
-    pub storage_class: StorageClass,
+    pub storage_class: Option<StorageClass>,
     pub retention_policy: Option<RetentionPolicy>,
     pub timestamping: Option<TimestampingConfig>,
 }
@@ -280,9 +311,9 @@ impl StreamConfig {
     }
 
     /// Overwrite storage class.
-    pub fn with_storage_class(self, storage_class: impl Into<StorageClass>) -> Self {
+    pub fn with_storage_class(self, storage_class: StorageClass) -> Self {
         Self {
-            storage_class: storage_class.into(),
+            storage_class: Some(storage_class),
             ..self
         }
     }
@@ -304,26 +335,6 @@ impl StreamConfig {
     }
 }
 
-impl From<TimestampingMode> for api::TimestampingMode {
-    fn from(value: TimestampingMode) -> Self {
-        match value {
-            TimestampingMode::Unspecified => Self::Unspecified,
-            TimestampingMode::ClientPrefer => Self::ClientPrefer,
-            TimestampingMode::ClientRequire => Self::ClientRequire,
-            TimestampingMode::Arrival => Self::Arrival,
-        }
-    }
-}
-
-impl From<TimestampingConfig> for api::stream_config::Timestamping {
-    fn from(value: TimestampingConfig) -> Self {
-        Self {
-            mode: api::TimestampingMode::from(value.mode).into(),
-            uncapped: value.uncapped,
-        }
-    }
-}
-
 impl From<StreamConfig> for api::StreamConfig {
     fn from(value: StreamConfig) -> Self {
         let StreamConfig {
@@ -332,33 +343,13 @@ impl From<StreamConfig> for api::StreamConfig {
             timestamping,
         } = value;
         Self {
-            storage_class: storage_class.into(),
+            storage_class: storage_class
+                .map(api::StorageClass::from)
+                .unwrap_or_default()
+                .into(),
             retention_policy: retention_policy.map(Into::into),
             timestamping: timestamping.map(Into::into),
         }
-    }
-}
-
-impl From<api::TimestampingMode> for TimestampingMode {
-    fn from(value: api::TimestampingMode) -> Self {
-        match value {
-            api::TimestampingMode::Unspecified => Self::Unspecified,
-            api::TimestampingMode::ClientPrefer => Self::ClientPrefer,
-            api::TimestampingMode::ClientRequire => Self::ClientRequire,
-            api::TimestampingMode::Arrival => Self::Arrival,
-        }
-    }
-}
-
-impl TryFrom<api::stream_config::Timestamping> for TimestampingConfig {
-    type Error = ConvertError;
-
-    fn try_from(value: api::stream_config::Timestamping) -> Result<Self, Self::Error> {
-        let mode = api::TimestampingMode::try_from(value.mode)
-            .map_err(|_| "invalid timestamping mode")?
-            .into();
-        let uncapped = value.uncapped;
-        Ok(Self { mode, uncapped })
     }
 }
 
@@ -371,8 +362,11 @@ impl TryFrom<api::StreamConfig> for StreamConfig {
             retention_policy,
             timestamping,
         } = value;
+        let storage_class = api::StorageClass::try_from(storage_class)
+            .map_err(|e| format!("storage class: {e}"))?
+            .into();
         Ok(Self {
-            storage_class: storage_class.try_into()?,
+            storage_class,
             retention_policy: retention_policy.map(Into::into),
             timestamping: timestamping.map(TryInto::try_into).transpose()?,
         })
@@ -380,10 +374,8 @@ impl TryFrom<api::StreamConfig> for StreamConfig {
 }
 
 #[sync_docs]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StorageClass {
-    #[default]
-    Unspecified,
     Standard,
     Express,
 }
@@ -391,47 +383,31 @@ pub enum StorageClass {
 impl From<StorageClass> for api::StorageClass {
     fn from(value: StorageClass) -> Self {
         match value {
-            StorageClass::Unspecified => Self::Unspecified,
             StorageClass::Standard => Self::Standard,
             StorageClass::Express => Self::Express,
         }
     }
 }
 
-impl From<api::StorageClass> for StorageClass {
+impl From<api::StorageClass> for Option<StorageClass> {
     fn from(value: api::StorageClass) -> Self {
         match value {
-            api::StorageClass::Unspecified => Self::Unspecified,
-            api::StorageClass::Standard => Self::Standard,
-            api::StorageClass::Express => Self::Express,
+            api::StorageClass::Unspecified => None,
+            api::StorageClass::Standard => Some(StorageClass::Standard),
+            api::StorageClass::Express => Some(StorageClass::Express),
         }
     }
 }
 
 impl FromStr for StorageClass {
     type Err = ConvertError;
+
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
-            "unspecified" => Ok(Self::Unspecified),
             "standard" => Ok(Self::Standard),
             "express" => Ok(Self::Express),
-            _ => Err("invalid storage class value".into()),
+            v => Err(format!("unknown storage class: {v}").into()),
         }
-    }
-}
-
-impl From<StorageClass> for i32 {
-    fn from(value: StorageClass) -> Self {
-        api::StorageClass::from(value).into()
-    }
-}
-
-impl TryFrom<i32> for StorageClass {
-    type Error = ConvertError;
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
-        api::StorageClass::try_from(value)
-            .map(Into::into)
-            .map_err(|_| "invalid storage class value".into())
     }
 }
 
@@ -460,7 +436,6 @@ impl From<api::stream_config::RetentionPolicy> for RetentionPolicy {
 #[sync_docs]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BasinState {
-    Unspecified,
     Active,
     Creating,
     Deleting,
@@ -469,7 +444,6 @@ pub enum BasinState {
 impl From<BasinState> for api::BasinState {
     fn from(value: BasinState) -> Self {
         match value {
-            BasinState::Unspecified => Self::Unspecified,
             BasinState::Active => Self::Active,
             BasinState::Creating => Self::Creating,
             BasinState::Deleting => Self::Deleting,
@@ -477,36 +451,20 @@ impl From<BasinState> for api::BasinState {
     }
 }
 
-impl From<api::BasinState> for BasinState {
+impl From<api::BasinState> for Option<BasinState> {
     fn from(value: api::BasinState) -> Self {
         match value {
-            api::BasinState::Unspecified => Self::Unspecified,
-            api::BasinState::Active => Self::Active,
-            api::BasinState::Creating => Self::Creating,
-            api::BasinState::Deleting => Self::Deleting,
+            api::BasinState::Unspecified => None,
+            api::BasinState::Active => Some(BasinState::Active),
+            api::BasinState::Creating => Some(BasinState::Creating),
+            api::BasinState::Deleting => Some(BasinState::Deleting),
         }
-    }
-}
-
-impl From<BasinState> for i32 {
-    fn from(value: BasinState) -> Self {
-        api::BasinState::from(value).into()
-    }
-}
-
-impl TryFrom<i32> for BasinState {
-    type Error = ConvertError;
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
-        api::BasinState::try_from(value)
-            .map(Into::into)
-            .map_err(|_| "invalid basin status value".into())
     }
 }
 
 impl std::fmt::Display for BasinState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BasinState::Unspecified => write!(f, "unspecified"),
             BasinState::Active => write!(f, "active"),
             BasinState::Creating => write!(f, "creating"),
             BasinState::Deleting => write!(f, "deleting"),
@@ -518,8 +476,8 @@ impl std::fmt::Display for BasinState {
 #[derive(Debug, Clone)]
 pub struct BasinInfo {
     pub name: String,
-    pub scope: BasinScope,
-    pub state: BasinState,
+    pub scope: Option<BasinScope>,
+    pub state: Option<BasinState>,
 }
 
 impl From<BasinInfo> for api::BasinInfo {
@@ -527,21 +485,24 @@ impl From<BasinInfo> for api::BasinInfo {
         let BasinInfo { name, scope, state } = value;
         Self {
             name,
-            scope: scope.into(),
-            state: state.into(),
+            scope: scope.map(api::BasinScope::from).unwrap_or_default().into(),
+            state: state.map(api::BasinState::from).unwrap_or_default().into(),
         }
     }
 }
 
 impl TryFrom<api::BasinInfo> for BasinInfo {
     type Error = ConvertError;
+
     fn try_from(value: api::BasinInfo) -> Result<Self, Self::Error> {
         let api::BasinInfo { name, scope, state } = value;
-        Ok(Self {
-            name,
-            scope: scope.try_into()?,
-            state: state.try_into()?,
-        })
+        let scope = api::BasinScope::try_from(scope)
+            .map_err(|e| format!("invalid basin scope: {e}"))?
+            .into();
+        let state = api::BasinState::try_from(state)
+            .map_err(|e| format!("invalid basin state: {e}"))?
+            .into();
+        Ok(Self { name, scope, state })
     }
 }
 
@@ -2108,7 +2069,6 @@ impl TryFrom<api::AccessTokenInfo> for AccessTokenInfo {
 #[sync_docs]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Operation {
-    Unspecified,
     ListBasins,
     CreateBasin,
     DeleteBasin,
@@ -2134,7 +2094,6 @@ impl FromStr for Operation {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "unspecified" => Ok(Self::Unspecified),
             "list-basins" => Ok(Self::ListBasins),
             "create-basin" => Ok(Self::CreateBasin),
             "delete-basin" => Ok(Self::DeleteBasin),
@@ -2158,25 +2117,9 @@ impl FromStr for Operation {
     }
 }
 
-impl From<Operation> for i32 {
-    fn from(value: Operation) -> Self {
-        api::Operation::from(value).into()
-    }
-}
-
-impl TryFrom<i32> for Operation {
-    type Error = ConvertError;
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
-        api::Operation::try_from(value)
-            .map_err(|_| "invalid operation".into())
-            .map(Into::into)
-    }
-}
-
 impl From<Operation> for api::Operation {
     fn from(value: Operation) -> Self {
         match value {
-            Operation::Unspecified => Self::Unspecified,
             Operation::ListBasins => Self::ListBasins,
             Operation::CreateBasin => Self::CreateBasin,
             Operation::DeleteBasin => Self::DeleteBasin,
@@ -2199,28 +2142,28 @@ impl From<Operation> for api::Operation {
     }
 }
 
-impl From<api::Operation> for Operation {
+impl From<api::Operation> for Option<Operation> {
     fn from(value: api::Operation) -> Self {
         match value {
-            api::Operation::Unspecified => Self::Unspecified,
-            api::Operation::ListBasins => Self::ListBasins,
-            api::Operation::CreateBasin => Self::CreateBasin,
-            api::Operation::DeleteBasin => Self::DeleteBasin,
-            api::Operation::ReconfigureBasin => Self::ReconfigureBasin,
-            api::Operation::GetBasinConfig => Self::GetBasinConfig,
-            api::Operation::IssueAccessToken => Self::IssueAccessToken,
-            api::Operation::RevokeAccessToken => Self::RevokeAccessToken,
-            api::Operation::ListAccessTokens => Self::ListAccessTokens,
-            api::Operation::ListStreams => Self::ListStreams,
-            api::Operation::CreateStream => Self::CreateStream,
-            api::Operation::DeleteStream => Self::DeleteStream,
-            api::Operation::GetStreamConfig => Self::GetStreamConfig,
-            api::Operation::ReconfigureStream => Self::ReconfigureStream,
-            api::Operation::CheckTail => Self::CheckTail,
-            api::Operation::Append => Self::Append,
-            api::Operation::Read => Self::Read,
-            api::Operation::Trim => Self::Trim,
-            api::Operation::Fence => Self::Fence,
+            api::Operation::Unspecified => None,
+            api::Operation::ListBasins => Some(Operation::ListBasins),
+            api::Operation::CreateBasin => Some(Operation::CreateBasin),
+            api::Operation::DeleteBasin => Some(Operation::DeleteBasin),
+            api::Operation::ReconfigureBasin => Some(Operation::ReconfigureBasin),
+            api::Operation::GetBasinConfig => Some(Operation::GetBasinConfig),
+            api::Operation::IssueAccessToken => Some(Operation::IssueAccessToken),
+            api::Operation::RevokeAccessToken => Some(Operation::RevokeAccessToken),
+            api::Operation::ListAccessTokens => Some(Operation::ListAccessTokens),
+            api::Operation::ListStreams => Some(Operation::ListStreams),
+            api::Operation::CreateStream => Some(Operation::CreateStream),
+            api::Operation::DeleteStream => Some(Operation::DeleteStream),
+            api::Operation::GetStreamConfig => Some(Operation::GetStreamConfig),
+            api::Operation::ReconfigureStream => Some(Operation::ReconfigureStream),
+            api::Operation::CheckTail => Some(Operation::CheckTail),
+            api::Operation::Append => Some(Operation::Append),
+            api::Operation::Read => Some(Operation::Read),
+            api::Operation::Trim => Some(Operation::Trim),
+            api::Operation::Fence => Some(Operation::Fence),
         }
     }
 }
@@ -2303,13 +2246,18 @@ impl From<AccessTokenScope> for api::AccessTokenScope {
             streams: streams.map(Into::into),
             access_tokens: access_tokens.map(Into::into),
             op_groups: op_groups.map(Into::into),
-            ops: ops.into_iter().map(Into::into).collect(),
+            ops: ops
+                .into_iter()
+                .map(api::Operation::from)
+                .map(Into::into)
+                .collect(),
         }
     }
 }
 
 impl TryFrom<api::AccessTokenScope> for AccessTokenScope {
     type Error = ConvertError;
+
     fn try_from(value: api::AccessTokenScope) -> Result<Self, Self::Error> {
         let api::AccessTokenScope {
             basins,
@@ -2318,15 +2266,21 @@ impl TryFrom<api::AccessTokenScope> for AccessTokenScope {
             op_groups,
             ops,
         } = value;
+        let mut operations = HashSet::with_capacity(ops.len());
+        for op in ops {
+            let operation: Option<Operation> = api::Operation::try_from(op)
+                .map_err(|e| format!("invalid operation: {e}"))?
+                .into();
+            if let Some(operation) = operation {
+                operations.insert(operation);
+            }
+        }
         Ok(Self {
             basins: basins.and_then(|set| set.matching.map(Into::into)),
             streams: streams.and_then(|set| set.matching.map(Into::into)),
             access_tokens: access_tokens.and_then(|set| set.matching.map(Into::into)),
             op_groups: op_groups.map(Into::into),
-            ops: ops
-                .into_iter()
-                .map(Operation::try_from)
-                .collect::<Result<HashSet<_>, _>>()?,
+            ops: operations,
         })
     }
 }
