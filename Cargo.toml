@@ -36,10 +36,10 @@ regex = "1.11.1"
 secrecy = "0.10.3"
 sync_docs = "0.2.0"
 thiserror = "2.0.12"
-tokio = { version = "1.44.2", features = ["time"] }
+tokio = { version = "1.45.0", features = ["time"] }
 tokio-muxt = "0.6.0"
 tokio-stream = "0.1.17"
-tonic = { version = "0.13.0", features = [
+tonic = { version = "0.13.1", features = [
     "tls-aws-lc",
     "tls-webpki-roots",
     "zstd",
@@ -50,11 +50,11 @@ tracing = "0.1.41"
 uuid = { version = "1.16.0", features = ["v4", "fast-rng"] }
 
 [build-dependencies]
-tonic-build = { version = "0.13.0", features = ["prost"], optional = true }
+tonic-build = { version = "0.13.1", features = ["prost"], optional = true }
 
 [dev-dependencies]
 rstest = "0.25.0"
-tokio = { version = "1.44.2", features = ["full", "test-util"] }
+tokio = { version = "1.45.0", features = ["full", "test-util"] }
 tokio-stream = "0.1.17"
 
 [features]
