@@ -544,18 +544,12 @@ pub struct ReadSessionResponse {
 /// Stream configuration.
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct StreamConfig {
-    /// Storage class for recent writes. This is the main cost:performance knob in S2.
+    /// Storage class for recent writes.
     #[prost(enumeration = "StorageClass", tag = "1")]
     pub storage_class: i32,
-    /// Controls how to handle timestamps when they are not provided by the client.
-    /// If this is false (or not set), the record's arrival time in milliseconds since Unix epoch will be assigned as its timestamp.
-    /// If this is true, then any append without a client-specified timestamp will be rejected as invalid.
-    #[prost(bool, optional, tag = "3")]
-    pub require_client_timestamps: ::core::option::Option<bool>,
-    /// Allow client timestamps to exceed the arrival time in milliseconds since Unix epoch.
-    /// If this is false (or not set), client timestamps will be capped at the arrival time.
-    #[prost(bool, optional, tag = "4")]
-    pub uncapped_client_timestamps: ::core::option::Option<bool>,
+    /// Timestamping behavior.
+    #[prost(message, optional, tag = "5")]
+    pub timestamping: ::core::option::Option<stream_config::Timestamping>,
     /// Retention policy for the stream.
     /// If unspecified, the default is to retain records for 7 days.
     #[prost(oneof = "stream_config::RetentionPolicy", tags = "2")]
@@ -563,6 +557,16 @@ pub struct StreamConfig {
 }
 /// Nested message and enum types in `StreamConfig`.
 pub mod stream_config {
+    #[derive(Clone, Copy, PartialEq, ::prost::Message)]
+    pub struct Timestamping {
+        /// Timestamping mode for appends that influences how timestamps are handled.
+        #[prost(enumeration = "super::TimestampingMode", tag = "1")]
+        pub mode: i32,
+        /// Allow client-specified timestamps to exceed the arrival time.
+        /// If this is false or not set, client timestamps will be capped at the arrival time.
+        #[prost(bool, optional, tag = "2")]
+        pub uncapped: ::core::option::Option<bool>,
+    }
     /// Retention policy for the stream.
     /// If unspecified, the default is to retain records for 7 days.
     #[derive(Clone, Copy, PartialEq, ::prost::Oneof)]
@@ -616,8 +620,7 @@ pub struct Header {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AppendRecord {
     /// Timestamp for this record.
-    /// The service will always ensure monotonicity by adjusting it up if necessary to the maximum observed timestamp.
-    /// Refer to the config documentation for `require_client_timestamps` and `uncapped_client_timestamps` to control whether client-specified timestamps are required, and whether they are allowed to exceed the arrival time.
+    /// Precise semantics depend on the stream's `timestamping` config.
     #[prost(uint64, optional, tag = "3")]
     pub timestamp: ::core::option::Option<u64>,
     /// Series of name-value pairs for this record.
@@ -780,7 +783,7 @@ impl Operation {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum StorageClass {
-    /// Unspecified, which is currently overridden to `STORAGE_CLASS_EXPRESS`.
+    /// Defaults to `STORAGE_CLASS_EXPRESS`.
     Unspecified = 0,
     /// Standard, which offers end-to-end latencies under 500 ms.
     Standard = 1,
@@ -805,6 +808,44 @@ impl StorageClass {
             "STORAGE_CLASS_UNSPECIFIED" => Some(Self::Unspecified),
             "STORAGE_CLASS_STANDARD" => Some(Self::Standard),
             "STORAGE_CLASS_EXPRESS" => Some(Self::Express),
+            _ => None,
+        }
+    }
+}
+/// Timestamping mode.
+/// Note that arrival time is always in milliseconds since Unix epoch.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum TimestampingMode {
+    /// Defaults to `TIMESTAMPING_MODE_CLIENT_PREFER`.
+    Unspecified = 0,
+    /// Prefer client-specified timestamp if present otherwise use arrival time.
+    ClientPrefer = 1,
+    /// Require a client-specified timestamp and reject the append if it is missing.
+    ClientRequire = 2,
+    /// Use the arrival time and ignore any client-specified timestamp.
+    Arrival = 3,
+}
+impl TimestampingMode {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "TIMESTAMPING_MODE_UNSPECIFIED",
+            Self::ClientPrefer => "TIMESTAMPING_MODE_CLIENT_PREFER",
+            Self::ClientRequire => "TIMESTAMPING_MODE_CLIENT_REQUIRE",
+            Self::Arrival => "TIMESTAMPING_MODE_ARRIVAL",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "TIMESTAMPING_MODE_UNSPECIFIED" => Some(Self::Unspecified),
+            "TIMESTAMPING_MODE_CLIENT_PREFER" => Some(Self::ClientPrefer),
+            "TIMESTAMPING_MODE_CLIENT_REQUIRE" => Some(Self::ClientRequire),
+            "TIMESTAMPING_MODE_ARRIVAL" => Some(Self::Arrival),
             _ => None,
         }
     }
