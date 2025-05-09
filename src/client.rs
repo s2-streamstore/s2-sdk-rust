@@ -46,6 +46,7 @@ use tonic::{
     transport::{Channel, ClientTlsConfig, Endpoint},
 };
 use tonic_side_effect::{FrameSignal, RequestFrameMonitor};
+use tracing::warn;
 
 use crate::{
     api::{
@@ -71,7 +72,9 @@ use crate::{
             ReadSessionServiceRequest, ReadSessionStreamingResponse,
         },
     },
-    types::{self, MIB_BYTES, MeteredBytes, ReadStart, StreamPosition},
+    types::{
+        self, MIB_BYTES, MeteredBytes, RETRY_AFTER_MS_METADATA_KEY, ReadStart, StreamPosition,
+    },
 };
 
 const DEFAULT_CONNECTOR: Option<HttpConnector> = None;
@@ -846,13 +849,24 @@ impl ClientInner {
             .when(|e| service_req.should_retry(e))
             .adjust(|e, backoff_duration| match e {
                 ClientError::Service(s) => {
-                    if let Some(value) = s.metadata().get("retry-after-ms") {
-                        let retry_after_ms: u64 = value
+                    if let Some(value) = s.metadata().get(RETRY_AFTER_MS_METADATA_KEY) {
+                        if let Some(retry_after_ms) = value
                             .to_str()
-                            .expect("should be a valid ASCII metadata value")
-                            .parse()
-                            .expect("should be parseable as u64");
-                        Some(Duration::from_millis(retry_after_ms))
+                            .ok()
+                            .map(|v| v.parse())
+                            .transpose()
+                            .ok()
+                            .flatten()
+                        {
+                            Some(Duration::from_millis(retry_after_ms))
+                        } else {
+                            warn!(
+                                "Failed to convert {RETRY_AFTER_MS_METADATA_KEY} metadata to u64.
+                                Falling back to default backoff duration: {:?}",
+                                backoff_duration
+                            );
+                            backoff_duration
+                        }
                     } else {
                         backoff_duration
                     }

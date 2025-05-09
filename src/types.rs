@@ -10,6 +10,7 @@ use sync_docs::sync_docs;
 use crate::api;
 
 pub(crate) const MIB_BYTES: u64 = 1024 * 1024;
+pub(crate) const RETRY_AFTER_MS_METADATA_KEY: &str = "retry-after-ms";
 
 /// Error related to conversion from one type to another.
 #[derive(Debug, Clone, thiserror::Error)]

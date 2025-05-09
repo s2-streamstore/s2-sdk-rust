@@ -14,7 +14,7 @@ use tokio_muxt::{CoalesceMode, MuxTimer};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 use tonic_side_effect::FrameSignal;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::{
     client::{AppendRetryPolicy, ClientError, StreamClient},
@@ -22,8 +22,7 @@ use crate::{
         ServiceStreamingResponse,
         stream::{AppendSessionServiceRequest, AppendSessionStreamingResponse},
     },
-    types,
-    types::MeteredBytes,
+    types::{self, MeteredBytes, RETRY_AFTER_MS_METADATA_KEY},
 };
 
 async fn connect(
@@ -392,13 +391,24 @@ pub(crate) async fn manage_session<S>(
                         stream_client.inner.config.retry_backoff_duration;
                     let retryable_error = match &e {
                         ClientError::Service(status) => {
-                            if let Some(value) = status.metadata().get("retry-after-ms") {
-                                let retry_after_ms: u64 = value
+                            if let Some(value) = status.metadata().get(RETRY_AFTER_MS_METADATA_KEY)
+                            {
+                                if let Some(retry_after_ms) = value
                                     .to_str()
-                                    .expect("should be a valid ASCII metadata value")
-                                    .parse()
-                                    .expect("should be parseable as u64");
-                                retry_backoff_duration = Duration::from_millis(retry_after_ms);
+                                    .ok()
+                                    .map(|v| v.parse())
+                                    .transpose()
+                                    .ok()
+                                    .flatten()
+                                {
+                                    retry_backoff_duration = Duration::from_millis(retry_after_ms);
+                                } else {
+                                    warn!(
+                                        "Failed to convert {RETRY_AFTER_MS_METADATA_KEY} metadata to u64.
+                                        Falling back to default backoff duration: {:?}",
+                                        retry_backoff_duration
+                                    );
+                                }
                             }
                             matches!(
                                 status.code(),
