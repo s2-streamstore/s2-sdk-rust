@@ -14,7 +14,7 @@ use tokio_muxt::{CoalesceMode, MuxTimer};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 use tonic_side_effect::FrameSignal;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::{
     client::{AppendRetryPolicy, ClientError, StreamClient},
@@ -22,8 +22,7 @@ use crate::{
         ServiceStreamingResponse,
         stream::{AppendSessionServiceRequest, AppendSessionStreamingResponse},
     },
-    types,
-    types::MeteredBytes,
+    types::{self, MeteredBytes, RETRY_AFTER_MS_METADATA_KEY},
 };
 
 async fn connect(
@@ -387,8 +386,41 @@ pub(crate) async fn manage_session<S>(
 
                 let now = Instant::now();
                 let remaining_attempts = attempts < stream_client.inner.config.max_attempts;
-                let enough_time = {
-                    state
+                let (enough_time, retryable_error, retry_backoff_duration) = {
+                    let mut retry_backoff_duration =
+                        stream_client.inner.config.retry_backoff_duration;
+                    let retryable_error = match &e {
+                        ClientError::Service(status) => {
+                            if let Some(value) = status.metadata().get(RETRY_AFTER_MS_METADATA_KEY)
+                            {
+                                if let Some(retry_after_ms) = value
+                                    .to_str()
+                                    .ok()
+                                    .map(|v| v.parse())
+                                    .transpose()
+                                    .ok()
+                                    .flatten()
+                                {
+                                    retry_backoff_duration = Duration::from_millis(retry_after_ms);
+                                } else {
+                                    warn!(
+                                        "Failed to convert {RETRY_AFTER_MS_METADATA_KEY} metadata to u64.
+                                        Falling back to default backoff duration: {:?}",
+                                        retry_backoff_duration
+                                    );
+                                }
+                            }
+                            matches!(
+                                status.code(),
+                                tonic::Code::Unavailable
+                                    | tonic::Code::DeadlineExceeded
+                                    | tonic::Code::Unknown
+                                    | tonic::Code::ResourceExhausted
+                            )
+                        }
+                        ClientError::Conversion(_) => false,
+                    };
+                    let enough_time = state
                         .lock()
                         .await
                         .inflight
@@ -396,22 +428,10 @@ pub(crate) async fn manage_session<S>(
                         .map(|state| {
                             let next_deadline =
                                 state.start + stream_client.inner.config.request_timeout;
-                            now + stream_client.inner.config.retry_backoff_duration < next_deadline
+                            now + retry_backoff_duration < next_deadline
                         })
-                        .unwrap_or(true)
-                };
-                let retryable_error = {
-                    match &e {
-                        ClientError::Service(status) => {
-                            matches!(
-                                status.code(),
-                                tonic::Code::Unavailable
-                                    | tonic::Code::DeadlineExceeded
-                                    | tonic::Code::Unknown
-                            )
-                        }
-                        ClientError::Conversion(_) => false,
-                    }
+                        .unwrap_or(true);
+                    (enough_time, retryable_error, retry_backoff_duration)
                 };
                 let policy_compliant = {
                     match stream_client.inner.config.append_retry_policy {
@@ -425,7 +445,7 @@ pub(crate) async fn manage_session<S>(
                 };
 
                 if remaining_attempts && enough_time && retryable_error && policy_compliant {
-                    tokio::time::sleep(stream_client.inner.config.retry_backoff_duration).await;
+                    tokio::time::sleep(retry_backoff_duration).await;
                     attempts += 1;
                     debug!(attempts, ?e, "retrying");
                 } else {

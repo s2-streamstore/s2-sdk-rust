@@ -103,6 +103,7 @@ pub trait ServiceRequest: std::fmt::Debug {
                     | tonic::Code::DeadlineExceeded
                     | tonic::Code::Cancelled
                     | tonic::Code::Unknown
+                    | tonic::Code::ResourceExhausted
             )
         } else {
             false
