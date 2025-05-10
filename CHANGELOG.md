@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.15.0] - 2025-05-10
+
+### Features
+
+- Retry on `ResourceExhausted` and use `retry-after` if present  ([#177](https://github.com/s2-streamstore/s2-sdk-rust/issues/177))
+
 ## [0.14.0] - 2025-05-08
 
 ### Features
