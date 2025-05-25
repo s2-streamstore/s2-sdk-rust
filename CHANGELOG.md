@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.16.2] - 2025-05-25
+
+### Features
+
+- Impl `FromStr` / `Display` for `FencingToken` ([#189](https://github.com/s2-streamstore/s2-sdk-rust/issues/189))
+
 ## [0.16.1] - 2025-05-25
 
 ## [0.16.0] - 2025-05-25
