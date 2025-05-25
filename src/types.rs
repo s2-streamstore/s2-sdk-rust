@@ -966,82 +966,51 @@ impl From<api::Header> for Header {
 
 /// A fencing token can be enforced on append requests.
 ///
-/// Must not be more than 16 bytes.
+/// Must not be more than 36 bytes.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct FencingToken(Bytes);
+pub struct FencingToken(String);
 
 impl FencingToken {
-    const MAX_BYTES: usize = 16;
+    const MAX_BYTES: usize = 36;
 
     /// Try creating a new fencing token from bytes.
-    pub fn new(bytes: impl Into<Bytes>) -> Result<Self, ConvertError> {
-        let bytes = bytes.into();
-        if bytes.len() > Self::MAX_BYTES {
+    pub fn new(s: impl Into<String>) -> Result<Self, ConvertError> {
+        let s = s.into();
+        if s.len() > Self::MAX_BYTES {
             Err(format!(
                 "Size of a fencing token cannot exceed {} bytes",
                 Self::MAX_BYTES
             )
             .into())
         } else {
-            Ok(Self(bytes))
+            Ok(Self(s))
         }
     }
 
-    /// Generate a random fencing token with `n` bytes.
+    /// Generate a random alphanumeric fencing token of `n` bytes.
     pub fn generate(n: usize) -> Result<Self, ConvertError> {
         Self::new(
             rand::rng()
-                .sample_iter(rand::distr::StandardUniform)
+                .sample_iter(&rand::distr::Alphanumeric)
                 .take(n)
-                .collect::<Bytes>(),
+                .map(char::from)
+                .collect::<String>(),
         )
     }
 }
 
-impl AsRef<Bytes> for FencingToken {
-    fn as_ref(&self) -> &Bytes {
-        &self.0
-    }
-}
-
-impl AsRef<[u8]> for FencingToken {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
 impl Deref for FencingToken {
-    type Target = [u8];
+    type Target = str;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl From<FencingToken> for Bytes {
-    fn from(value: FencingToken) -> Self {
-        value.0
-    }
-}
-
-impl From<FencingToken> for Vec<u8> {
-    fn from(value: FencingToken) -> Self {
-        value.0.into()
-    }
-}
-
-impl TryFrom<Bytes> for FencingToken {
+impl TryFrom<&str> for FencingToken {
     type Error = ConvertError;
 
-    fn try_from(value: Bytes) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
-}
-
-impl TryFrom<Vec<u8>> for FencingToken {
-    type Error = ConvertError;
-
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::new(value)
     }
 }
@@ -1235,13 +1204,19 @@ impl From<AppendRecord> for api::AppendRecord {
 impl From<CommandRecord> for AppendRecord {
     fn from(value: CommandRecord) -> Self {
         let (header_value, body) = match value.command {
-            Command::Fence { fencing_token } => (CommandRecord::FENCE, fencing_token.into()),
-            Command::Trim { seq_num } => (CommandRecord::TRIM, seq_num.to_be_bytes().to_vec()),
+            Command::Fence { fencing_token } => (
+                CommandRecord::FENCE,
+                Bytes::copy_from_slice(fencing_token.as_bytes()),
+            ),
+            Command::Trim { seq_num } => (
+                CommandRecord::TRIM,
+                Bytes::copy_from_slice(&seq_num.to_be_bytes()),
+            ),
         };
         AppendRecordParts {
             timestamp: value.timestamp,
             headers: vec![Header::from_value(header_value)],
-            body: body.into(),
+            body,
         }
         .try_into()
         .expect("command record is a valid append record")
@@ -1730,7 +1705,8 @@ impl SequencedRecord {
 
         match header.value.as_ref() {
             CommandRecord::FENCE => {
-                let fencing_token = FencingToken::new(self.body.clone()).ok()?;
+                let fencing_token =
+                    FencingToken::new(std::str::from_utf8(&self.body).ok()?).ok()?;
                 Some(CommandRecord {
                     command: Command::Fence { fencing_token },
                     timestamp: Some(self.timestamp),

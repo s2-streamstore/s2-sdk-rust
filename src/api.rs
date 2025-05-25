@@ -362,8 +362,8 @@ pub struct AppendInput {
     #[prost(uint64, optional, tag = "3")]
     pub match_seq_num: ::core::option::Option<u64>,
     /// Enforce a fencing token which must have been previously set by a `fence` command record.
-    #[prost(bytes = "bytes", optional, tag = "4")]
-    pub fencing_token: ::core::option::Option<::prost::bytes::Bytes>,
+    #[prost(string, optional, tag = "4")]
+    pub fencing_token: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// Output from append response.
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]

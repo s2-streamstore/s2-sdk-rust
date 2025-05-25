@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stream = "my-favorite-stream";
     let stream_client = StreamClient::new(config, basin, stream);
 
-    let fencing_token = FencingToken::generate(16).expect("valid fencing token with 16 bytes");
+    let fencing_token = FencingToken::generate(32).expect("valid fencing token");
 
     // Set the fencing token.
     let fencing_token_record: AppendRecord = CommandRecord::fence(fencing_token.clone()).into();
