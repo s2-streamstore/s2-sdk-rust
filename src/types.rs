@@ -1010,6 +1010,24 @@ impl FromStr for FencingToken {
     }
 }
 
+impl TryFrom<String> for FencingToken {
+    type Error = ConvertError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        if value.len() > Self::MAX_BYTES {
+            Err(format!("Fencing token cannot exceed {} bytes", Self::MAX_BYTES).into())
+        } else {
+            Ok(Self(value))
+        }
+    }
+}
+
+impl From<FencingToken> for String {
+    fn from(value: FencingToken) -> Self {
+        value.0
+    }
+}
+
 /// Command to send through a `CommandRecord`.
 #[derive(Debug, Clone)]
 pub enum Command {
@@ -1825,12 +1843,6 @@ impl TryFrom<api::ReadSessionResponse> for ReadOutput {
 #[derive(Debug, Clone)]
 pub struct BasinName(String);
 
-impl AsRef<str> for BasinName {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
 impl Deref for BasinName {
     type Target = str;
     fn deref(&self) -> &Self::Target {
@@ -1878,16 +1890,16 @@ impl std::fmt::Display for BasinName {
     }
 }
 
+impl From<BasinName> for String {
+    fn from(value: BasinName) -> Self {
+        value.0
+    }
+}
+
 /// Access token ID.
 /// Must be between 1 and 96 characters.
 #[derive(Debug, Clone)]
 pub struct AccessTokenId(String);
-
-impl AsRef<str> for AccessTokenId {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
 
 impl Deref for AccessTokenId {
     type Target = str;
@@ -1924,6 +1936,12 @@ impl FromStr for AccessTokenId {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         s.to_string().try_into()
+    }
+}
+
+impl std::fmt::Display for AccessTokenId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
     }
 }
 
