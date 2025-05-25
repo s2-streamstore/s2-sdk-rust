@@ -1002,11 +1002,7 @@ impl FromStr for FencingToken {
     type Err = ConvertError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        if value.len() > Self::MAX_BYTES {
-            Err(format!("Fencing token cannot exceed {} bytes", Self::MAX_BYTES).into())
-        } else {
-            Ok(Self(value.to_owned()))
-        }
+        value.to_string().try_into()
     }
 }
 
