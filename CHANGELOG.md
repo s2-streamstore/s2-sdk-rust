@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.16] - 2025-05-25
+
+### Features
+
+- [**breaking**] Fencing token is now a string ([#185](https://github.com/s2-streamstore/s2-sdk-rust/issues/185))
+
 ## [0.15.0] - 2025-05-10
 
 ### Features
