@@ -1836,7 +1836,7 @@ impl TryFrom<api::ReadSessionResponse> for ReadOutput {
 ///
 /// Must be between 8 and 48 characters in length. Must comprise lowercase
 /// letters, numbers, and hyphens. Cannot begin or end with a hyphen.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BasinName(String);
 
 impl Deref for BasinName {
@@ -1894,7 +1894,7 @@ impl From<BasinName> for String {
 
 /// Access token ID.
 /// Must be between 1 and 96 characters.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AccessTokenId(String);
 
 impl Deref for AccessTokenId {
