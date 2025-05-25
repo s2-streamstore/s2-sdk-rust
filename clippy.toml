@@ -1,0 +1,2 @@
+# TODO: we can remove this override once tonic starts internally boxing, https://github.com/hyperium/tonic/issues/2253
+large-error-threshold = 256
