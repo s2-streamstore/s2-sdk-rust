@@ -474,7 +474,7 @@ mod tests {
             .map(|_| test_record.clone())
             .collect::<Vec<_>>();
 
-        let expected_fencing_token = types::FencingToken::new("hello").unwrap();
+        let expected_fencing_token: types::FencingToken = "hello".parse().unwrap();
         let mut expected_match_seq_num = 10;
 
         let num_batch_records = 3;

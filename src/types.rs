@@ -973,29 +973,14 @@ pub struct FencingToken(String);
 impl FencingToken {
     const MAX_BYTES: usize = 36;
 
-    /// Try creating a new fencing token from bytes.
-    pub fn new(s: impl Into<String>) -> Result<Self, ConvertError> {
-        let s = s.into();
-        if s.len() > Self::MAX_BYTES {
-            Err(format!(
-                "Size of a fencing token cannot exceed {} bytes",
-                Self::MAX_BYTES
-            )
-            .into())
-        } else {
-            Ok(Self(s))
-        }
-    }
-
     /// Generate a random alphanumeric fencing token of `n` bytes.
     pub fn generate(n: usize) -> Result<Self, ConvertError> {
-        Self::new(
-            rand::rng()
-                .sample_iter(&rand::distr::Alphanumeric)
-                .take(n)
-                .map(char::from)
-                .collect::<String>(),
-        )
+        rand::rng()
+            .sample_iter(&rand::distr::Alphanumeric)
+            .take(n)
+            .map(char::from)
+            .collect::<String>()
+            .parse()
     }
 }
 
@@ -1007,11 +992,35 @@ impl Deref for FencingToken {
     }
 }
 
-impl TryFrom<&str> for FencingToken {
+impl std::fmt::Display for FencingToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl FromStr for FencingToken {
+    type Err = ConvertError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        value.to_string().try_into()
+    }
+}
+
+impl TryFrom<String> for FencingToken {
     type Error = ConvertError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::new(value)
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        if value.len() > Self::MAX_BYTES {
+            Err(format!("Fencing token cannot exceed {} bytes", Self::MAX_BYTES).into())
+        } else {
+            Ok(Self(value))
+        }
+    }
+}
+
+impl From<FencingToken> for String {
+    fn from(value: FencingToken) -> Self {
+        value.0
     }
 }
 
@@ -1705,8 +1714,7 @@ impl SequencedRecord {
 
         match header.value.as_ref() {
             CommandRecord::FENCE => {
-                let fencing_token =
-                    FencingToken::new(std::str::from_utf8(&self.body).ok()?).ok()?;
+                let fencing_token = std::str::from_utf8(&self.body).ok()?.parse().ok()?;
                 Some(CommandRecord {
                     command: Command::Fence { fencing_token },
                     timestamp: Some(self.timestamp),
@@ -1831,12 +1839,6 @@ impl TryFrom<api::ReadSessionResponse> for ReadOutput {
 #[derive(Debug, Clone)]
 pub struct BasinName(String);
 
-impl AsRef<str> for BasinName {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
 impl Deref for BasinName {
     type Target = str;
     fn deref(&self) -> &Self::Target {
@@ -1884,16 +1886,16 @@ impl std::fmt::Display for BasinName {
     }
 }
 
+impl From<BasinName> for String {
+    fn from(value: BasinName) -> Self {
+        value.0
+    }
+}
+
 /// Access token ID.
 /// Must be between 1 and 96 characters.
 #[derive(Debug, Clone)]
 pub struct AccessTokenId(String);
-
-impl AsRef<str> for AccessTokenId {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
 
 impl Deref for AccessTokenId {
     type Target = str;
@@ -1930,6 +1932,12 @@ impl FromStr for AccessTokenId {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         s.to_string().try_into()
+    }
+}
+
+impl std::fmt::Display for AccessTokenId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
     }
 }
 
