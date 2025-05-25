@@ -1,7 +1,7 @@
 [package]
 name = "streamstore"
 description = "Rust SDK for S2"
-version = "0.15.0"
+version = "0.16.0"
 edition = "2024"
 license = "Apache-2.0"
 keywords = ["wal", "grpc", "s2", "log", "stream"]
@@ -28,7 +28,7 @@ bytes = "1.10.1"
 futures = "0.3.31"
 http = "1.3.1"
 hyper = "1.6.0"
-hyper-util = "0.1.11"
+hyper-util = "0.1.12"
 prost = "0.13.5"
 prost-types = "0.13.5"
 rand = "0.9.1"
@@ -36,7 +36,7 @@ regex = "1.11.1"
 secrecy = "0.10.3"
 sync_docs = "0.2.0"
 thiserror = "2.0.12"
-tokio = { version = "1.45.0", features = ["time"] }
+tokio = { version = "1.45.1", features = ["time"] }
 tokio-muxt = "0.6.0"
 tokio-stream = "0.1.17"
 tonic = { version = "0.13.1", features = [
@@ -47,14 +47,14 @@ tonic = { version = "0.13.1", features = [
 tonic-side-effect = "0.3.0"
 tower-service = "0.3.3"
 tracing = "0.1.41"
-uuid = { version = "1.16.0", features = ["v4", "fast-rng"] }
+uuid = { version = "1.17.0", features = ["v4", "fast-rng"] }
 
 [build-dependencies]
 tonic-build = { version = "0.13.1", features = ["prost"], optional = true }
 
 [dev-dependencies]
 rstest = "0.25.0"
-tokio = { version = "1.45.0", features = ["full", "test-util"] }
+tokio = { version = "1.45.1", features = ["full", "test-util"] }
 tokio-stream = "0.1.17"
 
 [features]
