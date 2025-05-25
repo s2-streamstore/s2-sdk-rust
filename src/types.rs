@@ -973,29 +973,14 @@ pub struct FencingToken(String);
 impl FencingToken {
     const MAX_BYTES: usize = 36;
 
-    /// Try creating a new fencing token from bytes.
-    pub fn new(s: impl Into<String>) -> Result<Self, ConvertError> {
-        let s = s.into();
-        if s.len() > Self::MAX_BYTES {
-            Err(format!(
-                "Size of a fencing token cannot exceed {} bytes",
-                Self::MAX_BYTES
-            )
-            .into())
-        } else {
-            Ok(Self(s))
-        }
-    }
-
     /// Generate a random alphanumeric fencing token of `n` bytes.
     pub fn generate(n: usize) -> Result<Self, ConvertError> {
-        Self::new(
-            rand::rng()
-                .sample_iter(&rand::distr::Alphanumeric)
-                .take(n)
-                .map(char::from)
-                .collect::<String>(),
-        )
+        rand::rng()
+            .sample_iter(&rand::distr::Alphanumeric)
+            .take(n)
+            .map(char::from)
+            .collect::<String>()
+            .parse()
     }
 }
 
@@ -1007,11 +992,21 @@ impl Deref for FencingToken {
     }
 }
 
-impl TryFrom<&str> for FencingToken {
-    type Error = ConvertError;
+impl std::fmt::Display for FencingToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::new(value)
+impl FromStr for FencingToken {
+    type Err = ConvertError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        if value.len() > Self::MAX_BYTES {
+            Err(format!("Fencing token cannot exceed {} bytes", Self::MAX_BYTES).into())
+        } else {
+            Ok(Self(value.to_owned()))
+        }
     }
 }
 
@@ -1705,8 +1700,7 @@ impl SequencedRecord {
 
         match header.value.as_ref() {
             CommandRecord::FENCE => {
-                let fencing_token =
-                    FencingToken::new(std::str::from_utf8(&self.body).ok()?).ok()?;
+                let fencing_token = std::str::from_utf8(&self.body).ok()?.parse().ok()?;
                 Some(CommandRecord {
                     command: Command::Fence { fencing_token },
                     timestamp: Some(self.timestamp),
