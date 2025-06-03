@@ -454,6 +454,11 @@ pub struct ReadRequest {
     /// which is up to 1000 records or 1MiB of metered bytes.
     #[prost(message, optional, tag = "3")]
     pub limit: ::core::option::Option<ReadLimit>,
+    /// Exclusive timestamp to read until.
+    /// If provided, this is applied as an additional constraint on top of the `limit`,
+    /// and will guarantee that all records returned have timestamps < the provided `until`.
+    #[prost(uint64, optional, tag = "6")]
+    pub until: ::core::option::Option<u64>,
     /// Starting position for records.
     /// Retrieved batches will start at the first record whose position is greater than or equal to it.
     #[prost(oneof = "read_request::Start", tags = "2, 4, 5")]
@@ -511,6 +516,11 @@ pub struct ReadSessionRequest {
     /// as well as when no records are available at a randomized interval between 5 and 15 seconds.
     #[prost(bool, tag = "4")]
     pub heartbeats: bool,
+    /// Exclusive timestamp to read until.
+    /// If provided, this is applied as an additional constraint on top of the `limit`,
+    /// and will guarantee that all records returned have timestamps < the provided `until`.
+    #[prost(uint64, optional, tag = "7")]
+    pub until: ::core::option::Option<u64>,
     /// Starting position for records.
     /// Retrieved batches will start at the first record whose position is greater than or equal to it.
     #[prost(oneof = "read_session_request::Start", tags = "2, 5, 6")]
@@ -724,6 +734,12 @@ pub enum Operation {
     Trim = 17,
     /// Set a fencing token for a stream.
     Fence = 18,
+    /// Retrieve account-level metrics.
+    AccountMetrics = 19,
+    /// Retrieve basin-level metrics.
+    BasinMetrics = 20,
+    /// Retrieve stream-level metrics.
+    StreamMetrics = 21,
 }
 impl Operation {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -751,6 +767,9 @@ impl Operation {
             Self::Read => "OPERATION_READ",
             Self::Trim => "OPERATION_TRIM",
             Self::Fence => "OPERATION_FENCE",
+            Self::AccountMetrics => "OPERATION_ACCOUNT_METRICS",
+            Self::BasinMetrics => "OPERATION_BASIN_METRICS",
+            Self::StreamMetrics => "OPERATION_STREAM_METRICS",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -775,6 +794,9 @@ impl Operation {
             "OPERATION_READ" => Some(Self::Read),
             "OPERATION_TRIM" => Some(Self::Trim),
             "OPERATION_FENCE" => Some(Self::Fence),
+            "OPERATION_ACCOUNT_METRICS" => Some(Self::AccountMetrics),
+            "OPERATION_BASIN_METRICS" => Some(Self::BasinMetrics),
+            "OPERATION_STREAM_METRICS" => Some(Self::StreamMetrics),
             _ => None,
         }
     }
