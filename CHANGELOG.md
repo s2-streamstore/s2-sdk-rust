@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.17.0] - 2025-06-06
+
+### Features
+
+- `until` timestamp in reads + new metrics op types ([#193](https://github.com/s2-streamstore/s2-sdk-rust/issues/193))
+
+### Miscellaneous Tasks
+
+- Derive `PartialEq`, `Eq`, `Hash` on stringy newtypes ([#191](https://github.com/s2-streamstore/s2-sdk-rust/issues/191))
+
 ## [0.16.2] - 2025-05-25
 
 ### Features
