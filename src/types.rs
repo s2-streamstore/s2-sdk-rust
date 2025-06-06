@@ -1,6 +1,12 @@
 //! Types for interacting with S2 services.
 
-use std::{collections::HashSet, ops::Deref, str::FromStr, sync::OnceLock, time::Duration};
+use std::{
+    collections::HashSet,
+    ops::{Deref, RangeTo},
+    str::FromStr,
+    sync::OnceLock,
+    time::Duration,
+};
 
 use bytes::Bytes;
 use rand::Rng;
@@ -1628,6 +1634,7 @@ impl From<ReadStart> for api::read_session_request::Start {
 pub struct ReadRequest {
     pub start: ReadStart,
     pub limit: ReadLimit,
+    pub until: Option<RangeTo<u64>>,
 }
 
 impl ReadRequest {
@@ -1643,6 +1650,14 @@ impl ReadRequest {
     pub fn with_limit(self, limit: ReadLimit) -> Self {
         Self { limit, ..self }
     }
+
+    /// Provide an `until` timestamp.
+    pub fn with_until(self, until: RangeTo<u64>) -> Self {
+        Self {
+            until: Some(until),
+            ..self
+        }
+    }
 }
 
 impl ReadRequest {
@@ -1650,7 +1665,11 @@ impl ReadRequest {
         self,
         stream: impl Into<String>,
     ) -> Result<api::ReadRequest, ConvertError> {
-        let Self { start, limit } = self;
+        let Self {
+            start,
+            limit,
+            until,
+        } = self;
 
         let limit = if limit.count > Some(1000) {
             Err("read limit: count must not exceed 1000 for unary request")
@@ -1667,6 +1686,7 @@ impl ReadRequest {
             stream: stream.into(),
             start: Some(start.into()),
             limit: Some(limit),
+            until: until.map(|range| range.end),
         })
     }
 }
@@ -1793,6 +1813,7 @@ impl TryFrom<api::ReadResponse> for ReadOutput {
 pub struct ReadSessionRequest {
     pub start: ReadStart,
     pub limit: ReadLimit,
+    pub until: Option<RangeTo<u64>>,
 }
 
 impl ReadSessionRequest {
@@ -1809,8 +1830,20 @@ impl ReadSessionRequest {
         Self { limit, ..self }
     }
 
+    /// Provide an `until` timestamp.
+    pub fn with_until(self, until: RangeTo<u64>) -> Self {
+        Self {
+            until: Some(until),
+            ..self
+        }
+    }
+
     pub(crate) fn into_api_type(self, stream: impl Into<String>) -> api::ReadSessionRequest {
-        let Self { start, limit } = self;
+        let Self {
+            start,
+            limit,
+            until,
+        } = self;
         api::ReadSessionRequest {
             stream: stream.into(),
             start: Some(start.into()),
@@ -1819,6 +1852,7 @@ impl ReadSessionRequest {
                 bytes: limit.bytes,
             }),
             heartbeats: false,
+            until: until.map(|range| range.end),
         }
     }
 }
@@ -2051,6 +2085,9 @@ pub enum Operation {
     Read,
     Trim,
     Fence,
+    AccountMetrics,
+    BasinMetrics,
+    StreamMetrics,
 }
 
 impl FromStr for Operation {
@@ -2076,6 +2113,9 @@ impl FromStr for Operation {
             "read" => Ok(Self::Read),
             "trim" => Ok(Self::Trim),
             "fence" => Ok(Self::Fence),
+            "account-metrics" => Ok(Self::AccountMetrics),
+            "basin-metrics" => Ok(Self::BasinMetrics),
+            "stream-metrics" => Ok(Self::StreamMetrics),
             _ => Err("invalid operation".into()),
         }
     }
@@ -2102,6 +2142,9 @@ impl From<Operation> for api::Operation {
             Operation::Read => Self::Read,
             Operation::Trim => Self::Trim,
             Operation::Fence => Self::Fence,
+            Operation::AccountMetrics => Self::AccountMetrics,
+            Operation::BasinMetrics => Self::BasinMetrics,
+            Operation::StreamMetrics => Self::StreamMetrics,
         }
     }
 }
@@ -2128,6 +2171,9 @@ impl From<api::Operation> for Option<Operation> {
             api::Operation::Read => Some(Operation::Read),
             api::Operation::Trim => Some(Operation::Trim),
             api::Operation::Fence => Some(Operation::Fence),
+            api::Operation::AccountMetrics => Some(Operation::AccountMetrics),
+            api::Operation::BasinMetrics => Some(Operation::BasinMetrics),
+            api::Operation::StreamMetrics => Some(Operation::StreamMetrics),
         }
     }
 }
