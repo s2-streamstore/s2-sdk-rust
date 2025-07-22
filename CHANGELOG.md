@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.18.0] - 2025-07-22
+
+### Features
+
+- Clamp ([#197](https://github.com/s2-streamstore/s2-sdk-rust/issues/197))
+
 ## [0.17.0] - 2025-06-06
 
 ### Features
