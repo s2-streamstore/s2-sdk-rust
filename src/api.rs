@@ -459,6 +459,9 @@ pub struct ReadRequest {
     /// and will guarantee that all records returned have timestamps < the provided `until`.
     #[prost(uint64, optional, tag = "6")]
     pub until: ::core::option::Option<u64>,
+    /// Clamp the start position at the tail position.
+    #[prost(bool, tag = "7")]
+    pub clamp: bool,
     /// Starting position for records.
     /// Retrieved batches will start at the first record whose position is greater than or equal to it.
     #[prost(oneof = "read_request::Start", tags = "2, 4, 5")]
@@ -521,6 +524,9 @@ pub struct ReadSessionRequest {
     /// and will guarantee that all records returned have timestamps < the provided `until`.
     #[prost(uint64, optional, tag = "7")]
     pub until: ::core::option::Option<u64>,
+    /// Clamp the start position at the tail position.
+    #[prost(bool, tag = "8")]
+    pub clamp: bool,
     /// Starting position for records.
     /// Retrieved batches will start at the first record whose position is greater than or equal to it.
     #[prost(oneof = "read_session_request::Start", tags = "2, 5, 6")]

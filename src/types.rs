@@ -1635,6 +1635,7 @@ pub struct ReadRequest {
     pub start: ReadStart,
     pub limit: ReadLimit,
     pub until: Option<RangeTo<u64>>,
+    pub clamp: bool,
 }
 
 impl ReadRequest {
@@ -1658,6 +1659,11 @@ impl ReadRequest {
             ..self
         }
     }
+
+    /// Clamp the start position at the tail position.
+    pub fn with_clamp(self, clamp: bool) -> Self {
+        Self { clamp, ..self }
+    }
 }
 
 impl ReadRequest {
@@ -1669,6 +1675,7 @@ impl ReadRequest {
             start,
             limit,
             until,
+            clamp,
         } = self;
 
         let limit = if limit.count > Some(1000) {
@@ -1687,6 +1694,7 @@ impl ReadRequest {
             start: Some(start.into()),
             limit: Some(limit),
             until: until.map(|range| range.end),
+            clamp,
         })
     }
 }
@@ -1814,6 +1822,7 @@ pub struct ReadSessionRequest {
     pub start: ReadStart,
     pub limit: ReadLimit,
     pub until: Option<RangeTo<u64>>,
+    pub clamp: bool,
 }
 
 impl ReadSessionRequest {
@@ -1838,11 +1847,17 @@ impl ReadSessionRequest {
         }
     }
 
+    /// Clamp the start position at the tail position.
+    pub fn with_clamp(self, clamp: bool) -> Self {
+        Self { clamp, ..self }
+    }
+
     pub(crate) fn into_api_type(self, stream: impl Into<String>) -> api::ReadSessionRequest {
         let Self {
             start,
             limit,
             until,
+            clamp,
         } = self;
         api::ReadSessionRequest {
             stream: stream.into(),
@@ -1853,6 +1868,7 @@ impl ReadSessionRequest {
             }),
             heartbeats: false,
             until: until.map(|range| range.end),
+            clamp,
         }
     }
 }
