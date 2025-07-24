@@ -298,29 +298,29 @@ impl From<api::stream_config::Timestamping> for TimestampingConfig {
     }
 }
 
-#[sync_docs(DeleteOnEmpty = "DeleteOnEmpty")]
+#[sync_docs(min_age = "min_age_secs")]
 #[derive(Debug, Clone, Default)]
-/// Delete on empty config.
+/// Delete-on-empty config.
 pub struct DeleteOnEmpty {
-    pub min_age_secs: u64,
+    pub min_age: Duration,
 }
 
 impl DeleteOnEmpty {
-    /// Create a new delete on empty config.
+    /// Create a new delete-on-empty config.
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Overwrite min age.
-    pub fn with_min_age(self, min_age_secs: u64) -> Self {
-        Self { min_age_secs }
+    pub fn with_min_age(self, min_age: Duration) -> Self {
+        Self { min_age }
     }
 }
 
 impl From<DeleteOnEmpty> for api::stream_config::DeleteOnEmpty {
     fn from(value: DeleteOnEmpty) -> Self {
         Self {
-            min_age_secs: value.min_age_secs,
+            min_age_secs: value.min_age.as_secs(),
         }
     }
 }
@@ -328,7 +328,7 @@ impl From<DeleteOnEmpty> for api::stream_config::DeleteOnEmpty {
 impl From<api::stream_config::DeleteOnEmpty> for DeleteOnEmpty {
     fn from(value: api::stream_config::DeleteOnEmpty) -> Self {
         Self {
-            min_age_secs: value.min_age_secs,
+            min_age: Duration::from_secs(value.min_age_secs),
         }
     }
 }
@@ -372,7 +372,7 @@ impl StreamConfig {
         }
     }
 
-    /// Overwrite delete on empty config.
+    /// Overwrite delete-on-empty config.
     pub fn with_delete_on_empty(self, delete_on_empty: DeleteOnEmpty) -> Self {
         Self {
             delete_on_empty: Some(delete_on_empty),
