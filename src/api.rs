@@ -566,6 +566,9 @@ pub struct StreamConfig {
     /// Timestamping behavior.
     #[prost(message, optional, tag = "5")]
     pub timestamping: ::core::option::Option<stream_config::Timestamping>,
+    /// Delete-on-empty configuration.
+    #[prost(message, optional, tag = "6")]
+    pub delete_on_empty: ::core::option::Option<stream_config::DeleteOnEmpty>,
     /// Retention policy for the stream.
     /// If unspecified, the default is to retain records for 7 days.
     #[prost(oneof = "stream_config::RetentionPolicy", tags = "2")]
@@ -582,6 +585,13 @@ pub mod stream_config {
         /// If this is false or not set, client timestamps will be capped at the arrival time.
         #[prost(bool, optional, tag = "2")]
         pub uncapped: ::core::option::Option<bool>,
+    }
+    #[derive(Clone, Copy, PartialEq, ::prost::Message)]
+    pub struct DeleteOnEmpty {
+        /// Minimum age in seconds before an empty stream can be deleted.
+        /// Set to 0 (default) to disable (don't delete automatically).
+        #[prost(uint64, tag = "1")]
+        pub min_age_secs: u64,
     }
     /// Retention policy for the stream.
     /// If unspecified, the default is to retain records for 7 days.
