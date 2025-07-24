@@ -298,12 +298,48 @@ impl From<api::stream_config::Timestamping> for TimestampingConfig {
     }
 }
 
+#[sync_docs(DeleteOnEmpty = "DeleteOnEmpty")]
+#[derive(Debug, Clone, Default)]
+/// Delete on empty config.
+pub struct DeleteOnEmpty {
+    pub min_age_secs: u64,
+}
+
+impl DeleteOnEmpty {
+    /// Create a new delete on empty config.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Overwrite min age.
+    pub fn with_min_age(self, min_age_secs: u64) -> Self {
+        Self { min_age_secs }
+    }
+}
+
+impl From<DeleteOnEmpty> for api::stream_config::DeleteOnEmpty {
+    fn from(value: DeleteOnEmpty) -> Self {
+        Self {
+            min_age_secs: value.min_age_secs,
+        }
+    }
+}
+
+impl From<api::stream_config::DeleteOnEmpty> for DeleteOnEmpty {
+    fn from(value: api::stream_config::DeleteOnEmpty) -> Self {
+        Self {
+            min_age_secs: value.min_age_secs,
+        }
+    }
+}
+
 #[sync_docs]
 #[derive(Debug, Clone, Default)]
 pub struct StreamConfig {
     pub storage_class: Option<StorageClass>,
     pub retention_policy: Option<RetentionPolicy>,
     pub timestamping: Option<TimestampingConfig>,
+    pub delete_on_empty: Option<DeleteOnEmpty>,
 }
 
 impl StreamConfig {
@@ -335,6 +371,14 @@ impl StreamConfig {
             ..self
         }
     }
+
+    /// Overwrite delete on empty config.
+    pub fn with_delete_on_empty(self, delete_on_empty: DeleteOnEmpty) -> Self {
+        Self {
+            delete_on_empty: Some(delete_on_empty),
+            ..self
+        }
+    }
 }
 
 impl From<StreamConfig> for api::StreamConfig {
@@ -343,6 +387,7 @@ impl From<StreamConfig> for api::StreamConfig {
             storage_class,
             retention_policy,
             timestamping,
+            delete_on_empty,
         } = value;
         Self {
             storage_class: storage_class
@@ -351,6 +396,7 @@ impl From<StreamConfig> for api::StreamConfig {
                 .into(),
             retention_policy: retention_policy.map(Into::into),
             timestamping: timestamping.map(Into::into),
+            delete_on_empty: delete_on_empty.map(Into::into),
         }
     }
 }
@@ -361,6 +407,7 @@ impl From<api::StreamConfig> for StreamConfig {
             storage_class: value.storage_class().into(),
             retention_policy: value.retention_policy.map(Into::into),
             timestamping: value.timestamping.map(Into::into),
+            delete_on_empty: value.delete_on_empty.map(Into::into),
         }
     }
 }
