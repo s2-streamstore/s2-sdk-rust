@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.19.1] - 2025-07-28
+
+### Miscellaneous Tasks
+
+- Renaming DeleteOnEmpty -> DeleteOnEmptyConfig ([#202](https://github.com/s2-streamstore/s2-sdk-rust/issues/202))
+
 ## [0.19.0] - 2025-07-24
 
 ### Features
