@@ -298,14 +298,14 @@ impl From<api::stream_config::Timestamping> for TimestampingConfig {
     }
 }
 
-#[sync_docs(min_age = "min_age_secs")]
+#[sync_docs(DeleteOnEmptyConfig = "DeleteOnEmpty", min_age = "min_age_secs")]
 #[derive(Debug, Clone, Default)]
 /// Delete-on-empty config.
-pub struct DeleteOnEmpty {
+pub struct DeleteOnEmptyConfig {
     pub min_age: Duration,
 }
 
-impl DeleteOnEmpty {
+impl DeleteOnEmptyConfig {
     /// Create a new delete-on-empty config.
     pub fn new() -> Self {
         Self::default()
@@ -317,15 +317,15 @@ impl DeleteOnEmpty {
     }
 }
 
-impl From<DeleteOnEmpty> for api::stream_config::DeleteOnEmpty {
-    fn from(value: DeleteOnEmpty) -> Self {
+impl From<DeleteOnEmptyConfig> for api::stream_config::DeleteOnEmpty {
+    fn from(value: DeleteOnEmptyConfig) -> Self {
         Self {
             min_age_secs: value.min_age.as_secs(),
         }
     }
 }
 
-impl From<api::stream_config::DeleteOnEmpty> for DeleteOnEmpty {
+impl From<api::stream_config::DeleteOnEmpty> for DeleteOnEmptyConfig {
     fn from(value: api::stream_config::DeleteOnEmpty) -> Self {
         Self {
             min_age: Duration::from_secs(value.min_age_secs),
@@ -339,7 +339,7 @@ pub struct StreamConfig {
     pub storage_class: Option<StorageClass>,
     pub retention_policy: Option<RetentionPolicy>,
     pub timestamping: Option<TimestampingConfig>,
-    pub delete_on_empty: Option<DeleteOnEmpty>,
+    pub delete_on_empty: Option<DeleteOnEmptyConfig>,
 }
 
 impl StreamConfig {
@@ -373,7 +373,7 @@ impl StreamConfig {
     }
 
     /// Overwrite delete-on-empty config.
-    pub fn with_delete_on_empty(self, delete_on_empty: DeleteOnEmpty) -> Self {
+    pub fn with_delete_on_empty(self, delete_on_empty: DeleteOnEmptyConfig) -> Self {
         Self {
             delete_on_empty: Some(delete_on_empty),
             ..self
