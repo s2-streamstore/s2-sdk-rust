@@ -460,6 +460,7 @@ pub struct ReadRequest {
     #[prost(uint64, optional, tag = "6")]
     pub until: ::core::option::Option<u64>,
     /// Clamp the start position at the tail position.
+    /// If set, the read will start at the tail of the stream if the requested position is greater than it.
     #[prost(bool, tag = "7")]
     pub clamp: bool,
     /// Starting position for records.
