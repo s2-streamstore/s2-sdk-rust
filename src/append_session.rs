@@ -261,7 +261,11 @@ where
     let mut client_input_terminated = false;
     let mut stashed_ack = None;
 
-    while !(client_input_terminated && inflight.is_empty() && stashed_ack.is_none() && stashed_request.is_none()) {
+    while !(client_input_terminated
+        && inflight.is_empty()
+        && stashed_ack.is_none()
+        && stashed_request.is_none())
+    {
         tokio::select! {
             (event_ord, _deadline) = &mut timer, if timer.is_armed() => {
                 match TimerEvent::from(event_ord) {
