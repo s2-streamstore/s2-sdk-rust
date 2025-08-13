@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.19.2] - 2025-08-13
+
+### Bug Fixes
+
+- Append session assertion failure ([#206](https://github.com/s2-streamstore/s2-sdk-rust/issues/206))
+
 ## [0.19.1] - 2025-07-28
 
 ### Miscellaneous Tasks
