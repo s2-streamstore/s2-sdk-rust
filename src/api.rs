@@ -460,6 +460,7 @@ pub struct ReadRequest {
     #[prost(uint64, optional, tag = "6")]
     pub until: ::core::option::Option<u64>,
     /// Clamp the start position at the tail position.
+    /// If set, the read will start at the tail of the stream if the requested position is greater than it.
     #[prost(bool, tag = "7")]
     pub clamp: bool,
     /// Starting position for records.
@@ -598,7 +599,8 @@ pub mod stream_config {
     #[derive(Clone, Copy, PartialEq, ::prost::Oneof)]
     pub enum RetentionPolicy {
         /// Age in seconds for automatic trimming of records older than this threshold.
-        /// If set to 0, the stream will have infinite retention.
+        /// If this is set to 0, the stream will have infinite retention.
+        /// (While S2 is in public preview, this is capped at 28 days. Let us know if you'd like the cap removed.)
         #[prost(uint64, tag = "2")]
         Age(u64),
     }
