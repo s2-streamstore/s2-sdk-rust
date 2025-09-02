@@ -454,12 +454,16 @@ impl FromStr for StorageClass {
 #[derive(Debug, Clone)]
 pub enum RetentionPolicy {
     Age(Duration),
+    Infinite(()),
 }
 
 impl From<RetentionPolicy> for api::stream_config::RetentionPolicy {
     fn from(value: RetentionPolicy) -> Self {
         match value {
             RetentionPolicy::Age(duration) => Self::Age(duration.as_secs()),
+            RetentionPolicy::Infinite(_) => {
+                Self::Infinite(api::stream_config::InfiniteRetention {})
+            }
         }
     }
 }
@@ -468,6 +472,7 @@ impl From<api::stream_config::RetentionPolicy> for RetentionPolicy {
     fn from(value: api::stream_config::RetentionPolicy) -> Self {
         match value {
             api::stream_config::RetentionPolicy::Age(secs) => Self::Age(Duration::from_secs(secs)),
+            api::stream_config::RetentionPolicy::Infinite(_) => Self::Infinite(()),
         }
     }
 }

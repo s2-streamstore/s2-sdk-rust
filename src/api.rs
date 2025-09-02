@@ -572,7 +572,7 @@ pub struct StreamConfig {
     pub delete_on_empty: ::core::option::Option<stream_config::DeleteOnEmpty>,
     /// Retention policy for the stream.
     /// If unspecified, the default is to retain records for 7 days.
-    #[prost(oneof = "stream_config::RetentionPolicy", tags = "2")]
+    #[prost(oneof = "stream_config::RetentionPolicy", tags = "2, 7")]
     pub retention_policy: ::core::option::Option<stream_config::RetentionPolicy>,
 }
 /// Nested message and enum types in `StreamConfig`.
@@ -594,15 +594,19 @@ pub mod stream_config {
         #[prost(uint64, tag = "1")]
         pub min_age_secs: u64,
     }
+    #[derive(Clone, Copy, PartialEq, ::prost::Message)]
+    pub struct InfiniteRetention {}
     /// Retention policy for the stream.
     /// If unspecified, the default is to retain records for 7 days.
     #[derive(Clone, Copy, PartialEq, ::prost::Oneof)]
     pub enum RetentionPolicy {
         /// Age in seconds for automatic trimming of records older than this threshold.
-        /// If this is set to 0, the stream will have infinite retention.
         /// (While S2 is in public preview, this is capped at 28 days. Let us know if you'd like the cap removed.)
         #[prost(uint64, tag = "2")]
         Age(u64),
+        /// Retain records unless explicitly trimmed.
+        #[prost(message, tag = "7")]
+        Infinite(InfiniteRetention),
     }
 }
 /// Basin configuration.
