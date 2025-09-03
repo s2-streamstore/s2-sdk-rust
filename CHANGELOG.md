@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.20.0] - 2025-09-03
+
+### Features
+
+- Support `Infinite` retention policy ([#209](https://github.com/s2-streamstore/s2-sdk-rust/issues/209))
+
 ## [0.19.2] - 2025-08-13
 
 ### Bug Fixes
