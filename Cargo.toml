@@ -61,7 +61,7 @@ tokio-stream = "0.1.17"
 
 [features]
 connector = []
-prost-build = ["dep:tonic-build"]
+prost-build = ["dep:tonic-build", "dep:tonic-prost-build"]
 
 [lints.clippy]
 unused_async = "deny"
