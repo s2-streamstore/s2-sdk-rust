@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.21.0] - 2025-09-11
+
+### Miscellaneous Tasks
+
+- Upgrade to tonic & prost 0.14 ([#212](https://github.com/s2-streamstore/s2-sdk-rust/issues/212))
+
 ## [0.20.0] - 2025-09-03
 
 ### Features
