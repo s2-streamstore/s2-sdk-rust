@@ -459,8 +459,8 @@ pub struct ReadRequest {
     /// and will guarantee that all records returned have timestamps \< the provided `until`.
     #[prost(uint64, optional, tag = "6")]
     pub until: ::core::option::Option<u64>,
-    /// Clamp the start position at the tail position.
-    /// If set, the read will start at the tail of the stream if the requested position is greater than it.
+    /// Start reading from the tail if the requested position is beyond it.
+    /// Otherwise, the next sequence number will be returned.
     #[prost(bool, tag = "7")]
     pub clamp: bool,
     /// Starting position for records.
@@ -511,12 +511,12 @@ pub struct ReadSessionRequest {
     pub stream: ::prost::alloc::string::String,
     /// Limit on how many records can be returned. When a limit is specified, the session will be terminated as soon as
     /// the limit is met, or when the current tail of the stream is reached -- whichever occurs first.
-    /// If no limit is specified, the session will remain open after catching up to the tail, and continue tailing as
-    /// new messages are written to the stream.
+    /// If no limit is specified, the session will remain open after catching up to the tail, and continue following
+    /// in real-time as new messages are written to the stream.
     #[prost(message, optional, tag = "3")]
     pub limit: ::core::option::Option<ReadLimit>,
     /// Heartbeats can be enabled to monitor end-to-end session health.
-    /// A heartbeat will be sent when the initial switch to real-time tailing happens,
+    /// A heartbeat will be sent when the initial switch to following in real-time happens,
     /// as well as when no records are available at a randomized interval between 5 and 15 seconds.
     #[prost(bool, tag = "4")]
     pub heartbeats: bool,
@@ -525,7 +525,8 @@ pub struct ReadSessionRequest {
     /// and will guarantee that all records returned have timestamps \< the provided `until`.
     #[prost(uint64, optional, tag = "7")]
     pub until: ::core::option::Option<u64>,
-    /// Clamp the start position at the tail position.
+    /// Start reading from the tail if the requested position is beyond it.
+    /// Otherwise, the next sequence number will be returned.
     #[prost(bool, tag = "8")]
     pub clamp: bool,
     /// Starting position for records.
