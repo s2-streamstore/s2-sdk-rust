@@ -1,8 +1,8 @@
 /*!
-Rust SDK for S2.
+Rust SDK for [S2](https://s2.dev/).
 
 The Rust SDK provides ergonomic wrappers and utilities to interact with the
-[S2 API](https://s2.dev/docs/interface/grpc).
+[S2 API](https://s2.dev/docs/rest/protocol).
 
 # Getting started
 
@@ -19,22 +19,27 @@ The Rust SDK provides ergonomic wrappers and utilities to interact with the
    cargo add streamstore
    ```
 
-1. Generate an authentication token by logging onto the web console at [s2.dev](https://s2.dev/dashboard).
+1. Generate an access token by logging into the web console at [s2.dev](https://s2.dev/dashboard).
 
-1. Make a request using SDK client.
+1. Perform an operation.
 
    ```no_run
-   # let _ = async move {
-   let config = s2::ClientConfig::new("<YOUR AUTH TOKEN>");
-   let client = s2::Client::new(config);
+    use s2::{
+        S2,
+        types::{ListBasinsInput, S2Config},
+    };
 
-   let basins = client.list_basins(Default::default()).await?;
-   println!("My basins: {:?}", basins);
-   # return Ok::<(), s2::client::ClientError>(()); };
+    #[tokio::main]
+    async fn main() -> Result<(), Box<dyn std::error::Error>> {
+        let s2 = S2::new(S2Config::new("<YOUR_ACCESS_TOKEN>"))?;
+        let page = s2.list_basins(ListBasinsInput::new()).await?;
+        println!("My basins: {:?}", page.values);
+        Ok(())
+    }
    ```
 
-See documentation for the [`client`] module for more information on how to
-use the client, and what requests can be made.
+See [`S2`] for account-level operations, [`S2Basin`] for basin-level operations,
+and [`S2Stream`] for stream-level operations.
 
 # Examples
 
@@ -44,7 +49,7 @@ demonstrating how to use the SDK effectively:
 
 * [List all basins](https://github.com/s2-streamstore/s2-sdk-rust/blob/main/examples/list_all_basins.rs)
 * [Explicit stream trimming](https://github.com/s2-streamstore/s2-sdk-rust/blob/main/examples/explicit_trim.rs)
-* [Producer (with concurrency control)](https://github.com/s2-streamstore/s2-sdk-rust/blob/main/examples/producer.rs)
+* [Producer](https://github.com/s2-streamstore/s2-sdk-rust/blob/main/examples/producer.rs)
 * [Consumer](https://github.com/s2-streamstore/s2-sdk-rust/blob/main/examples/consumer.rs)
 * and many more...
 
@@ -77,13 +82,18 @@ issue.
 
 #[rustfmt::skip]
 mod api;
-
-mod append_session;
-mod service;
+mod session;
 
 pub mod batching;
-pub mod client;
+mod ops;
+pub mod producer;
+mod retry;
 pub mod types;
 
-pub use client::{BasinClient, Client, ClientConfig, StreamClient};
-pub use service::Streaming;
+pub use ops::{S2, S2Basin, S2Stream};
+/// Append session for pipelining multiple appends with backpressure control.
+///
+/// See [AppendSession](append_session::AppendSession).
+pub mod append_session {
+    pub use crate::session::append::{AppendSession, AppendSessionConfig, BatchSubmitTicket};
+}

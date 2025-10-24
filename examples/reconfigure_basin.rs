@@ -1,31 +1,34 @@
 use s2::{
-    client::{Client, ClientConfig},
-    types::{BasinConfig, BasinName, ReconfigureBasinRequest, StorageClass, StreamConfig},
+    S2,
+    types::{
+        BasinName, BasinReconfiguration, ReconfigureBasinInput, S2Config, StorageClass,
+        StreamReconfiguration, TimestampingReconfiguration,
+    },
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("S2_ACCESS_TOKEN")?;
-    let config = ClientConfig::new(token);
-    let client = Client::new(config);
+    let access_token =
+        std::env::var("S2_ACCESS_TOKEN").map_err(|_| "S2_ACCESS_TOKEN env var not set")?;
+    let basin_name: BasinName = std::env::var("S2_BASIN")
+        .map_err(|_| "S2_BASIN env var not set")?
+        .parse()?;
 
-    let basin: BasinName = "my-favorite-basin".parse()?;
+    let config = S2Config::new(access_token);
+    let s2 = S2::new(config)?;
 
-    let default_stream_config_updates =
-        StreamConfig::new().with_storage_class(StorageClass::Standard);
-    let basin_config_updates = BasinConfig::new()
-        .with_default_stream_config(default_stream_config_updates)
-        .with_create_stream_on_append(true)
-        .with_create_stream_on_read(true);
-
-    let reconfigure_basin_request = ReconfigureBasinRequest::new(basin)
-        .with_config(basin_config_updates)
-        // Field mask specifies which fields to update.
-        .with_mask(vec!["default_stream_config.retention_policy".to_string()]);
-
-    let updated_basin_config = client.reconfigure_basin(reconfigure_basin_request).await?;
-
-    println!("{updated_basin_config:#?}");
+    let input = ReconfigureBasinInput::new(
+        basin_name,
+        BasinReconfiguration::new()
+            .with_default_stream_config(
+                StreamReconfiguration::new()
+                    .with_storage_class(StorageClass::Standard)
+                    .with_timestamping(TimestampingReconfiguration::new().with_uncapped(true)),
+            )
+            .with_create_stream_on_read(true),
+    );
+    let config = s2.reconfigure_basin(input).await?;
+    println!("{config:#?}");
 
     Ok(())
 }

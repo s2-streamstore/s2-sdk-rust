@@ -1,31 +1,33 @@
 use s2::{
-    client::{Client, ClientConfig},
-    types::ListBasinsRequest,
+    S2,
+    types::{BasinNameStartAfter, ListBasinsInput, S2Config},
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("S2_ACCESS_TOKEN")?;
-    let config = ClientConfig::new(token);
-    let client = Client::new(config);
+    let access_token =
+        std::env::var("S2_ACCESS_TOKEN").map_err(|_| "S2_ACCESS_TOKEN env var not set")?;
+
+    let config = S2Config::new(access_token);
+    let s2 = S2::new(config)?;
 
     let mut all_basins = Vec::new();
 
     let mut has_more = true;
-    let mut start_after: Option<String> = None;
+    let mut start_after: Option<BasinNameStartAfter> = None;
 
     while has_more {
-        let mut list_basins_request = ListBasinsRequest::new();
+        let mut input = ListBasinsInput::new();
         if let Some(start_after) = start_after.take() {
-            list_basins_request = list_basins_request.with_start_after(start_after);
+            input = input.with_start_after(start_after);
         }
 
-        let list_basins_response = client.list_basins(list_basins_request).await?;
+        let page = s2.list_basins(input).await?;
 
-        all_basins.extend(list_basins_response.basins);
+        all_basins.extend(page.values);
 
-        start_after = all_basins.last().map(|b| b.name.clone());
-        has_more = list_basins_response.has_more;
+        start_after = all_basins.last().map(|b| b.name.clone().into());
+        has_more = page.has_more;
     }
 
     println!("{all_basins:#?}");

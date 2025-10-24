@@ -1,0 +1,180 @@
+#![allow(dead_code)]
+use std::{
+    ops::Deref,
+    sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    },
+};
+
+use s2::types::{
+    BasinName, CreateBasinInput, CreateStreamInput, DeleteBasinInput, DeleteStreamInput, S2Config,
+    StreamName,
+};
+use test_context::AsyncTestContext;
+
+pub struct SharedS2Basin(Arc<S2Basin>);
+
+impl Deref for SharedS2Basin {
+    type Target = S2Basin;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsyncTestContext for SharedS2Basin {
+    async fn setup() -> Self {
+        SHARED_BASIN_USERS.fetch_add(1, Ordering::SeqCst);
+
+        let basin = SHARED_BASIN_INNER
+            .get_or_init(|| async {
+                let config = s2_config();
+                let s2 = s2::S2::new(config.clone()).expect("valid S2");
+                let basin_name = unique_basin_name();
+                s2.create_basin(CreateBasinInput::new(basin_name.clone()))
+                    .await
+                    .expect("valid BasinInfo");
+                let basin = s2.basin(basin_name.clone());
+                Arc::new(S2Basin {
+                    s2,
+                    basin,
+                    basin_name,
+                })
+            })
+            .await
+            .clone();
+
+        SharedS2Basin(basin)
+    }
+
+    async fn teardown(self) {
+        if SHARED_BASIN_USERS.fetch_sub(1, Ordering::SeqCst) == 1 {
+            self.s2
+                .delete_basin(DeleteBasinInput::new(self.basin_name.clone()))
+                .await
+                .expect("succesful deletion");
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct S2Basin {
+    s2: s2::S2,
+    basin: s2::S2Basin,
+    basin_name: BasinName,
+}
+
+impl Deref for S2Basin {
+    type Target = s2::S2Basin;
+
+    fn deref(&self) -> &Self::Target {
+        &self.basin
+    }
+}
+
+impl AsyncTestContext for S2Basin {
+    async fn setup() -> Self {
+        let config = s2_config();
+        let s2 = s2::S2::new(config.clone()).expect("valid S2");
+        let basin_name = unique_basin_name();
+        s2.create_basin(CreateBasinInput::new(basin_name.clone()))
+            .await
+            .expect("successful creation");
+        let basin = s2.basin(basin_name.clone());
+        S2Basin {
+            s2,
+            basin,
+            basin_name,
+        }
+    }
+
+    async fn teardown(self) -> () {
+        self.s2
+            .delete_basin(DeleteBasinInput::new(self.basin_name.clone()))
+            .await
+            .expect("successful deletion")
+    }
+}
+
+pub struct S2Stream {
+    basin: SharedS2Basin,
+    stream: s2::S2Stream,
+    stream_name: StreamName,
+}
+
+impl Deref for S2Stream {
+    type Target = s2::S2Stream;
+
+    fn deref(&self) -> &Self::Target {
+        &self.stream
+    }
+}
+
+impl AsyncTestContext for S2Stream {
+    async fn setup() -> Self {
+        let basin = SharedS2Basin::setup().await;
+
+        let stream_name = unique_stream_name();
+        // Just a best effort op to ensure basin teardown always happens.
+        let _ = basin
+            .create_stream(CreateStreamInput::new(stream_name.clone()))
+            .await;
+        let stream = basin.stream(stream_name.clone());
+        Self {
+            basin,
+            stream,
+            stream_name,
+        }
+    }
+
+    async fn teardown(self) {
+        // Just a best effort op to ensure basin teardown always happens.
+        let _ = self
+            .basin
+            .delete_stream(DeleteStreamInput::new(self.stream_name))
+            .await;
+        self.basin.teardown().await;
+    }
+}
+
+pub fn unique_stream_name() -> StreamName {
+    let counter = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    format!("stream-{}-{}", timestamp, counter)
+        .parse()
+        .expect("valid stream name")
+}
+
+static SHARED_BASIN_INNER: tokio::sync::OnceCell<Arc<S2Basin>> = tokio::sync::OnceCell::const_new();
+static SHARED_BASIN_USERS: AtomicU32 = AtomicU32::new(0);
+
+static TEST_COUNTER: AtomicU32 = AtomicU32::new(0);
+
+fn s2_config() -> S2Config {
+    let access_token = std::env::var("S2_ACCESS_TOKEN")
+        .expect("S2_ACCESS_TOKEN environment variable must be set for e2e tests");
+    S2Config::new(access_token)
+}
+
+pub fn s2() -> s2::S2 {
+    s2::S2::new(s2_config()).expect("valid S2")
+}
+
+pub fn unique_basin_name() -> BasinName {
+    let counter = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    format!("test-rs-sdk-{}-{}", timestamp, counter)
+        .parse()
+        .expect("valid basin name")
+}
+
+pub fn uuid() -> String {
+    format!("{}", uuid::Uuid::new_v4().simple())
+}

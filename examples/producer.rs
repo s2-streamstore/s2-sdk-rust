@@ -1,48 +1,36 @@
-use futures::StreamExt;
 use s2::{
-    batching::{AppendRecordsBatchingOpts, AppendRecordsBatchingStream},
-    client::{ClientConfig, StreamClient},
-    types::{AppendInput, AppendRecord, AppendRecordBatch, BasinName, CommandRecord, FencingToken},
+    S2,
+    append_session::AppendSessionConfig,
+    producer::{Producer, ProducerConfig},
+    types::{AppendRecord, BasinName, S2Config, StreamName},
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("S2_ACCESS_TOKEN")?;
-    let config = ClientConfig::new(token);
-    let basin: BasinName = "my-favorite-basin".parse()?;
-    let stream = "my-favorite-stream";
-    let stream_client = StreamClient::new(config, basin, stream);
+    let access_token =
+        std::env::var("S2_ACCESS_TOKEN").map_err(|_| "S2_ACCESS_TOKEN env var not set")?;
+    let basin_name: BasinName = std::env::var("S2_BASIN")
+        .map_err(|_| "S2_BASIN env var not set")?
+        .parse()?;
+    let stream_name: StreamName = std::env::var("S2_STREAM")
+        .map_err(|_| "S2_STREAM env var not set")?
+        .parse()?;
 
-    let fencing_token = FencingToken::generate(32).expect("valid fencing token");
+    let s2 = S2::new(S2Config::new(access_token))?;
+    let stream = s2.basin(basin_name).stream(stream_name);
 
-    // Set the fencing token.
-    let fencing_token_record: AppendRecord = CommandRecord::fence(fencing_token.clone()).into();
-    let fencing_token_batch = AppendRecordBatch::try_from_iter([fencing_token_record])
-        .expect("valid batch with 1 append record");
-    let fencing_token_append_input = AppendInput::new(fencing_token_batch);
-    let set_fencing_token = stream_client.append(fencing_token_append_input).await?;
+    let session = stream.append_session(AppendSessionConfig::new());
+    let producer = Producer::new(session, ProducerConfig::new());
 
-    let match_seq_num = set_fencing_token.tail.seq_num;
+    let ticket1 = producer.submit(AppendRecord::new("lorem")?).await?;
+    let ticket2 = producer.submit(AppendRecord::new("ipsum")?).await?;
 
-    // Stream of records
-    let append_stream = futures::stream::iter([
-        AppendRecord::new("record_1")?,
-        AppendRecord::new("record_2")?,
-    ]);
+    let ack1 = ticket1.await?;
+    let ack2 = ticket2.await?;
+    println!("Record 1 seq_num: {}", ack1.seq_num);
+    println!("Record 2 seq_num: {}", ack2.seq_num);
 
-    let append_records_batching_opts = AppendRecordsBatchingOpts::new()
-        .with_fencing_token(Some(fencing_token))
-        .with_match_seq_num(Some(match_seq_num));
-
-    let append_session_request =
-        AppendRecordsBatchingStream::new(append_stream, append_records_batching_opts);
-
-    let mut append_session_stream = stream_client.append_session(append_session_request).await?;
-
-    while let Some(next) = append_session_stream.next().await {
-        let next = next?;
-        println!("{next:#?}");
-    }
+    producer.close().await?;
 
     Ok(())
 }

@@ -1,27 +1,34 @@
 use s2::{
-    client::{Client, ClientConfig},
-    types::{BasinName, CreateStreamRequest, StorageClass, StreamConfig},
+    S2,
+    types::{
+        BasinName, CreateStreamInput, S2Config, StreamConfig, StreamName, TimestampingConfig,
+        TimestampingMode,
+    },
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("S2_ACCESS_TOKEN")?;
-    let config = ClientConfig::new(token);
-    let client = Client::new(config);
+    let access_token =
+        std::env::var("S2_ACCESS_TOKEN").map_err(|_| "S2_ACCESS_TOKEN env var not set")?;
+    let basin_name: BasinName = std::env::var("S2_BASIN")
+        .map_err(|_| "S2_BASIN env var not set")?
+        .parse()?;
+    let stream_name: StreamName = std::env::var("S2_STREAM")
+        .map_err(|_| "S2_STREAM env var not set")?
+        .parse()?;
 
-    let basin: BasinName = "my-favorite-basin".parse()?;
-    let basin_client = client.basin_client(basin);
+    let s2 = S2::new(S2Config::new(access_token))?;
+    let basin = s2.basin(basin_name);
 
-    let stream = "my-favorite-stream";
+    let input = CreateStreamInput::new(stream_name.clone()).with_config(
+        StreamConfig::new().with_timestamping(
+            TimestampingConfig::new().with_mode(TimestampingMode::ClientRequire),
+        ),
+    );
+    let stream_info = basin.create_stream(input).await?;
+    println!("{stream_info:#?}");
 
-    let stream_config = StreamConfig::new().with_storage_class(StorageClass::Express);
-
-    let create_stream_request = CreateStreamRequest::new(stream).with_config(stream_config);
-
-    let created_stream = basin_client.create_stream(create_stream_request).await?;
-    println!("{created_stream:#?}");
-
-    let stream_config = basin_client.get_stream_config(stream).await?;
+    let stream_config = basin.get_stream_config(stream_name).await?;
     println!("{stream_config:#?}");
 
     Ok(())

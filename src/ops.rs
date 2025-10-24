@@ -1,0 +1,279 @@
+use std::pin::Pin;
+
+use futures::StreamExt;
+
+use crate::{
+    api::{AccountClient, BasinClient},
+    session::{self, AppendSession, AppendSessionConfig},
+    types::{
+        AccessTokenId, AccessTokenInfo, AppendAck, AppendInput, BasinConfig, BasinInfo, BasinName,
+        CreateBasinInput, CreateStreamInput, DeleteBasinInput, DeleteStreamInput,
+        GetAccountMetricsInput, GetBasinMetricsInput, GetStreamMetricsInput, IssueAccessTokenInput,
+        ListAccessTokensInput, ListBasinsInput, ListStreamsInput, Metric, Page, ReadBatch,
+        ReadInput, ReconfigureBasinInput, ReconfigureStreamInput, S2Config, S2Error, StreamConfig,
+        StreamInfo, StreamName, StreamPosition,
+    },
+};
+
+#[derive(Debug, Clone)]
+/// An S2 account.
+pub struct S2 {
+    client: AccountClient,
+}
+
+impl S2 {
+    /// Create a new [S2].
+    pub fn new(config: S2Config) -> Result<Self, S2Error> {
+        Ok(Self {
+            client: AccountClient::init(config)?,
+        })
+    }
+
+    /// Get an [S2Basin].
+    pub fn basin(&self, name: BasinName) -> S2Basin {
+        S2Basin {
+            client: self.client.basin_client(name),
+        }
+    }
+
+    /// List basins.
+    pub async fn list_basins(&self, input: ListBasinsInput) -> Result<Page<BasinInfo>, S2Error> {
+        let response = self.client.list_basins(input.into()).await?;
+        Ok(Page::new(
+            response
+                .basins
+                .into_iter()
+                .map(Into::into)
+                .collect::<Vec<_>>(),
+            response.has_more,
+        ))
+    }
+
+    /// Create a basin.
+    pub async fn create_basin(&self, input: CreateBasinInput) -> Result<BasinInfo, S2Error> {
+        let (request, idempotency_token) = input.into();
+        let info = self.client.create_basin(request, idempotency_token).await?;
+        Ok(info.into())
+    }
+
+    /// Get basin configuration.
+    pub async fn get_basin_config(&self, name: BasinName) -> Result<BasinConfig, S2Error> {
+        let config = self.client.get_basin_config(name).await?;
+        Ok(config.into())
+    }
+
+    /// Delete a basin.
+    pub async fn delete_basin(&self, input: DeleteBasinInput) -> Result<(), S2Error> {
+        Ok(self
+            .client
+            .delete_basin(input.name, input.ignore_not_found)
+            .await?)
+    }
+
+    /// Reconfigure a basin.
+    pub async fn reconfigure_basin(
+        &self,
+        input: ReconfigureBasinInput,
+    ) -> Result<BasinConfig, S2Error> {
+        let config = self
+            .client
+            .reconfigure_basin(input.name, input.config.into())
+            .await?;
+        Ok(config.into())
+    }
+
+    /// List access tokens.
+    pub async fn list_access_tokens(
+        &self,
+        input: ListAccessTokensInput,
+    ) -> Result<Page<AccessTokenInfo>, S2Error> {
+        let response = self.client.list_access_tokens(input.into()).await?;
+        Ok(Page::new(
+            response
+                .access_tokens
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<Vec<_>, _>>()?,
+            response.has_more,
+        ))
+    }
+
+    /// Issue an access token.
+    pub async fn issue_access_token(
+        &self,
+        input: IssueAccessTokenInput,
+    ) -> Result<String, S2Error> {
+        let response = self.client.issue_access_token(input.into()).await?;
+        Ok(response.access_token)
+    }
+
+    /// Revoke an access token.
+    pub async fn revoke_access_token(&self, id: AccessTokenId) -> Result<(), S2Error> {
+        Ok(self.client.revoke_access_token(id).await?)
+    }
+
+    /// Get account metrics.
+    pub async fn get_account_metrics(
+        &self,
+        input: GetAccountMetricsInput,
+    ) -> Result<Vec<Metric>, S2Error> {
+        let response = self.client.get_account_metrics(input.into()).await?;
+        Ok(response.values.into_iter().map(Into::into).collect())
+    }
+
+    /// Get basin metrics.
+    pub async fn get_basin_metrics(
+        &self,
+        input: GetBasinMetricsInput,
+    ) -> Result<Vec<Metric>, S2Error> {
+        let (name, request) = input.into();
+        let response = self.client.get_basin_metrics(name, request).await?;
+        Ok(response.values.into_iter().map(Into::into).collect())
+    }
+
+    /// Get stream metrics.
+    pub async fn get_stream_metrics(
+        &self,
+        input: GetStreamMetricsInput,
+    ) -> Result<Vec<Metric>, S2Error> {
+        let (basin_name, stream_name, request) = input.into();
+        let response = self
+            .client
+            .get_stream_metrics(basin_name, stream_name, request)
+            .await?;
+        Ok(response.values.into_iter().map(Into::into).collect())
+    }
+}
+
+#[derive(Debug, Clone)]
+/// A basin in an S2 account.
+///
+/// See [S2::basin].
+pub struct S2Basin {
+    client: BasinClient,
+}
+
+impl S2Basin {
+    /// Get an [S2Stream].
+    pub fn stream(&self, name: StreamName) -> S2Stream {
+        S2Stream {
+            client: self.client.clone(),
+            name,
+        }
+    }
+
+    /// List streams.
+    pub async fn list_streams(&self, input: ListStreamsInput) -> Result<Page<StreamInfo>, S2Error> {
+        let response = self.client.list_streams(input.into()).await?;
+        Ok(Page::new(
+            response
+                .streams
+                .into_iter()
+                .map(Into::into)
+                .collect::<Vec<_>>(),
+            response.has_more,
+        ))
+    }
+
+    /// Create a stream.
+    pub async fn create_stream(&self, input: CreateStreamInput) -> Result<StreamInfo, S2Error> {
+        let (request, idempotency_token) = input.into();
+        let info = self
+            .client
+            .create_stream(request, idempotency_token)
+            .await?;
+        Ok(info.into())
+    }
+
+    /// Get stream configuration.
+    pub async fn get_stream_config(&self, name: StreamName) -> Result<StreamConfig, S2Error> {
+        let config = self.client.get_stream_config(name).await?;
+        Ok(config.into())
+    }
+
+    /// Delete a stream.
+    pub async fn delete_stream(&self, input: DeleteStreamInput) -> Result<(), S2Error> {
+        Ok(self
+            .client
+            .delete_stream(input.name, input.ignore_not_found)
+            .await?)
+    }
+
+    /// Reconfigure a stream.
+    pub async fn reconfigure_stream(
+        &self,
+        input: ReconfigureStreamInput,
+    ) -> Result<StreamConfig, S2Error> {
+        let config = self
+            .client
+            .reconfigure_stream(input.name, input.config.into())
+            .await?;
+        Ok(config.into())
+    }
+}
+
+#[derive(Debug, Clone)]
+/// A stream in an S2 basin.
+///
+/// See [S2Basin::stream].
+pub struct S2Stream {
+    client: BasinClient,
+    name: StreamName,
+}
+
+impl S2Stream {
+    /// Check tail position.
+    pub async fn check_tail(&self) -> Result<StreamPosition, S2Error> {
+        let response = self.client.check_tail(&self.name).await?;
+        Ok(response.tail.into())
+    }
+
+    /// Append records.
+    pub async fn append(&self, input: AppendInput) -> Result<AppendAck, S2Error> {
+        let retry_enabled = self
+            .client
+            .config
+            .retry
+            .append_retry_policy
+            .is_compliant(&input);
+        let ack = self
+            .client
+            .append(&self.name, input.into(), retry_enabled)
+            .await?;
+        Ok(ack.into())
+    }
+
+    /// Read records.
+    pub async fn read(&self, input: ReadInput) -> Result<ReadBatch, S2Error> {
+        let batch = self
+            .client
+            .read(&self.name, input.start.into(), input.stop.into())
+            .await?;
+        Ok(ReadBatch::from_api(batch, input.ignore_command_records))
+    }
+
+    /// Create an append session.
+    pub fn append_session(&self, config: AppendSessionConfig) -> AppendSession {
+        AppendSession::new(self.client.clone(), self.name.clone(), config)
+    }
+
+    /// Create a read session.
+    pub async fn read_session(&self, input: ReadInput) -> Streaming<ReadBatch> {
+        let client = self.client.clone();
+        let name = self.name.clone();
+        let batches = session::read_session(
+            client,
+            name,
+            input.start.into(),
+            input.stop.into(),
+            input.ignore_command_records,
+        )
+        .await;
+        Box::pin(batches.map(|res| match res {
+            Ok(batch) => Ok(batch),
+            Err(err) => Err(err.into()),
+        }))
+    }
+}
+
+pub type Streaming<R> = Pin<Box<dyn Send + futures::Stream<Item = Result<R, S2Error>>>>;

@@ -1,34 +1,28 @@
-use std::time::Duration;
-
 use s2::{
-    client::{Client, ClientConfig},
-    types::{BasinConfig, BasinName, CreateBasinRequest, RetentionPolicy, StreamConfig},
+    S2,
+    types::{BasinConfig, BasinName, CreateBasinInput, RetentionPolicy, S2Config, StreamConfig},
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("S2_ACCESS_TOKEN")?;
-    let config = ClientConfig::new(token);
-    let client = Client::new(config);
+    let access_token =
+        std::env::var("S2_ACCESS_TOKEN").map_err(|_| "S2_ACCESS_TOKEN env var not set")?;
+    let basin_name: BasinName = std::env::var("S2_BASIN")
+        .map_err(|_| "S2_BASIN env var not set")?
+        .parse()?;
 
-    let basin: BasinName = "my-favorite-basin".parse()?;
+    let config = S2Config::new(access_token);
+    let s2 = S2::new(config)?;
 
-    let default_stream_config = StreamConfig::new().with_retention_policy(RetentionPolicy::Age(
-        // Set the default retention age to 10 days.
-        Duration::from_secs(10 * 24 * 60 * 60),
-    ));
+    let input = CreateBasinInput::new(basin_name.clone()).with_config(
+        BasinConfig::new().with_default_stream_config(
+            StreamConfig::new().with_retention_policy(RetentionPolicy::Age(10 * 24 * 60 * 60)),
+        ),
+    );
+    let basin_info = s2.create_basin(input).await?;
+    println!("{basin_info:#?}");
 
-    let basin_config = BasinConfig::new()
-        .with_default_stream_config(default_stream_config)
-        .with_create_stream_on_append(false)
-        .with_create_stream_on_read(false);
-
-    let create_basin_request = CreateBasinRequest::new(basin.clone()).with_config(basin_config);
-
-    let created_basin = client.create_basin(create_basin_request).await?;
-    println!("{created_basin:#?}");
-
-    let basin_config = client.get_basin_config(basin).await?;
+    let basin_config = s2.get_basin_config(basin_name).await?;
     println!("{basin_config:#?}");
 
     Ok(())

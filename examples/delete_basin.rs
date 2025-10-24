@@ -1,21 +1,22 @@
 use s2::{
-    client::{Client, ClientConfig},
-    types::{BasinName, DeleteBasinRequest},
+    S2,
+    types::{BasinName, DeleteBasinInput, S2Config},
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("S2_ACCESS_TOKEN")?;
-    let config = ClientConfig::new(token);
-    let client = Client::new(config);
+    let access_token =
+        std::env::var("S2_ACCESS_TOKEN").map_err(|_| "S2_ACCESS_TOKEN env var not set")?;
+    let basin_name: BasinName = std::env::var("S2_BASIN")
+        .map_err(|_| "S2_BASIN env var not set")?
+        .parse()?;
 
-    let basin: BasinName = "my-favorite-basin".parse()?;
+    let config = S2Config::new(access_token);
+    let s2 = S2::new(config)?;
 
-    let delete_basin_request = DeleteBasinRequest::new(basin)
-        // Don't error if the basin doesn't exist.
-        .with_if_exists(true);
-
-    client.delete_basin(delete_basin_request).await?;
+    let input = DeleteBasinInput::new(basin_name).with_ignore_not_found(true);
+    s2.delete_basin(input).await?;
+    println!("Deletion requested");
 
     Ok(())
 }
