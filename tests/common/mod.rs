@@ -7,11 +7,10 @@ use std::{
     },
 };
 
-use s2::types::{
+use s2_sdk::types::{
     BasinName, CreateBasinInput, CreateStreamInput, DeleteBasinInput, DeleteStreamInput, S2Config,
-    S2Endpoints, StreamName,
+    S2Endpoints, StreamName, ValidationError,
 };
-use s2_common::types::ValidationError;
 use test_context::AsyncTestContext;
 
 pub struct SharedS2Basin(Arc<S2Basin>);
@@ -31,7 +30,7 @@ impl AsyncTestContext for SharedS2Basin {
         let basin = SHARED_BASIN_INNER
             .get_or_init(|| async {
                 let config = s2_config().expect("valid S2 config");
-                let s2 = s2::S2::new(config.clone()).expect("valid S2");
+                let s2 = s2_sdk::S2::new(config.clone()).expect("valid S2");
                 let basin_name = unique_basin_name();
                 s2.create_basin(CreateBasinInput::new(basin_name.clone()))
                     .await
@@ -61,13 +60,13 @@ impl AsyncTestContext for SharedS2Basin {
 
 #[derive(Clone)]
 pub struct S2Basin {
-    s2: s2::S2,
-    basin: s2::S2Basin,
+    s2: s2_sdk::S2,
+    basin: s2_sdk::S2Basin,
     basin_name: BasinName,
 }
 
 impl Deref for S2Basin {
-    type Target = s2::S2Basin;
+    type Target = s2_sdk::S2Basin;
 
     fn deref(&self) -> &Self::Target {
         &self.basin
@@ -77,7 +76,7 @@ impl Deref for S2Basin {
 impl AsyncTestContext for S2Basin {
     async fn setup() -> Self {
         let config = s2_config().expect("valid S2 config");
-        let s2 = s2::S2::new(config.clone()).expect("valid S2");
+        let s2 = s2_sdk::S2::new(config.clone()).expect("valid S2");
         let basin_name = unique_basin_name();
         s2.create_basin(CreateBasinInput::new(basin_name.clone()))
             .await
@@ -100,12 +99,12 @@ impl AsyncTestContext for S2Basin {
 
 pub struct S2Stream {
     basin: SharedS2Basin,
-    stream: s2::S2Stream,
+    stream: s2_sdk::S2Stream,
     stream_name: StreamName,
 }
 
 impl Deref for S2Stream {
-    type Target = s2::S2Stream;
+    type Target = s2_sdk::S2Stream;
 
     fn deref(&self) -> &Self::Target {
         &self.stream
@@ -168,9 +167,9 @@ fn s2_config() -> Result<S2Config, ValidationError> {
     Ok(config)
 }
 
-pub fn s2() -> s2::S2 {
+pub fn s2() -> s2_sdk::S2 {
     let config = s2_config().expect("valid S2 config");
-    s2::S2::new(config).expect("valid S2")
+    s2_sdk::S2::new(config).expect("valid S2")
 }
 
 pub fn unique_basin_name() -> BasinName {

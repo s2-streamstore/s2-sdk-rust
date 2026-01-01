@@ -1,4 +1,0 @@
-[submodule "proto"]
-	path = proto
-	url = https://github.com/s2-streamstore/s2-protos
-	branch = main

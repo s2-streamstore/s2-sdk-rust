@@ -1,4 +1,4 @@
-use s2::{
+use s2_sdk::{
     S2,
     types::{AppendInput, AppendRecordBatch, BasinName, CommandRecord, S2Config, StreamName},
 };

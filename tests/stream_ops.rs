@@ -5,7 +5,7 @@ use std::time::Duration;
 use assert_matches::assert_matches;
 use common::S2Stream;
 use futures::StreamExt;
-use s2::{
+use s2_sdk::{
     append_session::AppendSessionConfig, batching::BatchingConfig, producer::ProducerConfig,
     types::*,
 };

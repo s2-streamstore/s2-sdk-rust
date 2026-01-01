@@ -1,4 +1,4 @@
-use s2::{
+use s2_sdk::{
     S2,
     types::{
         BasinName, ReconfigureStreamInput, RetentionPolicy, S2Config, StreamName,
