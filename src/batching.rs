@@ -18,15 +18,15 @@ use crate::types::{AppendInput, AppendRecord, AppendRecordBatch, FencingToken, M
 pub struct BatchingConfig {
     /// How long to wait for more records before flushing a batch.
     ///
-    /// Default is `5ms`.
+    /// Defaults to `5ms`.
     pub linger: Duration,
     /// Maximum bytes per batch.
     ///
-    /// Default is `1MiB`.
+    /// Defaults to `1MiB`.
     pub max_batch_bytes: usize,
     /// Maximum number of records per batch.
     ///
-    /// Default is `1000`.
+    /// Defaults to `1000`.
     pub max_batch_records: usize,
 }
 
@@ -269,7 +269,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn batches_respect_count_limit() -> eyre::Result<()> {
+    async fn batches_respect_count_limit() -> Result<(), ValidationError> {
         let records: Vec<_> = (0..10)
             .map(|i| AppendRecord::new(format!("record{i}")))
             .collect::<Result<_, _>>()?;
@@ -288,7 +288,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn batches_respect_bytes_limit() -> eyre::Result<()> {
+    async fn batches_respect_bytes_limit() -> Result<(), ValidationError> {
         let records: Vec<_> = (0..10)
             .map(|i| AppendRecord::new(format!("record{i}")))
             .collect::<Result<_, _>>()?;
@@ -310,7 +310,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn batching_should_fail_when_it_sees_oversized_record() -> eyre::Result<()> {
+    async fn batching_should_fail_when_it_sees_oversized_record() -> Result<(), ValidationError> {
         let record = AppendRecord::new("hello")?;
         let record_bytes = record.metered_bytes();
         let max_batch_bytes = 1;
