@@ -33,7 +33,7 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
         with:
-            submodules: true
+          submodules: true
       - name: install rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -44,17 +44,17 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: Swatinem/rust-cache@v2
-      - name: Install nextest
-        uses: taiki-e/install-action@nextest
       - name: Run cargo tests
-        run: cargo nextest run
+        run: cargo test
+        env:
+          S2_ACCESS_TOKEN: ${{ secrets.S2_ACCESS_TOKEN_FOR_TESTS }}
   lint:
     runs-on: ubuntu-latest
-    steps:      
+    steps:
       - name: checkout
         uses: actions/checkout@v4
         with:
-            submodules: true
+          submodules: true
       - name: install rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -70,13 +70,6 @@ jobs:
         with:
           crate: cargo-sort
           version: "^1.0"
-      - name: check proto build up-to-date
-        run: |
-          cargo build --features prost-build
-          git diff --exit-code src/api.rs && echo "Up-to-date" || {
-              echo "Not up-to-date"
-              exit 1
-          }
       - name: check documentation
         env:
           RUSTDOCFLAGS: -D warnings

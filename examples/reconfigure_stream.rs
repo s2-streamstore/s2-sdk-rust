@@ -1,34 +1,31 @@
-use std::time::Duration;
-
 use s2::{
-    client::{BasinClient, ClientConfig},
-    types::{BasinName, ReconfigureStreamRequest, RetentionPolicy, StreamConfig},
+    S2,
+    types::{
+        BasinName, ReconfigureStreamInput, RetentionPolicy, S2Config, StreamName,
+        StreamReconfiguration,
+    },
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("S2_ACCESS_TOKEN")?;
-    let config = ClientConfig::new(token);
-    let basin: BasinName = "my-favorite-basin".parse()?;
-    let basin_client = BasinClient::new(config, basin);
+    let access_token =
+        std::env::var("S2_ACCESS_TOKEN").map_err(|_| "S2_ACCESS_TOKEN env var not set")?;
+    let basin_name: BasinName = std::env::var("S2_BASIN")
+        .map_err(|_| "S2_BASIN env var not set")?
+        .parse()?;
+    let stream_name: StreamName = std::env::var("S2_STREAM")
+        .map_err(|_| "S2_STREAM env var not set")?
+        .parse()?;
 
-    let stream = "my-favorite-stream";
+    let s2 = S2::new(S2Config::new(access_token))?;
+    let basin = s2.basin(basin_name);
 
-    let stream_config_updates = StreamConfig::new().with_retention_policy(RetentionPolicy::Age(
-        // Change to retention policy to 1 day
-        Duration::from_secs(24 * 60 * 60),
-    ));
-
-    let reconfigure_stream_request = ReconfigureStreamRequest::new(stream)
-        .with_config(stream_config_updates)
-        // Field mask specifies which fields to update.
-        .with_mask(vec!["retention_policy".to_string()]);
-
-    let updated_stream_config = basin_client
-        .reconfigure_stream(reconfigure_stream_request)
-        .await?;
-
-    println!("{updated_stream_config:#?}");
+    let input = ReconfigureStreamInput::new(
+        stream_name,
+        StreamReconfiguration::new().with_retention_policy(RetentionPolicy::Age(10 * 24 * 60 * 60)),
+    );
+    let config = basin.reconfigure_stream(input).await?;
+    println!("{config:#?}");
 
     Ok(())
 }

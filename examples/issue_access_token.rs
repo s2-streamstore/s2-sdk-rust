@@ -1,31 +1,33 @@
 use s2::{
-    client::{Client, ClientConfig},
+    S2,
     types::{
-        AccessTokenId, AccessTokenInfo, AccessTokenScope, Operation, PermittedOperationGroups,
-        ReadWritePermissions, ResourceSet,
+        AccessTokenScope, BasinMatcher, BasinName, IssueAccessTokenInput, Operation,
+        OperationGroupPermissions, ReadWritePermissions, S2Config, StreamMatcher,
     },
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("S2_ACCESS_TOKEN")?;
-    let config = ClientConfig::new(token);
-    let client = Client::new(config);
+    let access_token =
+        std::env::var("S2_ACCESS_TOKEN").map_err(|_| "S2_ACCESS_TOKEN env var not set")?;
+    let basin_name: BasinName = std::env::var("S2_BASIN")
+        .map_err(|_| "S2_BASIN env var not set")?
+        .parse()?;
 
-    let access_token_id: AccessTokenId = "my-access-token".parse()?;
-    let access_token_info = AccessTokenInfo::new(access_token_id).with_scope(
-        AccessTokenScope::new()
-            .with_op_groups(
-                PermittedOperationGroups::new()
-                    .with_account(ReadWritePermissions::new().with_read(true)),
-            )
-            .with_op(Operation::CreateStream)
-            .with_streams(ResourceSet::Prefix("my-stream-prefix".to_string()))
-            .with_basins(ResourceSet::Exact("my-perfect-basin".to_string())),
+    let config = S2Config::new(access_token);
+    let s2 = S2::new(config)?;
+
+    let input = IssueAccessTokenInput::new(
+        "ro-token".parse()?,
+        AccessTokenScope::from_op_group_perms(
+            OperationGroupPermissions::new().with_account(ReadWritePermissions::read_only()),
+        )
+        .with_ops([Operation::CreateStream])
+        .with_streams(StreamMatcher::Prefix("audit".parse()?))
+        .with_basins(BasinMatcher::Exact(basin_name)),
     );
-    let token = client.issue_access_token(access_token_info).await?;
-
-    println!("Access token: {token}");
+    let issued_token = s2.issue_access_token(input).await?;
+    println!("Issued access token: {issued_token}");
 
     Ok(())
 }

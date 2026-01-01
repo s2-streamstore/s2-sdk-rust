@@ -1,30 +1,33 @@
 use s2::{
-    client::{ClientConfig, StreamClient},
-    types::{AppendInput, AppendRecordBatch, BasinName, CommandRecord},
+    S2,
+    types::{AppendInput, AppendRecordBatch, BasinName, CommandRecord, S2Config, StreamName},
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("S2_ACCESS_TOKEN")?;
-    let config = ClientConfig::new(token);
-    let basin: BasinName = "my-favorite-basin".parse()?;
-    let stream = "my-favorite-stream";
-    let stream_client = StreamClient::new(config, basin, stream);
+    let access_token =
+        std::env::var("S2_ACCESS_TOKEN").map_err(|_| "S2_ACCESS_TOKEN env var not set")?;
+    let basin_name: BasinName = std::env::var("S2_BASIN")
+        .map_err(|_| "S2_BASIN env var not set")?
+        .parse()?;
+    let stream_name: StreamName = std::env::var("S2_STREAM")
+        .map_err(|_| "S2_STREAM env var not set")?
+        .parse()?;
 
-    let tail = stream_client.check_tail().await?;
+    let s2 = S2::new(S2Config::new(access_token))?;
+    let stream = s2.basin(basin_name).stream(stream_name);
+
+    let tail = stream.check_tail().await?;
     if tail.seq_num == 0 {
         println!("Empty stream");
         return Ok(());
     }
 
-    let latest_seq_num = tail.seq_num - 1;
-    let trim_request = CommandRecord::trim(latest_seq_num);
-
-    let append_record_batch = AppendRecordBatch::try_from_iter([trim_request])
-        .expect("valid batch with 1 command record");
-    let append_input = AppendInput::new(append_record_batch);
-    let _ = stream_client.append(append_input).await?;
-
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([CommandRecord::trim(
+        tail.seq_num - 1,
+    )
+    .into()])?);
+    stream.append(input).await?;
     println!("Trim requested");
 
     Ok(())

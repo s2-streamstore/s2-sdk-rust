@@ -1,28 +1,27 @@
 use futures::StreamExt;
 use s2::{
-    client::{ClientConfig, StreamClient},
-    types::{BasinName, ReadSessionRequest, ReadStart},
+    S2,
+    types::{BasinName, ReadInput, S2Config, StreamName},
 };
 use tokio::select;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("S2_ACCESS_TOKEN")?;
-    let config = ClientConfig::new(token);
-    let basin: BasinName = "my-favorite-basin".parse()?;
-    let stream = "my-favorite-stream";
-    let stream_client = StreamClient::new(config, basin, stream);
+    let access_token = std::env::var("S2_ACCESS_TOKEN")?;
+    let basin_name: BasinName = std::env::var("S2_BASIN")?.parse()?;
+    let stream_name: StreamName = std::env::var("S2_STREAM")?.parse()?;
 
-    let start_seq_num = 0;
-    let read_session_request = ReadSessionRequest::new(ReadStart::SeqNum(start_seq_num));
-    let mut read_stream = stream_client.read_session(read_session_request).await?;
+    let s2 = S2::new(S2Config::new(access_token))?;
+    let stream = s2.basin(basin_name).stream(stream_name);
 
+    let input = ReadInput::new();
+    let mut batches = stream.read_session(input).await;
     loop {
         select! {
-            next_batch = read_stream.next() => {
-                let Some(next_batch) = next_batch else { break };
-                let next_batch = next_batch?;
-                println!("{next_batch:?}");
+            batch = batches.next() => {
+                let Some(batch) = batch else { break };
+                let batch = batch?;
+                println!("{batch:?}");
             }
             _ = tokio::signal::ctrl_c() => break,
         }
