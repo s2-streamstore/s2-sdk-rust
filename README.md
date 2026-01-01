@@ -102,4 +102,4 @@ You can also email us at [hi@s2.dev](mailto:hi@s2.dev).
 
 ## License
 
-This project is licensed under the [Apache-2.0 License](./LICENSE).
+This project is licensed under the [MIT License](./LICENSE).
