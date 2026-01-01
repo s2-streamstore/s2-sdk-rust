@@ -108,6 +108,9 @@ async fn list_streams_with_limit(basin: &S2Basin) -> Result<(), S2Error> {
     let stream_info_1 = basin
         .create_stream(CreateStreamInput::new(stream_name_1.clone()))
         .await?;
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
     let _stream_info_2 = basin
         .create_stream(CreateStreamInput::new(stream_name_2.clone()))
         .await?;
