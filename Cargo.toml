@@ -4,7 +4,7 @@ description = "Rust SDK for s2.dev"
 version = "0.21.0"
 edition = "2024"
 license = "Apache-2.0"
-keywords = ["wal", "s2", "log", "stream", "durable streams"]
+keywords = ["wal", "s2", "s2.dev", "log", "stream", "durable streams"]
 repository = "https://github.com/s2-streamstore/s2-sdk-rust"
 homepage = "https://github.com/s2-streamstore/s2-sdk-rust"
 
@@ -13,7 +13,6 @@ name = "s2"
 path = "src/lib.rs"
 
 [package.metadata.docs.rs]
-features = ["connector"]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 
 [[example]]
@@ -60,6 +59,3 @@ rstest = "0.26.1"
 test-context = { version = "0.5.4" }
 tokio = { version = "1.48.0", features = ["full", "test-util"] }
 tokio-shared-rt = "0.1.0"
-
-[lints.clippy]
-unused_async = "deny"
