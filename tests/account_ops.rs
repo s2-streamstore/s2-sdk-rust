@@ -18,7 +18,7 @@ async fn create_list_and_delete_basin() -> Result<(), S2Error> {
     assert_eq!(basin_info.name, basin_name);
 
     let page = s2
-        .list_basins(ListBasinsInput::new().with_prefix(basin_name.parse().expect("valid prefix")))
+        .list_basins(ListBasinsInput::new().with_prefix(basin_name.clone().into()))
         .await?;
 
     assert_eq!(page.values, vec![basin_info]);
@@ -28,7 +28,7 @@ async fn create_list_and_delete_basin() -> Result<(), S2Error> {
         .await?;
 
     let page = s2
-        .list_basins(ListBasinsInput::new().with_prefix(basin_name.parse().expect("valid prefix")))
+        .list_basins(ListBasinsInput::new().with_prefix(basin_name.into()))
         .await?;
 
     assert_matches!(
@@ -201,9 +201,7 @@ async fn list_basins_with_prefix_and_start_after() -> Result<(), S2Error> {
 async fn delete_nonexistent_basin_fails() -> Result<(), S2Error> {
     let s2 = s2();
     let result = s2
-        .delete_basin(DeleteBasinInput::new(
-            format!("nonexistent-{}", uuid::Uuid::new_v4().simple()).parse()?,
-        ))
+        .delete_basin(DeleteBasinInput::new(unique_basin_name()))
         .await;
 
     assert_matches!(
@@ -220,14 +218,7 @@ async fn delete_nonexistent_basin_fails() -> Result<(), S2Error> {
 async fn delete_nonexistent_basin_with_ignore() -> Result<(), S2Error> {
     let s2 = s2();
     let result = s2
-        .delete_basin(
-            DeleteBasinInput::new(
-                format!("nonexistent-{}", uuid::Uuid::new_v4().simple())
-                    .parse()
-                    .expect("valid basin name"),
-            )
-            .with_ignore_not_found(true),
-        )
+        .delete_basin(DeleteBasinInput::new(unique_basin_name()).with_ignore_not_found(true))
         .await;
 
     assert_matches!(result, Ok(()));
@@ -274,9 +265,7 @@ async fn issue_list_and_revoke_access_token() -> Result<(), S2Error> {
         .await?;
 
     let page = s2
-        .list_access_tokens(
-            ListAccessTokensInput::new().with_prefix(token_id.parse().expect("valid prefix")),
-        )
+        .list_access_tokens(ListAccessTokensInput::new().with_prefix(token_id.clone().into()))
         .await?;
 
     assert!(page.values.iter().any(|t| t.id == token_id));

@@ -258,9 +258,7 @@ async fn list_streams_with_start_after_less_than_prefix_fails(
 #[tokio_shared_rt::test(shared)]
 async fn delete_nonexistent_stream_fails(basin: &S2Basin) -> Result<(), S2Error> {
     let result = basin
-        .delete_stream(DeleteStreamInput::new(
-            format!("nonexistent-{}", uuid::Uuid::new_v4().simple()).parse()?,
-        ))
+        .delete_stream(DeleteStreamInput::new(unique_stream_name()))
         .await;
 
     assert_matches!(
@@ -277,14 +275,7 @@ async fn delete_nonexistent_stream_fails(basin: &S2Basin) -> Result<(), S2Error>
 #[tokio_shared_rt::test(shared)]
 async fn delete_nonexistent_stream_with_ignore(basin: &S2Basin) -> Result<(), S2Error> {
     let result = basin
-        .delete_stream(
-            DeleteStreamInput::new(
-                format!("nonexistent-{}", uuid::Uuid::new_v4().simple())
-                    .parse()
-                    .expect("valid stream name"),
-            )
-            .with_ignore_not_found(true),
-        )
+        .delete_stream(DeleteStreamInput::new(unique_stream_name()).with_ignore_not_found(true))
         .await;
 
     assert_matches!(result, Ok(()));
@@ -295,9 +286,7 @@ async fn delete_nonexistent_stream_with_ignore(basin: &S2Basin) -> Result<(), S2
 #[test_context(S2Basin)]
 #[tokio_shared_rt::test(shared)]
 async fn get_stream_config(basin: &S2Basin) -> Result<(), S2Error> {
-    let stream_name: StreamName = format!("test-stream-{}", uuid::Uuid::new_v4().simple())
-        .parse()
-        .expect("valid stream name");
+    let stream_name = unique_stream_name();
 
     let config = StreamConfig::new().with_storage_class(StorageClass::Express);
 
