@@ -153,7 +153,7 @@ pub struct RetryConfig {
     /// Total number of attempts including the initial try. A value of `1` means no retries.
     ///
     /// Defaults to `3`.
-    pub max_attempts: u32,
+    pub max_attempts: NonZeroU32,
     /// Minimum base delay for retries.
     ///
     /// Defaults to `100ms`.
@@ -172,7 +172,7 @@ pub struct RetryConfig {
 impl Default for RetryConfig {
     fn default() -> Self {
         Self {
-            max_attempts: 3,
+            max_attempts: NonZeroU32::new(3).expect("valid non-zero u32"),
             min_base_delay: Duration::from_millis(100),
             max_base_delay: Duration::from_secs(1),
             append_retry_policy: AppendRetryPolicy::All,
@@ -187,13 +187,13 @@ impl RetryConfig {
     }
 
     pub(crate) fn max_retries(&self) -> u32 {
-        self.max_attempts - 1
+        self.max_attempts.get() - 1
     }
 
     /// Set the total number of attempts including the initial try.
     pub fn with_max_attempts(self, max_attempts: NonZeroU32) -> Self {
         Self {
-            max_attempts: max_attempts.get(),
+            max_attempts,
             ..self
         }
     }
