@@ -836,11 +836,6 @@ impl<'a> RequestBuilder<'a> {
 
                     match result {
                         Ok(resp) => {
-                            if let Some(backoffs) = retry_backoffs.as_mut()
-                                && backoffs.len() < self.client.retry_builder.max_retries as usize
-                            {
-                                *backoffs = self.client.retry_builder.build().collect();
-                            }
                             return Ok(resp);
                         }
                         Err(err) if err.is_retryable() => (err, retry_after),
