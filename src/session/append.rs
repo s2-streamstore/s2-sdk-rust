@@ -8,6 +8,7 @@ use std::{
 };
 
 use futures::StreamExt;
+use s2_common::types::ValidationError;
 use tokio::{
     sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot},
     time::Instant,
@@ -25,6 +26,8 @@ use crate::{
         StreamPosition,
     },
 };
+
+const ONE_MIB: u32 = 1024 * 1024;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppendSessionError {
@@ -87,18 +90,22 @@ impl Future for BatchSubmitTicket {
 pub struct AppendSessionConfig {
     /// Limit on total metered bytes of unacknowledged [AppendInput]s held in memory.
     ///
+    /// **Note:** It must be at least `1MiB`.
+    ///
     /// Defaults to `10MiB`.
     pub max_inflight_bytes: u32,
     /// Limit on number of unacknowledged [AppendInput]s held in memory.
     ///
-    /// Defaults to `None`.
+    /// **Note:** It must be at least `1`.
+    ///
+    /// Defaults to no limit.
     pub max_inflight_batches: Option<u32>,
 }
 
 impl Default for AppendSessionConfig {
     fn default() -> Self {
         Self {
-            max_inflight_bytes: 10 * 1024 * 1024,
+            max_inflight_bytes: 10 * ONE_MIB,
             max_inflight_batches: None,
         }
     }
@@ -111,19 +118,28 @@ impl AppendSessionConfig {
     }
 
     /// Set the limit on total metered bytes of unacknowledged [AppendInput]s held in memory.
-    pub fn with_max_inflight_bytes(self, max_inflight_bytes: u32) -> Self {
-        Self {
+    pub fn with_max_inflight_bytes(self, max_inflight_bytes: u32) -> Result<Self, ValidationError> {
+        if max_inflight_bytes < ONE_MIB {
+            return Err(format!("max_inflight_bytes must be at least {ONE_MIB}").into());
+        }
+        Ok(Self {
             max_inflight_bytes,
             ..self
-        }
+        })
     }
 
     /// Set the limit on number of unacknowledged [AppendInput]s held in memory.
-    pub fn with_max_inflight_batches(self, max_inflight_batches: u32) -> Self {
-        Self {
+    pub fn with_max_inflight_batches(
+        self,
+        max_inflight_batches: u32,
+    ) -> Result<Self, ValidationError> {
+        if max_inflight_batches < 1 {
+            return Err("max_inflight_batches must be at least 1".into());
+        }
+        Ok(Self {
             max_inflight_batches: Some(max_inflight_batches),
             ..self
-        }
+        })
     }
 }
 
