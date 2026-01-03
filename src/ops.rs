@@ -22,14 +22,14 @@ pub struct S2 {
 }
 
 impl S2 {
-    /// Create a new [S2].
+    /// Create a new [`S2`].
     pub fn new(config: S2Config) -> Result<Self, S2Error> {
         Ok(Self {
             client: AccountClient::init(config)?,
         })
     }
 
-    /// Get an [S2Basin].
+    /// Get an [`S2Basin`].
     pub fn basin(&self, name: BasinName) -> S2Basin {
         S2Basin {
             client: self.client.basin_client(name),
@@ -148,13 +148,13 @@ impl S2 {
 #[derive(Debug, Clone)]
 /// A basin in an S2 account.
 ///
-/// See [S2::basin].
+/// See [`S2::basin`].
 pub struct S2Basin {
     client: BasinClient,
 }
 
 impl S2Basin {
-    /// Get an [S2Stream].
+    /// Get an [`S2Stream`].
     pub fn stream(&self, name: StreamName) -> S2Stream {
         S2Stream {
             client: self.client.clone(),
@@ -215,7 +215,7 @@ impl S2Basin {
 #[derive(Debug, Clone)]
 /// A stream in an S2 basin.
 ///
-/// See [S2Basin::stream].
+/// See [`S2Basin::stream`].
 pub struct S2Stream {
     client: BasinClient,
     name: StreamName,

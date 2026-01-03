@@ -1384,7 +1384,7 @@ checksum = "28d3b2b1366ec20994f1fd18c3c594f05c5dd4bc44d8bb0c1c632c8d6829481f"
 [[package]]
 name = "s2-api"
 version = "0.1.0"
-source = "git+https://github.com/s2-streamstore/s2?rev=b69e012f07290c9fb6ada77552362a93634287c7#b69e012f07290c9fb6ada77552362a93634287c7"
+source = "git+https://github.com/s2-streamstore/s2?rev=6f50d0a1a133b8b4ee0fef900e586a0f10d75637#6f50d0a1a133b8b4ee0fef900e586a0f10d75637"
 dependencies = [
  "base64ct",
  "bytes",
@@ -1406,7 +1406,7 @@ dependencies = [
 [[package]]
 name = "s2-common"
 version = "0.1.0"
-source = "git+https://github.com/s2-streamstore/s2?rev=b69e012f07290c9fb6ada77552362a93634287c7#b69e012f07290c9fb6ada77552362a93634287c7"
+source = "git+https://github.com/s2-streamstore/s2?rev=6f50d0a1a133b8b4ee0fef900e586a0f10d75637#6f50d0a1a133b8b4ee0fef900e586a0f10d75637"
 dependencies = [
  "bytes",
  "compact_str",

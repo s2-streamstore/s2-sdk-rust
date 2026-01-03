@@ -13,21 +13,11 @@ use tokio::time::Instant;
 use crate::types::{AppendInput, AppendRecord, AppendRecordBatch, FencingToken, MeteredBytes};
 
 #[derive(Debug, Clone)]
-#[non_exhaustive]
-/// Configuration for batching [AppendRecord]s.
+/// Configuration for batching [`AppendRecord`]s.
 pub struct BatchingConfig {
-    /// How long to wait for more records before flushing a batch.
-    ///
-    /// Defaults to `5ms`.
-    pub linger: Duration,
-    /// Maximum bytes per batch.
-    ///
-    /// Defaults to `1MiB`.
-    pub max_batch_bytes: usize,
-    /// Maximum number of records per batch.
-    ///
-    /// Defaults to `1000`.
-    pub max_batch_records: usize,
+    linger: Duration,
+    max_batch_bytes: usize,
+    max_batch_records: usize,
 }
 
 impl Default for BatchingConfig {
@@ -41,21 +31,27 @@ impl Default for BatchingConfig {
 }
 
 impl BatchingConfig {
-    /// Create a new [BatchingConfig] with default settings.
+    /// Create a new [`BatchingConfig`] with default settings.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Set the linger duration.
+    /// Set the duration for how long to wait for more records before flushing a batch.
+    ///
+    /// Defaults to `5ms`.
     pub fn with_linger(self, linger: Duration) -> Self {
         Self { linger, ..self }
     }
 
-    /// Set the maximum bytes per batch.
+    /// Set the maximum metered bytes per batch.
+    ///
+    /// **Note:** It must not exceed `1MiB`.
+    ///
+    /// Defaults to `1MiB`.
     pub fn with_max_batch_bytes(self, max_batch_bytes: usize) -> Result<Self, ValidationError> {
         if max_batch_bytes > RECORD_BATCH_MAX.bytes {
             return Err(ValidationError(format!(
-                "max_batch_bytes: {max_batch_bytes} exceeds {}",
+                "max_batch_bytes ({max_batch_bytes}) exceeds {}",
                 RECORD_BATCH_MAX.bytes
             )));
         }
@@ -66,10 +62,14 @@ impl BatchingConfig {
     }
 
     /// Set the maximum number of records per batch.
+    ///
+    /// **Note:** It must not exceed `1000`.
+    ///
+    /// Defaults to `1000`.
     pub fn with_max_batch_records(self, max_batch_records: usize) -> Result<Self, ValidationError> {
         if max_batch_records > RECORD_BATCH_MAX.count {
             return Err(ValidationError(format!(
-                "max_batch_records: {max_batch_records} exceeds {}",
+                "max_batch_records ({max_batch_records}) exceeds {}",
                 RECORD_BATCH_MAX.count
             )));
         }
@@ -80,8 +80,7 @@ impl BatchingConfig {
     }
 }
 
-#[non_exhaustive]
-/// A [Stream] that batches [AppendRecord]s into [AppendInput]s.
+/// A [`Stream`] that batches [`AppendRecord`]s into [`AppendInput`]s.
 pub struct AppendInputs {
     pub(crate) batches: AppendRecordBatches,
     pub(crate) fencing_token: Option<FencingToken>,
@@ -89,7 +88,7 @@ pub struct AppendInputs {
 }
 
 impl AppendInputs {
-    /// Create a new [AppendInputs] with the given records and config.
+    /// Create a new [`AppendInputs`] with the given records and config.
     pub fn new(
         records: impl Stream<Item = impl Into<AppendRecord> + Send> + Send + Unpin + 'static,
         config: BatchingConfig,
@@ -101,7 +100,7 @@ impl AppendInputs {
         }
     }
 
-    /// Set the fencing token for all [AppendInput]s.
+    /// Set the fencing token for all [`AppendInput`]s.
     pub fn with_fencing_token(self, fencing_token: FencingToken) -> Self {
         Self {
             fencing_token: Some(fencing_token),
@@ -109,7 +108,7 @@ impl AppendInputs {
         }
     }
 
-    /// Set the match sequence number for the initial [AppendInput]. It will be auto-incremented
+    /// Set the match sequence number for the initial [`AppendInput`]. It will be auto-incremented
     /// for the subsequent ones.
     pub fn with_match_seq_num(self, seq_num: u64) -> Self {
         Self {
@@ -142,13 +141,13 @@ impl Stream for AppendInputs {
     }
 }
 
-/// A [Stream] that batches [AppendRecord]s into [AppendRecordBatch]es.
+/// A [`Stream`] that batches [`AppendRecord`]s into [`AppendRecordBatch`]es.
 pub struct AppendRecordBatches {
     inner: Pin<Box<dyn Stream<Item = Result<AppendRecordBatch, ValidationError>> + Send>>,
 }
 
 impl AppendRecordBatches {
-    /// Create a new [AppendRecordBatches] with the given records and config.
+    /// Create a new [`AppendRecordBatches`] with the given records and config.
     pub fn new(
         records: impl Stream<Item = impl Into<AppendRecord> + Send> + Send + Unpin + 'static,
         config: BatchingConfig,
@@ -203,7 +202,7 @@ fn append_record_batches(
             let record_bytes = first_record.metered_bytes();
             if record_bytes > config.max_batch_bytes {
                 yield Err(ValidationError(format!(
-                    "record size ({record_bytes} bytes) exceeds max_batch_bytes ({})",
+                    "record size in metered bytes ({record_bytes}) exceeds max_batch_bytes ({})",
                     config.max_batch_bytes
                 )));
                 break;
@@ -310,7 +309,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn batching_should_fail_when_it_sees_oversized_record() -> Result<(), ValidationError> {
+    async fn batching_should_error_when_it_sees_oversized_record() -> Result<(), ValidationError> {
         let record = AppendRecord::new("hello")?;
         let record_bytes = record.metered_bytes();
         let max_batch_bytes = 1;
@@ -324,7 +323,7 @@ mod tests {
         assert_matches!(&results[0], Err(err) => {
             assert_eq!(
                 err.to_string(),
-                format!("record size ({record_bytes} bytes) exceeds max_batch_bytes ({max_batch_bytes})")
+                format!("record size in metered bytes ({record_bytes}) exceeds max_batch_bytes ({max_batch_bytes})")
             );
         });
 

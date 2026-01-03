@@ -93,7 +93,7 @@ pub mod types;
 pub use ops::{S2, S2Basin, S2Stream};
 /// Append session for pipelining multiple appends with backpressure control.
 ///
-/// See [AppendSession](append_session::AppendSession).
+/// See [`AppendSession`](append_session::AppendSession).
 pub mod append_session {
     pub use crate::session::append::{AppendSession, AppendSessionConfig, BatchSubmitTicket};
 }
