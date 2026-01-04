@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use rand::{Rng, rng};
+use rand::{RngExt, rng};
 
 #[derive(Debug, Clone, Copy)]
 pub struct RetryBackoffBuilder {

@@ -12,3 +12,5 @@ target/
 # IDE Specific configurations
 .idea/
 .helix/
+
+.claude/

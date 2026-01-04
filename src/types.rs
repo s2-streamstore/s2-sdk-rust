@@ -16,7 +16,7 @@ use http::{
     header::HeaderValue,
     uri::{Authority, Scheme},
 };
-use rand::Rng;
+use rand::RngExt;
 use s2_api::{v1 as api, v1::stream::s2s::CompressionAlgorithm};
 pub use s2_common::caps::RECORD_BATCH_MAX;
 /// Validation error.
@@ -2426,7 +2426,7 @@ pub struct ListStreamsInput {
     ///
     /// Defaults to `""`.
     pub start_after: StreamNameStartAfter,
-    ///  Number of streams to return in a page. Will be clamped to a maximum of `1000`.
+    /// Number of streams to return in a page. Will be clamped to a maximum of `1000`.
     ///
     /// Defaults to `1000`.
     pub limit: Option<usize>,
@@ -3218,8 +3218,12 @@ impl ReadLimits {
 /// When to stop reading.
 pub struct ReadStop {
     /// Limits on how much to read.
+    ///
+    /// See [`ReadLimits`] for defaults.
     pub limits: ReadLimits,
     /// Timestamp at which to stop (exclusive).
+    ///
+    /// Defaults to `None`.
     pub until: Option<RangeTo<u64>>,
     /// Duration in seconds to wait for new records before stopping. Will be clamped to `60`
     /// seconds for [`read`](crate::S2Stream::read).
@@ -3278,8 +3282,12 @@ impl From<ReadStop> for api::stream::ReadEnd {
 /// operations.
 pub struct ReadInput {
     /// Where to start reading.
+    ///
+    /// See [`ReadStart`] for defaults.
     pub start: ReadStart,
     /// When to stop reading.
+    ///
+    /// See [`ReadStop`] for defaults.
     pub stop: ReadStop,
     /// Whether to filter out command records from the stream when reading.
     ///
