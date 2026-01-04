@@ -27,7 +27,7 @@
 </div>
 
 The Rust SDK provides ergonomic wrappers and utilities to interact with the
-[S2 API](https://s2.dev/docs/interface/grpc).
+[S2 REST API](https://s2.dev/docs/rest/protocol).
 
 ## Getting started
 
