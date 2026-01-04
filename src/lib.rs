@@ -95,5 +95,7 @@ pub use ops::{S2, S2Basin, S2Stream};
 ///
 /// See [`AppendSession`](append_session::AppendSession).
 pub mod append_session {
-    pub use crate::session::append::{AppendSession, AppendSessionConfig, BatchSubmitTicket};
+    pub use crate::session::append::{
+        AppendSession, AppendSessionConfig, BatchSubmitPermit, BatchSubmitTicket,
+    };
 }
