@@ -7,10 +7,12 @@ use std::{
 };
 
 use futures::{Stream, StreamExt};
-use s2_common::{caps::RECORD_BATCH_MAX, types::ValidationError};
+use s2_common::caps::RECORD_BATCH_MAX;
 use tokio::time::Instant;
 
-use crate::types::{AppendInput, AppendRecord, AppendRecordBatch, FencingToken, MeteredBytes};
+use crate::types::{
+    AppendInput, AppendRecord, AppendRecordBatch, FencingToken, MeteredBytes, ValidationError,
+};
 
 #[derive(Debug, Clone)]
 /// Configuration for batching [`AppendRecord`]s.

@@ -16,9 +16,13 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::task::AbortOnDropHandle;
 
 use crate::{
+    api::BasinClient,
     batching::{AppendInputs, AppendRecordBatches, BatchingConfig},
-    session::AppendSession,
-    types::{AppendAck, AppendInput, AppendRecord, FencingToken, MeteredBytes, S2Error},
+    session::{AppendPermit, AppendPermits, AppendSessionInternal, BatchSubmitTicket},
+    types::{
+        AppendAck, AppendRecord, FencingToken, MeteredBytes, ONE_MIB, S2Error, StreamName,
+        ValidationError,
+    },
 };
 
 /// A [`Future`] that resolves to an acknowledgement once the record is appended.
@@ -48,21 +52,24 @@ pub struct IndexedAppendAck {
     pub batch: AppendAck,
 }
 
-#[derive(Debug, Clone, Default)]
-#[non_exhaustive]
-/// Configuration for [`Producer`].
+/// Configuration for a [`Producer`].
+#[derive(Debug, Clone)]
 pub struct ProducerConfig {
-    /// Configuration for batching records into [`AppendInput`]s before appending.
-    pub batching: BatchingConfig,
-    /// Fencing token for all [`AppendInput`]s.
-    ///
-    /// Defaults to `None`.
-    pub fencing_token: Option<FencingToken>,
-    /// Match sequence number for the initial [`AppendInput`]. It will be auto-incremented for the
-    /// subsequent ones.
-    ///
-    /// Defaults to `None`.
-    pub match_seq_num: Option<u64>,
+    max_unacked_bytes: u32,
+    batching: BatchingConfig,
+    fencing_token: Option<FencingToken>,
+    match_seq_num: Option<u64>,
+}
+
+impl Default for ProducerConfig {
+    fn default() -> Self {
+        Self {
+            max_unacked_bytes: 10 * ONE_MIB,
+            batching: BatchingConfig::default(),
+            fencing_token: None,
+            match_seq_num: None,
+        }
+    }
 }
 
 impl ProducerConfig {
@@ -71,12 +78,32 @@ impl ProducerConfig {
         Self::default()
     }
 
-    /// Set the configuration for batching records into [`AppendInput`]s before appending.
+    /// Set the limit on total metered bytes of unacknowledged [`AppendRecord`]s held in memory.
+    ///
+    /// **Note:** It must be at least `1MiB`.
+    ///
+    /// Defaults to `10MiB`.
+    pub fn with_max_unacked_bytes(self, max_unacked_bytes: u32) -> Result<Self, ValidationError> {
+        if max_unacked_bytes < ONE_MIB {
+            return Err(format!("max_unacked_bytes must be at least {ONE_MIB}").into());
+        }
+        Ok(Self {
+            max_unacked_bytes,
+            ..self
+        })
+    }
+
+    /// Set the configuration for batching records into [`AppendInput`](crate::types::AppendInput)s
+    /// before appending.
+    ///
+    /// See [`BatchingConfig`] for defaults.
     pub fn with_batching(self, batching: BatchingConfig) -> Self {
         Self { batching, ..self }
     }
 
-    /// Set the fencing token for all [`AppendInput`]s.
+    /// Set the fencing token for all [`AppendInput`](crate::types::AppendInput)s.
+    ///
+    /// Defaults to `None`.
     pub fn with_fencing_token(self, fencing_token: FencingToken) -> Self {
         Self {
             fencing_token: Some(fencing_token),
@@ -84,8 +111,10 @@ impl ProducerConfig {
         }
     }
 
-    /// Set the match sequence number for the initial [`AppendInput`]. It will be auto-incremented
-    /// for the subsequent ones.
+    /// Set the match sequence number for the initial [`AppendInput`](crate::types::AppendInput). It
+    /// will be auto-incremented for subsequent ones.
+    ///
+    /// Defaults to `None`.
     pub fn with_match_seq_num(self, match_seq_num: u64) -> Self {
         Self {
             match_seq_num: Some(match_seq_num),
@@ -96,31 +125,69 @@ impl ProducerConfig {
 
 /// High-level interface for submitting individual [`AppendRecord`]s.
 ///
-/// Wraps an [`AppendSession`] and handles batching records into [`AppendInput`]s automatically
-/// based on the provided [`configuration`](ProducerConfig).
+/// Handles batching of records into [`AppendInput`](crate::types::AppendInput)s automatically based
+/// on the provided [`configuration`](ProducerConfig), and uses an append session internally.
 pub struct Producer {
     cmd_tx: mpsc::Sender<Command>,
+    permits: AppendPermits,
     _handle: AbortOnDropHandle<()>,
 }
 
 impl Producer {
-    /// Create a new [`Producer`].
-    pub fn new(session: AppendSession, config: ProducerConfig) -> Self {
+    pub(crate) fn new(client: BasinClient, stream: StreamName, config: ProducerConfig) -> Self {
         let (cmd_tx, cmd_rx) = mpsc::channel::<Command>(RECORD_BATCH_MAX.count);
+        let permits = AppendPermits::new(None, config.max_unacked_bytes);
+        let session = AppendSessionInternal::new(client, stream);
         let _handle = AbortOnDropHandle::new(tokio::spawn(Self::run(session, config, cmd_rx)));
-        Self { cmd_tx, _handle }
+        Self {
+            cmd_tx,
+            permits,
+            _handle,
+        }
     }
 
     /// Submit a record for appending.
     ///
-    /// **Note**: You must call [`Producer::close`] to ensure all submitted records are appended.
+    /// Internally, it waits on [`reserve`](Self::reserve), then submits using the permit.
+    /// This provides backpressure when the unacknowledged bytes limit is reached.
+    /// For explicit control, use [`reserve`](Self::reserve) followed by
+    /// [`RecordSubmitPermit::submit`].
+    ///
+    /// **Note**: After all submits, you must call [`close`](Self::close) to ensure all records are
+    /// appended.
     pub async fn submit(&self, record: AppendRecord) -> Result<RecordSubmitTicket, S2Error> {
-        let (ack_tx, ack_rx) = oneshot::channel();
-        self.cmd_tx
-            .send(Command::Submit { record, ack_tx })
+        let permit = self.reserve(record.metered_bytes() as u32).await?;
+        Ok(permit.submit(record))
+    }
+
+    /// Reserve capacity for a record to be submitted. Useful in [`select!`](tokio::select) loops
+    /// where you want to interleave submission with other async work. See [`submit`](Self::submit)
+    /// for a simpler API.
+    ///
+    /// Waits when the unacknowledged bytes limit is reached, providing explicit backpressure
+    /// control. The returned permit must be used to submit the record.
+    ///
+    /// **Note**: After all submits, you must call [`close`](Self::close) to ensure all records are
+    /// appended.
+    ///
+    /// # Cancel safety
+    ///
+    /// This method is cancel safe. Internally, it only awaits
+    /// [`Semaphore::acquire_many_owned`](tokio::sync::Semaphore::acquire_many_owned) and
+    /// [`Sender::reserve_owned`](tokio::sync::mpsc::Sender::reserve_owned), both of which are
+    /// cancel safe.
+    pub async fn reserve(&self, bytes: u32) -> Result<RecordSubmitPermit, S2Error> {
+        let append_permit = self.permits.acquire(bytes).await;
+        let cmd_tx_permit = self
+            .cmd_tx
+            .clone()
+            .reserve_owned()
             .await
             .map_err(|_| ProducerError::Closed)?;
-        Ok(RecordSubmitTicket { rx: ack_rx })
+        Ok(RecordSubmitPermit {
+            append_permit,
+            cmd_tx_permit,
+        })
     }
 
     /// Close the producer and wait for all submitted records to be appended.
@@ -134,7 +201,7 @@ impl Producer {
     }
 
     async fn run(
-        session: AppendSession,
+        session: AppendSessionInternal,
         config: ProducerConfig,
         mut cmd_rx: mpsc::Receiver<Command>,
     ) {
@@ -145,14 +212,13 @@ impl Producer {
             match_seq_num: config.match_seq_num,
         };
 
-        let mut ack_txs: VecDeque<oneshot::Sender<Result<IndexedAppendAck, S2Error>>> =
-            VecDeque::new();
+        let mut pending_acks: VecDeque<PendingRecordAck> = VecDeque::new();
         let mut claimable_tickets: FuturesUnordered<_> = FuturesUnordered::new();
         let mut close_tx: Option<oneshot::Sender<Result<(), S2Error>>> = None;
         let mut closing = false;
         let mut stashed_submission: Option<StashedSubmission> = None;
-        let mut stashed_input: Option<AppendInput> = None;
-        let mut stashed_input_bytes = 0;
+        let mut submit_fut: Option<SubmitFuture> = None;
+        let mut submit_batch_len: Option<usize> = None;
 
         loop {
             tokio::select! {
@@ -160,7 +226,10 @@ impl Producer {
                     let submission = stashed_submission
                         .take()
                         .expect("stashed_submission should not be None");
-                    ack_txs.push_back(submission.ack_tx);
+                    pending_acks.push_back(PendingRecordAck {
+                        ack_tx: submission.ack_tx,
+                        _permit: submission.permit,
+                    });
                     record_tx_permit
                         .expect("record_rx should not be closed")
                         .send(submission.record);
@@ -168,13 +237,13 @@ impl Producer {
 
                 cmd = cmd_rx.recv(), if stashed_submission.is_none() => {
                     match cmd {
-                        Some(Command::Submit { record, ack_tx }) => {
+                        Some(Command::Submit { record, ack_tx, permit }) => {
                             if closing {
                                 let _ = ack_tx.send(
                                     Err(ProducerError::Closing.into())
                                 );
                             } else {
-                                stashed_submission = Some(StashedSubmission { record, ack_tx });
+                                stashed_submission = Some(StashedSubmission { record, ack_tx, permit });
                             }
                         }
                         Some(Command::Close { done_tx }) => {
@@ -182,23 +251,23 @@ impl Producer {
                             close_tx = Some(done_tx);
                         }
                         None => {
-                            for ack_tx in ack_txs.drain(..) {
-                                let _ = ack_tx.send(Err(ProducerError::Dropped.into()));
+                            for pending in pending_acks.drain(..) {
+                                let _ = pending.ack_tx.send(Err(ProducerError::Dropped.into()));
                             }
                             return;
                         }
                     }
                 }
 
-                input = inputs.next(), if stashed_input.is_none() => {
+                input = inputs.next(), if submit_fut.is_none() => {
                     match input.expect("record_tx should not be closed") {
                         Ok(input) => {
-                            stashed_input_bytes = input.records.metered_bytes() as u32;
-                            stashed_input = Some(input);
+                            submit_batch_len = Some(input.records.len());
+                            submit_fut = Some(Box::pin(session.submit(input)));
                         }
                         Err(err) => {
-                            for ack_tx in ack_txs.drain(..) {
-                                let _ = ack_tx.send(Err(err.clone().into()));
+                            for pending in pending_acks.drain(..) {
+                                let _ = pending.ack_tx.send(Err(err.clone().into()));
                             }
                             if let Some(submission) = stashed_submission.take() {
                                 let _ = submission.ack_tx.send(Err(err.clone().into()));
@@ -208,22 +277,26 @@ impl Producer {
                     }
                 }
 
-                session_permit = session.reserve(stashed_input_bytes), if stashed_input.is_some() => {
-                    match session_permit {
-                        Ok(session_permit) => {
-                            let input = stashed_input
+                ticket = async {
+                    submit_fut
+                        .as_mut()
+                        .expect("submit_fut should not be None")
+                        .await
+                }, if submit_fut.is_some() => {
+                    submit_fut = None;
+                    match ticket {
+                        Ok(ticket) => {
+                            let batch_len = submit_batch_len
                                 .take()
-                                .expect("stashed_input should not be None");
-                            let batch_len = input.records.len();
-                            let ticket = session_permit.send(input);
+                                .expect("submit_batch_len should not be None");
                             claimable_tickets.push(ticket.map({
-                                let ack_txs = ack_txs.drain(..batch_len).collect::<Vec<_>>();
-                                |batch_ack| (batch_ack, ack_txs)
+                                let pending_acks = pending_acks.drain(..batch_len).collect::<Vec<_>>();
+                                |batch_ack| (batch_ack, pending_acks)
                             }));
                         }
                         Err(err) => {
-                            for ack_tx in ack_txs.drain(..) {
-                                let _ = ack_tx.send(Err(err.clone()));
+                            for pending in pending_acks.drain(..) {
+                                let _ = pending.ack_tx.send(Err(err.clone()));
                             }
                             if let Some(submission) = stashed_submission.take() {
                                 let _ = submission.ack_tx.send(Err(err.clone()));
@@ -233,16 +306,16 @@ impl Producer {
                     }
                 }
 
-                Some((batch_ack, ack_txs)) = claimable_tickets.next() => {
-                    dispatch_acks(batch_ack, ack_txs);
+                Some((batch_ack, pending_acks)) = claimable_tickets.next() => {
+                    dispatch_acks(batch_ack, pending_acks);
                 }
             }
 
             if closing
-                && ack_txs.is_empty()
+                && pending_acks.is_empty()
                 && claimable_tickets.is_empty()
                 && stashed_submission.is_none()
-                && stashed_input.is_none()
+                && submit_fut.is_none()
             {
                 break;
             }
@@ -253,6 +326,25 @@ impl Producer {
         if let Some(done_tx) = close_tx.take() {
             let _ = done_tx.send(session_close_res);
         }
+    }
+}
+
+/// A permit to submit a record after reserving capacity.
+pub struct RecordSubmitPermit {
+    append_permit: AppendPermit,
+    cmd_tx_permit: mpsc::OwnedPermit<Command>,
+}
+
+impl RecordSubmitPermit {
+    /// Submit the record using this permit.
+    pub fn submit(self, record: AppendRecord) -> RecordSubmitTicket {
+        let (ack_tx, ack_rx) = oneshot::channel();
+        self.cmd_tx_permit.send(Command::Submit {
+            record,
+            ack_tx,
+            permit: self.append_permit,
+        });
+        RecordSubmitTicket { rx: ack_rx }
     }
 }
 
@@ -272,10 +364,13 @@ impl From<ProducerError> for S2Error {
     }
 }
 
+type SubmitFuture = Pin<Box<dyn Future<Output = Result<BatchSubmitTicket, S2Error>> + Send>>;
+
 enum Command {
     Submit {
         record: AppendRecord,
         ack_tx: oneshot::Sender<Result<IndexedAppendAck, S2Error>>,
+        permit: AppendPermit,
     },
     Close {
         done_tx: oneshot::Sender<Result<(), S2Error>>,
@@ -285,25 +380,28 @@ enum Command {
 struct StashedSubmission {
     record: AppendRecord,
     ack_tx: oneshot::Sender<Result<IndexedAppendAck, S2Error>>,
+    permit: AppendPermit,
 }
 
-fn dispatch_acks(
-    batch_ack: Result<AppendAck, S2Error>,
-    ack_txs: Vec<oneshot::Sender<Result<IndexedAppendAck, S2Error>>>,
-) {
+struct PendingRecordAck {
+    ack_tx: oneshot::Sender<Result<IndexedAppendAck, S2Error>>,
+    _permit: AppendPermit,
+}
+
+fn dispatch_acks(batch_ack: Result<AppendAck, S2Error>, pending_acks: Vec<PendingRecordAck>) {
     match batch_ack {
         Ok(batch_ack) => {
-            for (offset, ack_tx) in ack_txs.into_iter().enumerate() {
+            for (offset, pending) in pending_acks.into_iter().enumerate() {
                 let seq_num = batch_ack.start.seq_num + offset as u64;
-                let _ = ack_tx.send(Ok(IndexedAppendAck {
+                let _ = pending.ack_tx.send(Ok(IndexedAppendAck {
                     seq_num,
                     batch: batch_ack.clone(),
                 }));
             }
         }
         Err(err) => {
-            for ack_tx in ack_txs {
-                let _ = ack_tx.send(Err(err.clone()));
+            for pending in pending_acks {
+                let _ = pending.ack_tx.send(Err(err.clone()));
             }
         }
     }

@@ -18,6 +18,8 @@ use http::{
 };
 use rand::Rng;
 use s2_api::{v1 as api, v1::stream::s2s::CompressionAlgorithm};
+/// Validation error.
+pub use s2_common::types::ValidationError;
 /// Access token ID.
 ///
 /// **Note:** It must be unique to the account and between 1 and 96 bytes in length.
@@ -43,9 +45,10 @@ pub use s2_common::types::stream::StreamName;
 pub use s2_common::types::stream::StreamNamePrefix;
 /// See [`ListStreamsInput::start_after`].
 pub use s2_common::types::stream::StreamNameStartAfter;
-use s2_common::{
-    caps::RECORD_BATCH_MAX, maybe::Maybe, record::MAX_FENCING_TOKEN_LENGTH, types::ValidationError,
-};
+
+pub(crate) const ONE_MIB: u32 = 1024 * 1024;
+
+use s2_common::{caps::RECORD_BATCH_MAX, maybe::Maybe, record::MAX_FENCING_TOKEN_LENGTH};
 use secrecy::SecretString;
 
 use crate::api::{ApiError, ApiErrorResponse};

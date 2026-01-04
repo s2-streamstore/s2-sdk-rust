@@ -1,7 +1,6 @@
 use s2::{
     S2,
-    append_session::AppendSessionConfig,
-    producer::{Producer, ProducerConfig},
+    producer::ProducerConfig,
     types::{AppendRecord, BasinName, S2Config, StreamName},
 };
 
@@ -19,8 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let s2 = S2::new(S2Config::new(access_token))?;
     let stream = s2.basin(basin_name).stream(stream_name);
 
-    let session = stream.append_session(AppendSessionConfig::new());
-    let producer = Producer::new(session, ProducerConfig::new());
+    let producer = stream.producer(ProducerConfig::new());
 
     let ticket1 = producer.submit(AppendRecord::new("lorem")?).await?;
     let ticket2 = producer.submit(AppendRecord::new("ipsum")?).await?;
