@@ -144,7 +144,7 @@ pub fn unique_stream_name() -> StreamName {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    format!("stream-{}-{}", timestamp, counter)
+    format!("stream-{}-{:04}", timestamp, counter)
         .parse()
         .expect("valid stream name")
 }
@@ -170,7 +170,7 @@ pub fn unique_basin_name() -> BasinName {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    format!("test-rs-sdk-{}-{}", timestamp, counter)
+    format!("basin-{}-{:04}", timestamp, counter)
         .parse()
         .expect("valid basin name")
 }
