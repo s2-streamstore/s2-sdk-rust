@@ -1,7 +1,9 @@
-//! Types relevant to [S2](crate::S2), [S2Basin](crate::S2Basin), and [S2Stream](crate::S2Stream).
+//! Types relevant to [`S2`](crate::S2), [`S2Basin`](crate::S2Basin), and
+//! [`S2Stream`](crate::S2Stream).
 use std::{
     collections::HashSet,
     env::VarError,
+    fmt,
     num::NonZeroU32,
     ops::{Deref, RangeTo},
     str::FromStr,
@@ -19,34 +21,75 @@ use s2_api::{v1 as api, v1::stream::s2s::CompressionAlgorithm};
 ///
 /// **Note:** It must be unique to the account and between 1 and 96 bytes in length.
 pub use s2_common::types::access::AccessTokenId;
-/// See [ListAccessTokensInput::prefix].
+/// See [`ListAccessTokensInput::prefix`].
 pub use s2_common::types::access::AccessTokenIdPrefix;
-/// See [ListAccessTokensInput::start_after].
+/// See [`ListAccessTokensInput::start_after`].
 pub use s2_common::types::access::AccessTokenIdStartAfter;
 /// Basin name.
 ///
 /// **Note:** It must be globally unique and between 8 and 48 bytes in length. It can only
 /// comprise lowercase letters, numbers, and hyphens. It cannot begin or end with a hyphen.
 pub use s2_common::types::basin::BasinName;
-/// See [ListBasinsInput::prefix].
+/// See [`ListBasinsInput::prefix`].
 pub use s2_common::types::basin::BasinNamePrefix;
-/// See [ListBasinsInput::start_after].
+/// See [`ListBasinsInput::start_after`].
 pub use s2_common::types::basin::BasinNameStartAfter;
 /// Stream name.
 ///
 /// **Note:** It must be unique to the basin and between 1 and 512 bytes in length.
 pub use s2_common::types::stream::StreamName;
-/// See [ListStreamsInput::prefix].
+/// See [`ListStreamsInput::prefix`].
 pub use s2_common::types::stream::StreamNamePrefix;
-/// See [ListStreamsInput::start_after].
+/// See [`ListStreamsInput::start_after`].
 pub use s2_common::types::stream::StreamNameStartAfter;
 use s2_common::{
     caps::RECORD_BATCH_MAX, maybe::Maybe, record::MAX_FENCING_TOKEN_LENGTH, types::ValidationError,
 };
 use secrecy::SecretString;
-pub use time;
 
 use crate::api::{ApiError, ApiErrorResponse};
+
+/// An RFC 3339 datetime.
+///
+/// It can be created in either of the following ways:
+/// - Parse an RFC 3339 datetime string using [`FromStr`] or [`str::parse`].
+/// - Convert from [`time::OffsetDateTime`] using [`From`]/[`Into`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct S2DateTime(time::OffsetDateTime);
+
+impl From<time::OffsetDateTime> for S2DateTime {
+    fn from(dt: time::OffsetDateTime) -> Self {
+        Self(dt)
+    }
+}
+
+impl From<S2DateTime> for time::OffsetDateTime {
+    fn from(dt: S2DateTime) -> Self {
+        dt.0
+    }
+}
+
+impl FromStr for S2DateTime {
+    type Err = ValidationError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        time::OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339)
+            .map(Self)
+            .map_err(|e| ValidationError(format!("invalid datetime: {e}")))
+    }
+}
+
+impl fmt::Display for S2DateTime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.0
+                .format(&time::format_description::well_known::Rfc3339)
+                .expect("RFC3339 formatting should not fail for S2DateTime")
+        )
+    }
+}
 
 /// Authority for connecting to an S2 basin.
 #[derive(Debug, Clone, PartialEq)]
@@ -72,7 +115,7 @@ pub struct S2Endpoints {
 }
 
 impl S2Endpoints {
-    /// Create a new [S2Endpoints] with the given account and basin authorities.
+    /// Create a new [`S2Endpoints`] with the given account and basin authorities.
     pub fn new(account_authority: Authority, basin_authority: BasinAuthority) -> Self {
         Self {
             scheme: Scheme::HTTPS,
@@ -121,12 +164,12 @@ impl From<Compression> for CompressionAlgorithm {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
-/// Retry policy for [append](crate::S2Stream::append) and
-/// [append_session](crate::S2Stream::append_session) operations.
+/// Retry policy for [`append`](crate::S2Stream::append) and
+/// [`append_session`](crate::S2Stream::append_session) operations.
 pub enum AppendRetryPolicy {
     /// Retry all appends. Use when duplicate records on the stream are acceptable.
     All,
-    /// Only retry appends that include [match_seq_num](AppendInput::match_seq_num).
+    /// Only retry appends that include [`match_seq_num`](AppendInput::match_seq_num).
     NoSideEffects,
 }
 
@@ -162,8 +205,8 @@ pub struct RetryConfig {
     ///
     /// Defaults to `1s`.
     pub max_base_delay: Duration,
-    /// Retry policy for [append](crate::S2Stream::append) and
-    /// [append_session](crate::S2Stream::append_session) operations.
+    /// Retry policy for [`append`](crate::S2Stream::append) and
+    /// [`append_session`](crate::S2Stream::append_session) operations.
     ///
     /// Defaults to `All`.
     pub append_retry_policy: AppendRetryPolicy,
@@ -181,7 +224,7 @@ impl Default for RetryConfig {
 }
 
 impl RetryConfig {
-    /// Create a new [RetryConfig] with default settings.
+    /// Create a new [`RetryConfig`] with default settings.
     pub fn new() -> Self {
         Self::default()
     }
@@ -214,8 +257,8 @@ impl RetryConfig {
         }
     }
 
-    /// Set the retry policy for [append](crate::S2Stream::append) and
-    /// [append_session](crate::S2Stream::append_session) operations.
+    /// Set the retry policy for [`append`](crate::S2Stream::append) and
+    /// [`append_session`](crate::S2Stream::append_session) operations.
     pub fn with_append_retry_policy(self, append_retry_policy: AppendRetryPolicy) -> Self {
         Self {
             append_retry_policy,
@@ -226,26 +269,19 @@ impl RetryConfig {
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-/// Configuration for [S2](crate::S2), [S2Basin](crate::S2Basin), and [S2Stream](crate::S2Stream).  
+/// Configuration for [`S2`](crate::S2).
 pub struct S2Config {
-    /// Access token for request authentication.
-    pub access_token: SecretString,
-    /// Endpoints for the S2 environment.
-    pub endpoints: S2Endpoints,
-    /// Timeout for establishing a connection to the server.
-    pub connection_timeout: Duration,
-    /// Timeout for requests.
-    pub request_timeout: Duration,
-    /// Retry configuration for requests.
-    pub retry: RetryConfig,
-    /// Compression algorithm for requests and responses.
-    pub compression: Compression,
-    /// `User-Agent` header value to use in requests.
-    pub user_agent: HeaderValue,
+    pub(crate) access_token: SecretString,
+    pub(crate) endpoints: S2Endpoints,
+    pub(crate) connection_timeout: Duration,
+    pub(crate) request_timeout: Duration,
+    pub(crate) retry: RetryConfig,
+    pub(crate) compression: Compression,
+    pub(crate) user_agent: HeaderValue,
 }
 
 impl S2Config {
-    /// Create a new [S2Config] with the given access token and default settings.
+    /// Create a new [`S2Config`] with the given access token and default settings.
     pub fn new(access_token: impl Into<String>) -> Self {
         Self {
             access_token: access_token.into().into(),
@@ -258,7 +294,7 @@ impl S2Config {
         }
     }
 
-    /// Create a new [S2Config] from environment variables.
+    /// Create a new [`S2Config`] from environment variables.
     ///
     /// The following environment variables are expected to be set:
     /// - `S2_ACCESS_TOKEN` - Access token for request authentication.
@@ -345,19 +381,16 @@ impl S2Config {
     }
 
     /// Set the S2 endpoints to connect to.
-    pub fn with_endpoints(self, endpoints: impl Into<S2Endpoints>) -> Self {
-        Self {
-            endpoints: endpoints.into(),
-            ..self
-        }
+    pub fn with_endpoints(self, endpoints: S2Endpoints) -> Self {
+        Self { endpoints, ..self }
     }
 
     /// Set the timeout for establishing a connection to the server.
     ///
     /// Defaults to `3s`.
-    pub fn with_connection_timeout(self, connection_timeout: impl Into<Duration>) -> Self {
+    pub fn with_connection_timeout(self, connection_timeout: Duration) -> Self {
         Self {
-            connection_timeout: connection_timeout.into(),
+            connection_timeout,
             ..self
         }
     }
@@ -365,9 +398,9 @@ impl S2Config {
     /// Set the timeout for requests.
     ///
     /// Defaults to `5s`.
-    pub fn with_request_timeout(self, request_timeout: impl Into<Duration>) -> Self {
+    pub fn with_request_timeout(self, request_timeout: Duration) -> Self {
         Self {
-            request_timeout: request_timeout.into(),
+            request_timeout,
             ..self
         }
     }
@@ -387,11 +420,14 @@ impl S2Config {
         }
     }
 
-    /// Set the `User-Agent` header value to use in requests.
-    ///
-    /// Defaults to `s2-sdk-rust`. Feel free to say hi.
-    pub fn with_user_agent(self, user_agent: HeaderValue) -> Self {
-        Self { user_agent, ..self }
+    #[doc(hidden)]
+    #[cfg(feature = "_hidden")]
+    pub fn with_user_agent(self, user_agent: impl Into<String>) -> Result<Self, ValidationError> {
+        let user_agent = user_agent
+            .into()
+            .parse()
+            .map_err(|e| ValidationError(format!("invalid user agent: {e}")))?;
+        Ok(Self { user_agent, ..self })
     }
 }
 
@@ -510,7 +546,7 @@ impl From<TimestampingMode> for api::config::TimestampingMode {
 pub struct TimestampingConfig {
     /// Timestamping mode for appends that influences how timestamps are handled.
     ///
-    /// Defaults to [ClientPrefer](TimestampingMode::ClientPrefer).
+    /// Defaults to [`ClientPrefer`](TimestampingMode::ClientPrefer).
     pub mode: Option<TimestampingMode>,
     /// Whether client-specified timestamps are allowed to exceed the arrival time.
     ///
@@ -519,7 +555,7 @@ pub struct TimestampingConfig {
 }
 
 impl TimestampingConfig {
-    /// Create a new [TimestampingConfig] with default settings.
+    /// Create a new [`TimestampingConfig`] with default settings.
     pub fn new() -> Self {
         Self::default()
     }
@@ -560,6 +596,7 @@ impl From<TimestampingConfig> for api::config::TimestampingConfig {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
 /// Configuration for automatically deleting a stream when it becomes empty.
 pub struct DeleteOnEmptyConfig {
     /// Minimum age in seconds before an empty stream can be deleted.
@@ -569,7 +606,7 @@ pub struct DeleteOnEmptyConfig {
 }
 
 impl DeleteOnEmptyConfig {
-    /// Create a new [DeleteOnEmptyConfig] with default settings.
+    /// Create a new [`DeleteOnEmptyConfig`] with default settings.
     pub fn new() -> Self {
         Self::default()
     }
@@ -604,7 +641,7 @@ impl From<DeleteOnEmptyConfig> for api::config::DeleteOnEmptyConfig {
 pub struct StreamConfig {
     /// Storage class for the stream.
     ///
-    /// Defaults to [Express](StorageClass::Express).
+    /// Defaults to [`Express`](StorageClass::Express).
     pub storage_class: Option<StorageClass>,
     /// Retention policy for records in the stream.
     ///
@@ -612,16 +649,16 @@ pub struct StreamConfig {
     pub retention_policy: Option<RetentionPolicy>,
     /// Configuration for timestamping behavior.
     ///
-    /// See [TimestampingConfig] for defaults.
+    /// See [`TimestampingConfig`] for defaults.
     pub timestamping: Option<TimestampingConfig>,
     /// Configuration for automatically deleting the stream when it becomes empty.
     ///
-    /// See [DeleteOnEmptyConfig] for defaults.
+    /// See [`DeleteOnEmptyConfig`] for defaults.
     pub delete_on_empty: Option<DeleteOnEmptyConfig>,
 }
 
 impl StreamConfig {
-    /// Create a new [StreamConfig] with default settings.
+    /// Create a new [`StreamConfig`] with default settings.
     pub fn new() -> Self {
         Self::default()
     }
@@ -687,7 +724,7 @@ impl From<StreamConfig> for api::config::StreamConfig {
 pub struct BasinConfig {
     /// Default configuration for all streams in the basin.
     ///
-    /// See [StreamConfig] for defaults.
+    /// See [`StreamConfig`] for defaults.
     pub default_stream_config: Option<StreamConfig>,
     /// Whether to create stream on append if it doesn't exist using default stream configuration.
     ///
@@ -700,7 +737,7 @@ pub struct BasinConfig {
 }
 
 impl BasinConfig {
-    /// Create a new [BasinConfig] with default settings.
+    /// Create a new [`BasinConfig`] with default settings.
     pub fn new() -> Self {
         Self::default()
     }
@@ -777,17 +814,17 @@ impl From<BasinScope> for api::basin::BasinScope {
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-/// Input for [create_basin](crate::S2::create_basin) operation.
+/// Input for [`create_basin`](crate::S2::create_basin) operation.
 pub struct CreateBasinInput {
     /// Basin name.
     pub name: BasinName,
     /// Configuration for the basin.
     ///
-    /// See [BasinConfig] for defaults.
+    /// See [`BasinConfig`] for defaults.
     pub config: Option<BasinConfig>,
     /// Scope of the basin.
     ///
-    /// Defaults to [AwsUsEast1](BasinScope::AwsUsEast1).
+    /// Defaults to [`AwsUsEast1`](BasinScope::AwsUsEast1).
     pub scope: Option<BasinScope>,
     /// Idempotency token for the operation.
     ///
@@ -800,7 +837,7 @@ pub struct CreateBasinInput {
 }
 
 impl CreateBasinInput {
-    /// Create a new [CreateBasinInput] with the given basin name.
+    /// Create a new [`CreateBasinInput`] with the given basin name.
     pub fn new(name: BasinName) -> Self {
         Self {
             name,
@@ -850,7 +887,7 @@ impl From<CreateBasinInput> for (api::basin::CreateBasinRequest, String) {
 
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-/// Input for [list_basins](crate::S2::list_basins) operation.
+/// Input for [`list_basins`](crate::S2::list_basins) operation.
 pub struct ListBasinsInput {
     /// Filter basins whose names begin with this value.
     ///
@@ -858,7 +895,7 @@ pub struct ListBasinsInput {
     pub prefix: BasinNamePrefix,
     /// Filter basins whose names are lexicographically greater than this value.
     ///
-    /// **Note:** It must be greater than or equal to [prefix](ListBasinsInput::prefix).
+    /// **Note:** It must be greater than or equal to [`prefix`](ListBasinsInput::prefix).
     ///
     /// Defaults to `""`.
     pub start_after: BasinNameStartAfter,
@@ -869,7 +906,7 @@ pub struct ListBasinsInput {
 }
 
 impl ListBasinsInput {
-    /// Create a new [ListBasinsInput] with default values.
+    /// Create a new [`ListBasinsInput`] with default values.
     pub fn new() -> Self {
         Self::default()
     }
@@ -936,7 +973,7 @@ pub struct BasinInfo {
     /// Basin name.
     pub name: BasinName,
     /// Scope of the basin.
-    pub scope: BasinScope,
+    pub scope: Option<BasinScope>,
     /// Current state of the basin.
     pub state: BasinState,
 }
@@ -945,7 +982,7 @@ impl From<api::basin::BasinInfo> for BasinInfo {
     fn from(value: api::basin::BasinInfo) -> Self {
         Self {
             name: value.name,
-            scope: value.scope.into(),
+            scope: value.scope.map(Into::into),
             state: value.state.into(),
         }
     }
@@ -953,7 +990,7 @@ impl From<api::basin::BasinInfo> for BasinInfo {
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-/// Input for [delete_basin](crate::S2::delete_basin) operation.
+/// Input for [`delete_basin`](crate::S2::delete_basin) operation.
 pub struct DeleteBasinInput {
     /// Basin name.
     pub name: BasinName,
@@ -962,7 +999,7 @@ pub struct DeleteBasinInput {
 }
 
 impl DeleteBasinInput {
-    /// Create a new [DeleteBasinInput] with the given basin name.
+    /// Create a new [`DeleteBasinInput`] with the given basin name.
     pub fn new(name: BasinName) -> Self {
         Self {
             name,
@@ -981,21 +1018,21 @@ impl DeleteBasinInput {
 
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-/// Reconfiguration for [TimestampingConfig].
+/// Reconfiguration for [`TimestampingConfig`].
 pub struct TimestampingReconfiguration {
-    /// Override for the existing [mode](TimestampingConfig::mode).
+    /// Override for the existing [`mode`](TimestampingConfig::mode).
     pub mode: Maybe<Option<TimestampingMode>>,
-    /// Override for the existing [uncapped](TimestampingConfig::uncapped) setting.
+    /// Override for the existing [`uncapped`](TimestampingConfig::uncapped) setting.
     pub uncapped: Maybe<Option<bool>>,
 }
 
 impl TimestampingReconfiguration {
-    /// Create a new [TimestampingReconfiguration].
+    /// Create a new [`TimestampingReconfiguration`].
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Set the override for the existing [mode](TimestampingConfig::mode).
+    /// Set the override for the existing [`mode`](TimestampingConfig::mode).
     pub fn with_mode(self, mode: TimestampingMode) -> Self {
         Self {
             mode: Maybe::Specified(Some(mode)),
@@ -1003,7 +1040,7 @@ impl TimestampingReconfiguration {
         }
     }
 
-    /// Set the override for the existing [uncapped](TimestampingConfig::uncapped).
+    /// Set the override for the existing [`uncapped`](TimestampingConfig::uncapped).
     pub fn with_uncapped(self, uncapped: bool) -> Self {
         Self {
             uncapped: Maybe::Specified(Some(uncapped)),
@@ -1023,19 +1060,19 @@ impl From<TimestampingReconfiguration> for api::config::TimestampingReconfigurat
 
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-/// Reconfiguration for [DeleteOnEmptyConfig].
+/// Reconfiguration for [`DeleteOnEmptyConfig`].
 pub struct DeleteOnEmptyReconfiguration {
-    /// Override for the existing [min_age_secs](DeleteOnEmptyConfig::min_age_secs).
+    /// Override for the existing [`min_age_secs`](DeleteOnEmptyConfig::min_age_secs).
     pub min_age_secs: Maybe<Option<u64>>,
 }
 
 impl DeleteOnEmptyReconfiguration {
-    /// Create a new [DeleteOnEmptyReconfiguration].
+    /// Create a new [`DeleteOnEmptyReconfiguration`].
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Set the override for the existing [min_age_secs](DeleteOnEmptyConfig::min_age_secs).
+    /// Set the override for the existing [`min_age_secs`](DeleteOnEmptyConfig::min_age_secs).
     pub fn with_min_age(self, min_age: Duration) -> Self {
         Self {
             min_age_secs: Maybe::Specified(Some(min_age.as_secs())),
@@ -1053,25 +1090,25 @@ impl From<DeleteOnEmptyReconfiguration> for api::config::DeleteOnEmptyReconfigur
 
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-/// Reconfiguration for [StreamConfig].
+/// Reconfiguration for [`StreamConfig`].
 pub struct StreamReconfiguration {
-    /// Override for the existing [storage_class](StreamConfig::storage_class).
+    /// Override for the existing [`storage_class`](StreamConfig::storage_class).
     pub storage_class: Maybe<Option<StorageClass>>,
-    /// Override for the existing [retention_policy](StreamConfig::retention_policy).
+    /// Override for the existing [`retention_policy`](StreamConfig::retention_policy).
     pub retention_policy: Maybe<Option<RetentionPolicy>>,
-    /// Override for the existing [timestamping](StreamConfig::timestamping).
+    /// Override for the existing [`timestamping`](StreamConfig::timestamping).
     pub timestamping: Maybe<Option<TimestampingReconfiguration>>,
-    /// Override for the existing [delete_on_empty](StreamConfig::delete_on_empty).
+    /// Override for the existing [`delete_on_empty`](StreamConfig::delete_on_empty).
     pub delete_on_empty: Maybe<Option<DeleteOnEmptyReconfiguration>>,
 }
 
 impl StreamReconfiguration {
-    /// Create a new [StreamReconfiguration].
+    /// Create a new [`StreamReconfiguration`].
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Set the override for the existing [storage_class](StreamConfig::storage_class).
+    /// Set the override for the existing [`storage_class`](StreamConfig::storage_class).
     pub fn with_storage_class(self, storage_class: StorageClass) -> Self {
         Self {
             storage_class: Maybe::Specified(Some(storage_class)),
@@ -1079,7 +1116,7 @@ impl StreamReconfiguration {
         }
     }
 
-    /// Set the override for the existing [retention_policy](StreamConfig::retention_policy).
+    /// Set the override for the existing [`retention_policy`](StreamConfig::retention_policy).
     pub fn with_retention_policy(self, retention_policy: RetentionPolicy) -> Self {
         Self {
             retention_policy: Maybe::Specified(Some(retention_policy)),
@@ -1087,7 +1124,7 @@ impl StreamReconfiguration {
         }
     }
 
-    /// Set the override for the existing [timestamping](StreamConfig::timestamping).
+    /// Set the override for the existing [`timestamping`](StreamConfig::timestamping).
     pub fn with_timestamping(self, timestamping: TimestampingReconfiguration) -> Self {
         Self {
             timestamping: Maybe::Specified(Some(timestamping)),
@@ -1095,7 +1132,7 @@ impl StreamReconfiguration {
         }
     }
 
-    /// Set the override for the existing [delete_on_empty](StreamConfig::delete_on_empty).
+    /// Set the override for the existing [`delete_on_empty`](StreamConfig::delete_on_empty).
     pub fn with_delete_on_empty(self, delete_on_empty: DeleteOnEmptyReconfiguration) -> Self {
         Self {
             delete_on_empty: Maybe::Specified(Some(delete_on_empty)),
@@ -1117,24 +1154,25 @@ impl From<StreamReconfiguration> for api::config::StreamReconfiguration {
 
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-/// Reconfiguration for [BasinConfig].
+/// Reconfiguration for [`BasinConfig`].
 pub struct BasinReconfiguration {
-    /// Override for the existing [default_stream_config](BasinConfig::default_stream_config).
+    /// Override for the existing [`default_stream_config`](BasinConfig::default_stream_config).
     pub default_stream_config: Maybe<Option<StreamReconfiguration>>,
-    /// Override for the existing [create_stream_on_append](BasinConfig::create_stream_on_append).
+    /// Override for the existing
+    /// [`create_stream_on_append`](BasinConfig::create_stream_on_append).
     pub create_stream_on_append: Maybe<bool>,
-    /// Override for the existing [create_stream_on_read](BasinConfig::create_stream_on_read).
+    /// Override for the existing [`create_stream_on_read`](BasinConfig::create_stream_on_read).
     pub create_stream_on_read: Maybe<bool>,
 }
 
 impl BasinReconfiguration {
-    /// Create a new [BasinReconfiguration].
+    /// Create a new [`BasinReconfiguration`].
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Set the override for the existing
-    /// [default_stream_config](BasinConfig::default_stream_config).
+    /// [`default_stream_config`](BasinConfig::default_stream_config).
     pub fn with_default_stream_config(self, config: StreamReconfiguration) -> Self {
         Self {
             default_stream_config: Maybe::Specified(Some(config)),
@@ -1143,7 +1181,7 @@ impl BasinReconfiguration {
     }
 
     /// Set the override for the existing
-    /// [create_stream_on_append](BasinConfig::create_stream_on_append).
+    /// [`create_stream_on_append`](BasinConfig::create_stream_on_append).
     pub fn with_create_stream_on_append(self, create_stream_on_append: bool) -> Self {
         Self {
             create_stream_on_append: Maybe::Specified(create_stream_on_append),
@@ -1152,7 +1190,7 @@ impl BasinReconfiguration {
     }
 
     /// Set the override for the existing
-    /// [create_stream_on_read](BasinConfig::create_stream_on_read).
+    /// [`create_stream_on_read`](BasinConfig::create_stream_on_read).
     pub fn with_create_stream_on_read(self, create_stream_on_read: bool) -> Self {
         Self {
             create_stream_on_read: Maybe::Specified(create_stream_on_read),
@@ -1173,16 +1211,16 @@ impl From<BasinReconfiguration> for api::config::BasinReconfiguration {
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-/// Input for [reconfigure_basin](crate::S2::reconfigure_basin) operation.
+/// Input for [`reconfigure_basin`](crate::S2::reconfigure_basin) operation.
 pub struct ReconfigureBasinInput {
     /// Basin name.
     pub name: BasinName,
-    /// Reconfiguration for [BasinConfig].
+    /// Reconfiguration for [`BasinConfig`].
     pub config: BasinReconfiguration,
 }
 
 impl ReconfigureBasinInput {
-    /// Create a new [ReconfigureBasinInput] with the given basin name and reconfiguration.
+    /// Create a new [`ReconfigureBasinInput`] with the given basin name and reconfiguration.
     pub fn new(name: BasinName, config: BasinReconfiguration) -> Self {
         Self { name, config }
     }
@@ -1190,7 +1228,7 @@ impl ReconfigureBasinInput {
 
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-/// Input for [list_access_tokens](crate::S2::list_access_tokens) operation.
+/// Input for [`list_access_tokens`](crate::S2::list_access_tokens) operation.
 pub struct ListAccessTokensInput {
     /// Filter access tokens whose IDs begin with this value.
     ///
@@ -1198,7 +1236,7 @@ pub struct ListAccessTokensInput {
     pub prefix: Option<AccessTokenIdPrefix>,
     /// Filter access tokens whose IDs are lexicographically greater than this value.
     ///
-    /// **Note:** It must be greater than or equal to [prefix](ListAccessTokensInput::prefix).
+    /// **Note:** It must be greater than or equal to [`prefix`](ListAccessTokensInput::prefix).
     ///
     /// Defaults to `""`.
     pub start_after: Option<AccessTokenIdStartAfter>,
@@ -1209,7 +1247,7 @@ pub struct ListAccessTokensInput {
 }
 
 impl ListAccessTokensInput {
-    /// Create a new [ListAccessTokensInput] with default values.
+    /// Create a new [`ListAccessTokensInput`] with default values.
     pub fn new() -> Self {
         Self::default()
     }
@@ -1257,7 +1295,7 @@ pub struct AccessTokenInfo {
     /// Access token ID.
     pub id: AccessTokenId,
     /// Expiration time.
-    pub expires_at: time::OffsetDateTime,
+    pub expires_at: S2DateTime,
     /// Whether to automatically prefix stream names during creation and strip the prefix during
     /// listing.
     pub auto_prefix_streams: bool,
@@ -1271,7 +1309,8 @@ impl TryFrom<api::access::AccessTokenInfo> for AccessTokenInfo {
     fn try_from(value: api::access::AccessTokenInfo) -> Result<Self, Self::Error> {
         let expires_at = value
             .expires_at
-            .ok_or_else(|| ValidationError::from("Missing expires_at"))?;
+            .map(Into::into)
+            .ok_or_else(|| ValidationError::from("missing expires_at"))?;
         Ok(Self {
             id: value.id,
             expires_at,
@@ -1285,7 +1324,7 @@ impl TryFrom<api::access::AccessTokenInfo> for AccessTokenInfo {
 #[non_exhaustive]
 /// Pattern for matching basins.
 ///
-/// See [AccessTokenScope::basins].
+/// See [`AccessTokenScope::basins`].
 pub enum BasinMatcher {
     /// Match no basins.
     None,
@@ -1299,7 +1338,7 @@ pub enum BasinMatcher {
 #[non_exhaustive]
 /// Pattern for matching streams.
 ///
-/// See [AccessTokenScope::streams].
+/// See [`AccessTokenScope::streams`].
 pub enum StreamMatcher {
     /// Match no streams.
     None,
@@ -1313,7 +1352,7 @@ pub enum StreamMatcher {
 #[non_exhaustive]
 /// Pattern for matching access tokens.
 ///
-/// See [AccessTokenScope::access_tokens].
+/// See [`AccessTokenScope::access_tokens`].
 pub enum AccessTokenMatcher {
     /// Match no access tokens.
     None,
@@ -1338,7 +1377,7 @@ pub struct ReadWritePermissions {
 }
 
 impl ReadWritePermissions {
-    /// Create a new [ReadWritePermissions] with default values.
+    /// Create a new [`ReadWritePermissions`] with default values.
     pub fn new() -> Self {
         Self::default()
     }
@@ -1390,18 +1429,24 @@ impl From<api::access::ReadWritePermissions> for ReadWritePermissions {
 #[non_exhaustive]
 /// Permissions at the operation group level.
 ///
-/// See [AccessTokenScope::op_group_perms].
+/// See [`AccessTokenScope::op_group_perms`].
 pub struct OperationGroupPermissions {
     /// Account-level access permissions.
+    ///
+    /// Defaults to `None`.
     pub account: Option<ReadWritePermissions>,
     /// Basin-level access permissions.
+    ///
+    /// Defaults to `None`.
     pub basin: Option<ReadWritePermissions>,
     /// Stream-level access permissions.
+    ///
+    /// Defaults to `None`.
     pub stream: Option<ReadWritePermissions>,
 }
 
 impl OperationGroupPermissions {
-    /// Create a new [OperationGroupPermissions] with default values.
+    /// Create a new [`OperationGroupPermissions`] with default values.
     pub fn new() -> Self {
         Self::default()
     }
@@ -1482,7 +1527,7 @@ impl From<api::access::PermittedOperationGroups> for OperationGroupPermissions {
 #[non_exhaustive]
 /// Individual operation that can be permitted.
 ///
-/// See [AccessTokenScope::ops].
+/// See [`AccessTokenScope::ops`].
 pub enum Operation {
     /// List basins.
     ListBasins,
@@ -1588,30 +1633,21 @@ impl From<api::access::Operation> for Operation {
 #[non_exhaustive]
 /// Scope of an access token.
 ///
-/// **Note:** The final set of permitted operations is the union of [ops](AccessTokenScope::ops)
-/// and the operations permitted by [op_group_perms](AccessTokenScope::op_group_perms). Also, the
+/// **Note:** The final set of permitted operations is the union of [`ops`](AccessTokenScope::ops)
+/// and the operations permitted by [`op_group_perms`](AccessTokenScope::op_group_perms). Also, the
 /// final set must not be empty.
-pub struct AccessTokenScope {
-    /// Permitted basins.
-    ///
-    /// Defaults to no basins.
-    pub basins: Option<BasinMatcher>,
-    /// Permitted streams.
-    ///
-    /// Defaults to no streams.
-    pub streams: Option<StreamMatcher>,
-    /// Permitted access tokens.
-    ///
-    /// Defaults to no access tokens.
-    pub access_tokens: Option<AccessTokenMatcher>,
-    /// Permissions at the operation group level.
-    pub op_group_perms: Option<OperationGroupPermissions>,
-    /// Permitted operations.
-    pub ops: HashSet<Operation>,
+///
+/// See [`IssueAccessTokenInput::scope`].
+pub struct AccessTokenScopeInput {
+    basins: Option<BasinMatcher>,
+    streams: Option<StreamMatcher>,
+    access_tokens: Option<AccessTokenMatcher>,
+    op_group_perms: Option<OperationGroupPermissions>,
+    ops: HashSet<Operation>,
 }
 
-impl AccessTokenScope {
-    /// Create a new [AccessTokenScope] with the given permitted operations.
+impl AccessTokenScopeInput {
+    /// Create a new [`AccessTokenScopeInput`] with the given permitted operations.
     pub fn from_ops(ops: impl IntoIterator<Item = Operation>) -> Self {
         Self {
             basins: None,
@@ -1622,7 +1658,7 @@ impl AccessTokenScope {
         }
     }
 
-    /// Create a new [AccessTokenScope] with the given operation group permissions.
+    /// Create a new [`AccessTokenScopeInput`] with the given operation group permissions.
     pub fn from_op_group_perms(op_group_perms: OperationGroupPermissions) -> Self {
         Self {
             basins: None,
@@ -1650,6 +1686,8 @@ impl AccessTokenScope {
     }
 
     /// Set the permitted basins.
+    ///
+    /// Defaults to no basins.
     pub fn with_basins(self, basins: BasinMatcher) -> Self {
         Self {
             basins: Some(basins),
@@ -1658,6 +1696,8 @@ impl AccessTokenScope {
     }
 
     /// Set the permitted streams.
+    ///
+    /// Defaults to no streams.
     pub fn with_streams(self, streams: StreamMatcher) -> Self {
         Self {
             streams: Some(streams),
@@ -1666,12 +1706,30 @@ impl AccessTokenScope {
     }
 
     /// Set the permitted access tokens.
+    ///
+    /// Defaults to no access tokens.
     pub fn with_tokens(self, access_tokens: AccessTokenMatcher) -> Self {
         Self {
             access_tokens: Some(access_tokens),
             ..self
         }
     }
+}
+
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+/// Scope of an access token.
+pub struct AccessTokenScope {
+    /// Permitted basins.
+    pub basins: Option<BasinMatcher>,
+    /// Permitted streams.
+    pub streams: Option<StreamMatcher>,
+    /// Permitted access tokens.
+    pub access_tokens: Option<AccessTokenMatcher>,
+    /// Permissions at the operation group level.
+    pub op_group_perms: Option<OperationGroupPermissions>,
+    /// Permitted operations.
+    pub ops: HashSet<Operation>,
 }
 
 impl From<api::access::AccessTokenScope> for AccessTokenScope {
@@ -1713,8 +1771,8 @@ impl From<api::access::AccessTokenScope> for AccessTokenScope {
     }
 }
 
-impl From<AccessTokenScope> for api::access::AccessTokenScope {
-    fn from(value: AccessTokenScope) -> Self {
+impl From<AccessTokenScopeInput> for api::access::AccessTokenScope {
+    fn from(value: AccessTokenScopeInput) -> Self {
         Self {
             basins: value.basins.map(|rs| match rs {
                 BasinMatcher::None => {
@@ -1755,49 +1813,48 @@ impl From<AccessTokenScope> for api::access::AccessTokenScope {
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-/// Input for [issue_access_token](crate::S2::issue_access_token).
+/// Input for [`issue_access_token`](crate::S2::issue_access_token).
 pub struct IssueAccessTokenInput {
     /// Access token ID.
     pub id: AccessTokenId,
     /// Expiration time.
     ///
-    /// Defaults to the expiration time of requestor's [access_token](S2Config::access_token).
-    pub expires_at: Option<time::OffsetDateTime>,
-    /// Whether to automatically prefix stream names during creation and strip the prefix during
-    /// listing.
+    /// Defaults to the expiration time of requestor's access token passed via
+    /// [`S2Config`](S2Config::new).
+    pub expires_at: Option<S2DateTime>,
+    /// Auto-prefixing mode for stream names.
     ///
-    /// **Note:** [scope.streams](AccessTokenScope::streams) must be set with the prefix.
-    ///
-    /// Defaults to `false`.
-    pub auto_prefix_streams: Option<bool>,
+    /// Defaults to disabled.
+    pub auto_prefixing_mode: AutoPrefixingMode,
     /// Scope of the token.
-    pub scope: AccessTokenScope,
+    pub scope: AccessTokenScopeInput,
 }
 
 impl IssueAccessTokenInput {
-    /// Create a new [IssueAccessTokenInput] with the given id and scope.
-    pub fn new(id: AccessTokenId, scope: AccessTokenScope) -> Self {
+    /// Create a new [`IssueAccessTokenInput`] with the given id and scope.
+    pub fn new(id: AccessTokenId, scope: AccessTokenScopeInput) -> Self {
         Self {
             id,
             expires_at: None,
-            auto_prefix_streams: None,
+            auto_prefixing_mode: AutoPrefixingMode::Disabled,
             scope,
         }
     }
 
     /// Set the expiration time.
-    pub fn with_expires_at(self, expires_at: time::OffsetDateTime) -> Self {
+    pub fn with_expires_at(self, expires_at: S2DateTime) -> Self {
         Self {
             expires_at: Some(expires_at),
             ..self
         }
     }
 
-    /// Set whether to automatically prefix stream names during creation and strip the prefix during
-    /// listing.
-    pub fn with_auto_prefix_streams(self, auto_prefix_streams: bool) -> Self {
+    /// Set the auto-prefixing mode for stream names.
+    ///
+    /// Defaults to disabled.
+    pub fn with_auto_prefixing_mode(self, auto_prefixing_mode: AutoPrefixingMode) -> Self {
         Self {
-            auto_prefix_streams: Some(auto_prefix_streams),
+            auto_prefixing_mode,
             ..self
         }
     }
@@ -1805,13 +1862,32 @@ impl IssueAccessTokenInput {
 
 impl From<IssueAccessTokenInput> for api::access::AccessTokenInfo {
     fn from(value: IssueAccessTokenInput) -> Self {
+        let mut scope = value.scope;
+        let mut auto_prefix_streams = false;
+        if let AutoPrefixingMode::Enabled(prefix) = value.auto_prefixing_mode {
+            scope.streams = Some(StreamMatcher::Prefix(prefix));
+            auto_prefix_streams = true;
+        }
         Self {
             id: value.id,
-            expires_at: value.expires_at,
-            auto_prefix_streams: value.auto_prefix_streams,
-            scope: value.scope.into(),
+            expires_at: value.expires_at.map(Into::into),
+            auto_prefix_streams: Some(auto_prefix_streams),
+            scope: scope.into(),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+/// Auto-prefixing mode for stream names in create and list operations.
+pub enum AutoPrefixingMode {
+    /// Auto-prefixing is disabled.
+    Disabled,
+    /// Auto-prefixing is enabled with the given prefix.
+    ///
+    /// Stream names will be automatically prefixed during creation
+    /// and stripped during listing.
+    Enabled(StreamNamePrefix),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1857,7 +1933,7 @@ pub struct TimeRange {
 }
 
 impl TimeRange {
-    /// Create a new [TimeRange] with the given start and end timestamps.
+    /// Create a new [`TimeRange`] with the given start and end timestamps.
     pub fn new(start: u32, end: u32) -> Self {
         Self { start, end }
     }
@@ -1865,7 +1941,7 @@ impl TimeRange {
 
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
-/// Time range as Unix epoch seconds and accumulation interval granularity.
+/// Time range as Unix epoch seconds and accumulation interval.
 pub struct TimeRangeAndInterval {
     /// Start timestamp (inclusive).
     pub start: u32,
@@ -1878,7 +1954,7 @@ pub struct TimeRangeAndInterval {
 }
 
 impl TimeRangeAndInterval {
-    /// Create a new [TimeRangeAndInterval] with the given start and end timestamps.
+    /// Create a new [`TimeRangeAndInterval`] with the given start and end timestamps.
     pub fn new(start: u32, end: u32) -> Self {
         Self {
             start,
@@ -1900,28 +1976,28 @@ impl TimeRangeAndInterval {
 #[non_exhaustive]
 /// Account metric set to return.
 pub enum AccountMetricSet {
-    /// Returns a [LabelMetric] representing all basins which had at least one stream within the
+    /// Returns a [`LabelMetric`] representing all basins which had at least one stream within the
     /// specified time range.
     ActiveBasins(TimeRange),
-    /// Returns [AccumulationMetric]s, one per account operation type.
+    /// Returns [`AccumulationMetric`]s, one per account operation type.
     ///
     /// Each metric represents a timeseries of the number of operations, with one accumulated value
     /// per interval over the requested time range.
     ///
-    /// [interval](TimeRangeAndInterval::interval) defaults to [hour](TimeseriesInterval::Hour).
+    /// [`interval`](TimeRangeAndInterval::interval) defaults to [`hour`](TimeseriesInterval::Hour).
     AccountOps(TimeRangeAndInterval),
 }
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-/// Input for [get_account_metrics](crate::S2::get_account_metrics) operation.
+/// Input for [`get_account_metrics`](crate::S2::get_account_metrics) operation.
 pub struct GetAccountMetricsInput {
     /// Metric set to return.
     pub set: AccountMetricSet,
 }
 
 impl GetAccountMetricsInput {
-    /// Create a new [GetAccountMetricsInput] with the given account metric set.
+    /// Create a new [`GetAccountMetricsInput`] with the given account metric set.
     pub fn new(set: AccountMetricSet) -> Self {
         Self { set }
     }
@@ -1955,47 +2031,51 @@ impl From<GetAccountMetricsInput> for api::metrics::AccountMetricSetRequest {
 #[derive(Debug, Clone, Copy)]
 /// Basin metric set to return.
 pub enum BasinMetricSet {
-    /// Returns a [GaugeMetric] representing a timeseries of total stored bytes across all streams
+    /// Returns a [`GaugeMetric`] representing a timeseries of total stored bytes across all streams
     /// in the basin, with one observed value for each hour over the requested time range.
     Storage(TimeRange),
-    /// Returns [AccumulationMetric]s, one per storage class (standard, express).
+    /// Returns [`AccumulationMetric`]s, one per storage class (standard, express).
     ///
     /// Each metric represents a timeseries of the number of append operations across all streams
     /// in the basin, with one accumulated value per interval over the requested time range.
     ///
-    /// [interval](TimeRangeAndInterval::interval) defaults to [minute](TimeseriesInterval::Minute).
+    /// [`interval`](TimeRangeAndInterval::interval) defaults to
+    /// [`minute`](TimeseriesInterval::Minute).
     AppendOps(TimeRangeAndInterval),
-    /// Returns [AccumulationMetric]s, one per read type (unary, streaming).
+    /// Returns [`AccumulationMetric`]s, one per read type (unary, streaming).
     ///
     /// Each metric represents a timeseries of the number of read operations across all streams
     /// in the basin, with one accumulated value per interval over the requested time range.
     ///
-    /// [interval](TimeRangeAndInterval::interval) defaults to [minute](TimeseriesInterval::Minute).
+    /// [`interval`](TimeRangeAndInterval::interval) defaults to
+    /// [`minute`](TimeseriesInterval::Minute).
     ReadOps(TimeRangeAndInterval),
-    /// Returns an [AccumulationMetric] representing a timeseries of total read bytes
+    /// Returns an [`AccumulationMetric`] representing a timeseries of total read bytes
     /// across all streams in the basin, with one accumulated value per interval
     /// over the requested time range.
     ///
-    /// [interval](TimeRangeAndInterval::interval) defaults to [minute](TimeseriesInterval::Minute).
+    /// [`interval`](TimeRangeAndInterval::interval) defaults to
+    /// [`minute`](TimeseriesInterval::Minute).
     ReadThroughput(TimeRangeAndInterval),
-    /// Returns an [AccumulationMetric] representing a timeseries of total appended bytes
+    /// Returns an [`AccumulationMetric`] representing a timeseries of total appended bytes
     /// across all streams in the basin, with one accumulated value per interval
     /// over the requested time range.
     ///
-    /// [interval](TimeRangeAndInterval::interval) defaults to [minute](TimeseriesInterval::Minute).
+    /// [`interval`](TimeRangeAndInterval::interval) defaults to
+    /// [`minute`](TimeseriesInterval::Minute).
     AppendThroughput(TimeRangeAndInterval),
-    /// Returns [AccumulationMetric]s, one per basin operation type.
+    /// Returns [`AccumulationMetric`]s, one per basin operation type.
     ///
     /// Each metric represents a timeseries of the number of operations, with one accumulated value
     /// per interval over the requested time range.
     ///
-    /// [interval](TimeRangeAndInterval::interval) defaults to [hour](TimeseriesInterval::Hour).
+    /// [`interval`](TimeRangeAndInterval::interval) defaults to [`hour`](TimeseriesInterval::Hour).
     BasinOps(TimeRangeAndInterval),
 }
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-/// Input for [get_basin_metrics](crate::S2::get_basin_metrics) operation.
+/// Input for [`get_basin_metrics`](crate::S2::get_basin_metrics) operation.
 pub struct GetBasinMetricsInput {
     /// Basin name.
     pub name: BasinName,
@@ -2004,7 +2084,7 @@ pub struct GetBasinMetricsInput {
 }
 
 impl GetBasinMetricsInput {
-    /// Create a new [GetBasinMetricsInput] with the given basin name and metric set.
+    /// Create a new [`GetBasinMetricsInput`] with the given basin name and metric set.
     pub fn new(name: BasinName, set: BasinMetricSet) -> Self {
         Self { name, set }
     }
@@ -2065,14 +2145,14 @@ impl From<GetBasinMetricsInput> for (BasinName, api::metrics::BasinMetricSetRequ
 #[derive(Debug, Clone, Copy)]
 /// Stream metric set to return.
 pub enum StreamMetricSet {
-    /// Returns a [GaugeMetric] representing a timeseries of total stored bytes for the stream,
+    /// Returns a [`GaugeMetric`] representing a timeseries of total stored bytes for the stream,
     /// with one observed value for each minute over the requested time range.
     Storage(TimeRange),
 }
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-/// Input for [get_stream_metrics](crate::S2::get_stream_metrics) operation.
+/// Input for [`get_stream_metrics`](crate::S2::get_stream_metrics) operation.
 pub struct GetStreamMetricsInput {
     /// Basin name.
     pub basin_name: BasinName,
@@ -2083,7 +2163,8 @@ pub struct GetStreamMetricsInput {
 }
 
 impl GetStreamMetricsInput {
-    /// Create a new [GetStreamMetricsInput] with the given basin name, stream name and metric set.
+    /// Create a new [`GetStreamMetricsInput`] with the given basin name, stream name and metric
+    /// set.
     pub fn new(basin_name: BasinName, stream_name: StreamName, set: StreamMetricSet) -> Self {
         Self {
             basin_name,
@@ -2156,11 +2237,11 @@ pub struct AccumulationMetric {
     pub name: String,
     /// Unit for the accumulated values.
     pub unit: MetricUnit,
-    /// Accumulation interval granularity.
+    /// The interval at which datapoints are accumulated.
     pub interval: TimeseriesInterval,
     /// Series of `(timestamp, value)` datapoints. Each datapoint represents the accumulated
-    /// `value` for a time period starting at the `timestamp` (in Unix epoch seconds) and lasting
-    /// for the specified `interval`.
+    /// `value` for the time period starting at the `timestamp` (in Unix epoch seconds), spanning
+    /// one `interval`.
     pub values: Vec<(u32, f64)>,
 }
 
@@ -2205,25 +2286,25 @@ pub enum Metric {
 impl From<api::metrics::Metric> for Metric {
     fn from(value: api::metrics::Metric) -> Self {
         match value {
-            api::metrics::Metric::Scalar(s) => Metric::Scalar(ScalarMetric {
-                name: s.name.into(),
-                unit: s.unit.into(),
-                value: s.value,
+            api::metrics::Metric::Scalar(sm) => Metric::Scalar(ScalarMetric {
+                name: sm.name.into(),
+                unit: sm.unit.into(),
+                value: sm.value,
             }),
-            api::metrics::Metric::Accumulation(a) => Metric::Accumulation(AccumulationMetric {
-                name: a.name.into(),
-                unit: a.unit.into(),
-                interval: a.bucket_length.into(),
-                values: a.values,
+            api::metrics::Metric::Accumulation(am) => Metric::Accumulation(AccumulationMetric {
+                name: am.name.into(),
+                unit: am.unit.into(),
+                interval: am.interval.into(),
+                values: am.values,
             }),
-            api::metrics::Metric::Gauge(g) => Metric::Gauge(GaugeMetric {
-                name: g.name.into(),
-                unit: g.unit.into(),
-                values: g.values,
+            api::metrics::Metric::Gauge(gm) => Metric::Gauge(GaugeMetric {
+                name: gm.name.into(),
+                unit: gm.unit.into(),
+                values: gm.values,
             }),
-            api::metrics::Metric::Label(l) => Metric::Label(LabelMetric {
-                name: l.name.into(),
-                values: l.values,
+            api::metrics::Metric::Label(lm) => Metric::Label(LabelMetric {
+                name: lm.name.into(),
+                values: lm.values,
             }),
         }
     }
@@ -2231,7 +2312,7 @@ impl From<api::metrics::Metric> for Metric {
 
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-/// Input for [list_streams](crate::S2Basin::list_streams) operation.
+/// Input for [`list_streams`](crate::S2Basin::list_streams) operation.
 pub struct ListStreamsInput {
     /// Filter streams whose names begin with this value.
     ///
@@ -2239,7 +2320,7 @@ pub struct ListStreamsInput {
     pub prefix: StreamNamePrefix,
     /// Filter streams whose names are lexicographically greater than this value.
     ///
-    /// **Note:** It must be greater than or equal to [prefix](ListStreamsInput::prefix).
+    /// **Note:** It must be greater than or equal to [`prefix`](ListStreamsInput::prefix).
     ///
     /// Defaults to `""`.
     pub start_after: StreamNameStartAfter,
@@ -2250,7 +2331,7 @@ pub struct ListStreamsInput {
 }
 
 impl ListStreamsInput {
-    /// Create a new [ListStreamsInput] with default values.
+    /// Create a new [`ListStreamsInput`] with default values.
     pub fn new() -> Self {
         Self::default()
     }
@@ -2295,32 +2376,30 @@ pub struct StreamInfo {
     /// Stream name.
     pub name: StreamName,
     /// Creation time.
-    pub created_at: time::OffsetDateTime,
+    pub created_at: S2DateTime,
     /// Deletion time if the stream is being deleted.
-    pub deleted_at: Option<time::OffsetDateTime>,
+    pub deleted_at: Option<S2DateTime>,
 }
 
 impl From<api::stream::StreamInfo> for StreamInfo {
     fn from(value: api::stream::StreamInfo) -> Self {
-        let created_at = value.created_at;
-        let deleted_at = value.deleted_at;
         Self {
             name: value.name,
-            created_at,
-            deleted_at,
+            created_at: value.created_at.into(),
+            deleted_at: value.deleted_at.map(Into::into),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-/// Input for [create_stream](crate::S2Basin::create_stream) operation.
+/// Input for [`create_stream`](crate::S2Basin::create_stream) operation.
 pub struct CreateStreamInput {
     /// Stream name.
     pub name: StreamName,
     /// Configuration for the stream.
     ///
-    /// See [StreamConfig] for defaults.
+    /// See [`StreamConfig`] for defaults.
     pub config: Option<StreamConfig>,
     /// Idempotency token for the operation.
     ///
@@ -2333,7 +2412,7 @@ pub struct CreateStreamInput {
 }
 
 impl CreateStreamInput {
-    /// Create a new [CreateStreamInput] with the given stream name.
+    /// Create a new [`CreateStreamInput`] with the given stream name.
     pub fn new(name: StreamName) -> Self {
         Self {
             name,
@@ -2373,7 +2452,7 @@ impl From<CreateStreamInput> for (api::stream::CreateStreamRequest, String) {
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-/// Input of [delete_stream](crate::S2Basin::delete_stream) operation.
+/// Input of [`delete_stream`](crate::S2Basin::delete_stream) operation.
 pub struct DeleteStreamInput {
     /// Stream name.
     pub name: StreamName,
@@ -2382,7 +2461,7 @@ pub struct DeleteStreamInput {
 }
 
 impl DeleteStreamInput {
-    /// Create a new [DeleteStreamInput] with the given stream name.
+    /// Create a new [`DeleteStreamInput`] with the given stream name.
     pub fn new(name: StreamName) -> Self {
         Self {
             name,
@@ -2401,16 +2480,16 @@ impl DeleteStreamInput {
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-/// Input for [reconfigure_stream](crate::S2Basin::reconfigure_stream) operation.
+/// Input for [`reconfigure_stream`](crate::S2Basin::reconfigure_stream) operation.
 pub struct ReconfigureStreamInput {
     /// Stream name.
     pub name: StreamName,
-    /// Reconfiguration for [StreamConfig].
+    /// Reconfiguration for [`StreamConfig`].
     pub config: StreamReconfiguration,
 }
 
 impl ReconfigureStreamInput {
-    /// Create a new [ReconfigureStreamInput] with the given stream name and reconfiguration.
+    /// Create a new [`ReconfigureStreamInput`] with the given stream name and reconfiguration.
     pub fn new(name: StreamName, config: StreamReconfiguration) -> Self {
         Self { name, config }
     }
@@ -2421,7 +2500,7 @@ impl ReconfigureStreamInput {
 ///
 /// **Note:** It must not exceed 36 bytes in length.
 ///
-/// See [CommandRecord::fence] and [AppendInput::fencing_token].
+/// See [`CommandRecord::fence`] and [`AppendInput::fencing_token`].
 pub struct FencingToken(String);
 
 impl FencingToken {
@@ -2442,8 +2521,7 @@ impl FromStr for FencingToken {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.len() > MAX_FENCING_TOKEN_LENGTH {
             return Err(ValidationError(format!(
-                "Fencing token is longer than {MAX_FENCING_TOKEN_LENGTH} bytes in length: {0}",
-                s.len()
+                "fencing token exceeds {MAX_FENCING_TOKEN_LENGTH} bytes in length",
             )));
         }
         Ok(FencingToken(s.to_string()))
@@ -2510,7 +2588,7 @@ pub struct Header {
 }
 
 impl Header {
-    /// Create a new [Header] with the given name and value.
+    /// Create a new [`Header`] with the given name and value.
     pub fn new(name: impl Into<Bytes>, value: impl Into<Bytes>) -> Self {
         Self {
             name: name.into(),
@@ -2538,17 +2616,11 @@ impl From<api::stream::proto::Header> for Header {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
 /// A record to append.
 pub struct AppendRecord {
-    /// Body of this record.
-    pub body: Bytes,
-    /// Headers for this record.
-    pub headers: Vec<Header>,
-    /// Timestamp for this record.
-    ///
-    /// Precise semantics depend on [StreamConfig::timestamping].
-    pub timestamp: Option<u64>,
+    body: Bytes,
+    headers: Vec<Header>,
+    timestamp: Option<u64>,
 }
 
 impl AppendRecord {
@@ -2564,7 +2636,7 @@ impl AppendRecord {
         }
     }
 
-    /// Create a new [AppendRecord] with the given record body.
+    /// Create a new [`AppendRecord`] with the given record body.
     pub fn new(body: impl Into<Bytes>) -> Result<Self, ValidationError> {
         let record = Self {
             body: body.into(),
@@ -2587,6 +2659,8 @@ impl AppendRecord {
     }
 
     /// Set the timestamp for this record.
+    ///
+    /// Precise semantics depend on [`StreamConfig::timestamping`].
     pub fn with_timestamp(self, timestamp: u64) -> Self {
         Self {
             timestamp: Some(timestamp),
@@ -2640,8 +2714,8 @@ metered_bytes_impl!(AppendRecord);
 /// **Note:** It must contain at least `1` record and no more than `1000`.
 /// The total size of the batch must not exceed `1MiB` in metered bytes.
 ///
-/// See [AppendRecordBatches](crate::batching::AppendRecordBatches) and
-/// [AppendInputs][crate::batching::AppendInputs] for convenient and automatic batching of records
+/// See [`AppendRecordBatches`](crate::batching::AppendRecordBatches) and
+/// [`AppendInputs`](crate::batching::AppendInputs) for convenient and automatic batching of records
 /// that takes care of the abovementioned constraints.
 pub struct AppendRecordBatch {
     records: Vec<AppendRecord>,
@@ -2661,7 +2735,7 @@ impl AppendRecordBatch {
         self.records.push(record);
     }
 
-    /// Try to create an [AppendRecordBatch] from an iterator of [AppendRecord]s.
+    /// Try to create an [`AppendRecordBatch`] from an iterator of [`AppendRecord`]s.
     pub fn try_from_iter<I>(iter: I) -> Result<Self, ValidationError>
     where
         I: IntoIterator<Item = AppendRecord>,
@@ -2673,13 +2747,23 @@ impl AppendRecordBatch {
             metered_bytes += record.metered_bytes();
             records.push(record);
 
-            if metered_bytes > RECORD_BATCH_MAX.bytes || records.len() > RECORD_BATCH_MAX.count {
-                return Err(ValidationError("batch exceeds size limits".into()));
+            if metered_bytes > RECORD_BATCH_MAX.bytes {
+                return Err(ValidationError(format!(
+                    "batch size in metered bytes ({metered_bytes}) exceeds {}",
+                    RECORD_BATCH_MAX.bytes
+                )));
+            }
+
+            if records.len() > RECORD_BATCH_MAX.count {
+                return Err(ValidationError(format!(
+                    "number of records in the batch exceeds {}",
+                    RECORD_BATCH_MAX.count
+                )));
             }
         }
 
         if records.is_empty() {
-            return Err(ValidationError("batch cannot be empty".into()));
+            return Err(ValidationError("batch is empty".into()));
         }
 
         Ok(Self {
@@ -2790,8 +2874,8 @@ impl From<CommandRecord> for AppendRecord {
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-/// Input for [append](crate::S2Stream::append) operation and
-/// [AppendSession::submit](crate::append_session::AppendSession::submit).
+/// Input for [`append`](crate::S2Stream::append) operation and
+/// [`AppendSession::submit`](crate::append_session::AppendSession::submit).
 pub struct AppendInput {
     /// Batch of records to append atomically.
     pub records: AppendRecordBatch,
@@ -2807,7 +2891,7 @@ pub struct AppendInput {
 }
 
 impl AppendInput {
-    /// Create a new [AppendInput] with the given batch of records.
+    /// Create a new [`AppendInput`] with the given batch of records.
     pub fn new(records: AppendRecordBatch) -> Self {
         Self {
             records,
@@ -2845,7 +2929,7 @@ impl From<AppendInput> for api::stream::proto::AppendInput {
 
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
-/// Acknowledgement for an [AppendInput].
+/// Acknowledgement for an [`AppendInput`].
 pub struct AppendAck {
     /// Sequence number and timestamp of the first record that was appended.
     pub start: StreamPosition,
@@ -2905,7 +2989,7 @@ pub struct ReadStart {
 }
 
 impl ReadStart {
-    /// Create a new [ReadStart] with default values.
+    /// Create a new [`ReadStart`] with default values.
     pub fn new() -> Self {
         Self::default()
     }
@@ -2959,7 +3043,7 @@ pub struct ReadLimits {
 }
 
 impl ReadLimits {
-    /// Create a new [ReadLimits] with default values.
+    /// Create a new [`ReadLimits`] with default values.
     pub fn new() -> Self {
         Self::default()
     }
@@ -2990,19 +3074,19 @@ pub struct ReadStop {
     /// Timestamp at which to stop (exclusive).
     pub until: Option<RangeTo<u64>>,
     /// Duration in seconds to wait for new records before stopping. Will be clamped to `60`
-    /// seconds for [read](crate::S2Stream::read).
+    /// seconds for [`read`](crate::S2Stream::read).
     ///
     /// Defaults to:
-    /// - `0` (no wait) for [read](crate::S2Stream::read).
-    /// - `0` (no wait) for [read_session](crate::S2Stream::read_session) if `limits` or `until` is
-    ///   specified.
-    /// - Infinite wait for [read_session](crate::S2Stream::read_session) if neither `limits` nor
+    /// - `0` (no wait) for [`read`](crate::S2Stream::read).
+    /// - `0` (no wait) for [`read_session`](crate::S2Stream::read_session) if `limits` or `until`
+    ///   is specified.
+    /// - Infinite wait for [`read_session`](crate::S2Stream::read_session) if neither `limits` nor
     ///   `until` is specified.
     pub wait: Option<u32>,
 }
 
 impl ReadStop {
-    /// Create a new [ReadStop] with default values.
+    /// Create a new [`ReadStop`] with default values.
     pub fn new() -> Self {
         Self::default()
     }
@@ -3042,7 +3126,7 @@ impl From<ReadStop> for api::stream::ReadEnd {
 
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-/// Input for [read](crate::S2Stream::read) and [read_session](crate::S2Stream::read_session)
+/// Input for [`read`](crate::S2Stream::read) and [`read_session`](crate::S2Stream::read_session)
 /// operations.
 pub struct ReadInput {
     /// Where to start reading.
@@ -3056,7 +3140,7 @@ pub struct ReadInput {
 }
 
 impl ReadInput {
-    /// Create a new [ReadInput] with default values.
+    /// Create a new [`ReadInput`] with default values.
     pub fn new() -> Self {
         Self::default()
     }
@@ -3109,13 +3193,13 @@ metered_bytes_impl!(SequencedRecord);
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-/// Batch of records returned by [read](crate::S2Stream::read) or streamed by
-/// [read_session](crate::S2Stream::read_session).
+/// Batch of records returned by [`read`](crate::S2Stream::read) or streamed by
+/// [`read_session`](crate::S2Stream::read_session).
 pub struct ReadBatch {
     /// Records that are durably sequenced on the stream.
     ///
-    /// It can be empty only for a [read](crate::S2Stream::read) operation when the stop condition
-    /// is already met.
+    /// It can be empty only for a [`read`](crate::S2Stream::read) operation when the stop
+    /// condition is already met.
     pub records: Vec<SequencedRecord>,
     /// Sequence number that will be assigned to the next record on the stream, and timestamp of
     /// the last record.

@@ -65,7 +65,10 @@ async fn basin_config_roundtrip() -> Result<(), S2Error> {
         BasinConfig {
             default_stream_config: Some(StreamConfig {
                 storage_class: Some(StorageClass::Express),
-                delete_on_empty: Some(DeleteOnEmptyConfig { min_age_secs: 60 }),
+                delete_on_empty: Some(DeleteOnEmptyConfig {
+                    min_age_secs: 60,
+                    ..
+                }),
                 ..
             }),
             create_stream_on_read: true,
@@ -198,7 +201,7 @@ async fn list_basins_with_prefix_and_start_after() -> Result<(), S2Error> {
 }
 
 #[tokio::test]
-async fn delete_nonexistent_basin_fails() -> Result<(), S2Error> {
+async fn delete_nonexistent_basin_errors() -> Result<(), S2Error> {
     let s2 = s2();
     let result = s2
         .delete_basin(DeleteBasinInput::new(unique_basin_name()))
@@ -260,7 +263,7 @@ async fn issue_list_and_revoke_access_token() -> Result<(), S2Error> {
     let _token = s2
         .issue_access_token(IssueAccessTokenInput::new(
             token_id.clone(),
-            AccessTokenScope::from_op_group_perms(OperationGroupPermissions::read_write_all()),
+            AccessTokenScopeInput::from_op_group_perms(OperationGroupPermissions::read_write_all()),
         ))
         .await?;
 
@@ -284,19 +287,21 @@ async fn issue_access_token_with_expiration_and_auto_prefix_streams() -> Result<
     let s2 = s2();
     let token_id: AccessTokenId = uuid().parse().expect("valid token id");
 
-    let expires_at = time::OffsetDateTime::now_utc() + time::Duration::hours(1);
+    let expires_at: S2DateTime =
+        (time::OffsetDateTime::now_utc() + time::Duration::hours(1)).into();
 
     let token = s2
         .issue_access_token(
             IssueAccessTokenInput::new(
                 token_id.clone(),
-                AccessTokenScope::from_op_group_perms(OperationGroupPermissions::read_write_all())
-                    .with_streams(StreamMatcher::Prefix(
-                        "namespace".parse().expect("valid prefix"),
-                    )),
+                AccessTokenScopeInput::from_op_group_perms(
+                    OperationGroupPermissions::read_write_all(),
+                ),
             )
             .with_expires_at(expires_at)
-            .with_auto_prefix_streams(true),
+            .with_auto_prefixing_mode(AutoPrefixingMode::Enabled(
+                "namespace".parse().expect("valid prefix"),
+            )),
         )
         .await?;
 
@@ -318,24 +323,35 @@ async fn issue_access_token_with_expiration_and_auto_prefix_streams() -> Result<
 }
 
 #[tokio::test]
-async fn issue_access_token_with_auto_prefix_streams_without_prefix_fails() -> Result<(), S2Error> {
+async fn issue_access_token_with_no_permitted_ops_errors() -> Result<(), S2Error> {
     let s2 = s2();
     let token_id: AccessTokenId = uuid().parse().expect("valid token id");
 
+    let result_matches = |result: Result<String, S2Error>| {
+        assert_matches!(result, Err(S2Error::Server(ErrorResponse { code, message, .. })) => {
+            assert_eq!(code, "bad_params");
+            assert_eq!(message, "Access token permissions cannot be empty");
+        });
+    };
+
     let result = s2
-        .issue_access_token(
-            IssueAccessTokenInput::new(
-                token_id.clone(),
-                AccessTokenScope::from_op_group_perms(OperationGroupPermissions::read_write_all()),
-            )
-            .with_auto_prefix_streams(true),
-        )
+        .issue_access_token(IssueAccessTokenInput::new(
+            token_id.clone(),
+            AccessTokenScopeInput::from_op_group_perms(OperationGroupPermissions::new()),
+        ))
         .await;
 
-    assert_matches!(result, Err(S2Error::Server(ErrorResponse { code, message, .. })) => {
-        assert_eq!(code, "bad_params");
-        assert_eq!(message, "Auto prefixing is only allowed for streams with prefix matching");
-    });
+    result_matches(result);
+
+    let result = s2
+        .issue_access_token(IssueAccessTokenInput::new(
+            token_id.clone(),
+            AccessTokenScopeInput::from_ops(vec![]),
+        ))
+        .await;
+
+    result_matches(result);
+
     Ok(())
 }
 
@@ -362,7 +378,8 @@ async fn list_access_tokens_with_prefix() -> Result<(), S2Error> {
         .parse()
         .expect("valid token id");
 
-    let scope = AccessTokenScope::from_op_group_perms(OperationGroupPermissions::read_write_all());
+    let scope =
+        AccessTokenScopeInput::from_op_group_perms(OperationGroupPermissions::read_write_all());
 
     s2.issue_access_token(IssueAccessTokenInput::new(
         token_id_1.clone(),

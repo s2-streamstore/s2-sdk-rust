@@ -1,6 +1,7 @@
 use std::{
     collections::VecDeque,
     future::Future,
+    num::NonZeroU32,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -67,7 +68,7 @@ impl From<AppendSessionError> for S2Error {
     }
 }
 
-/// A [Future] that resolves to an acknowledgement once the batch of records is appended.
+/// A [`Future`] that resolves to an acknowledgement once the batch of records is appended.
 pub struct BatchSubmitTicket {
     rx: oneshot::Receiver<Result<AppendAck, S2Error>>,
 }
@@ -85,21 +86,10 @@ impl Future for BatchSubmitTicket {
 }
 
 #[derive(Debug, Clone)]
-#[non_exhaustive]
-/// Configuration for an [AppendSession].
+/// Configuration for an [`AppendSession`].
 pub struct AppendSessionConfig {
-    /// Limit on total metered bytes of unacknowledged [AppendInput]s held in memory.
-    ///
-    /// **Note:** It must be at least `1MiB`.
-    ///
-    /// Defaults to `10MiB`.
-    pub max_inflight_bytes: u32,
-    /// Limit on number of unacknowledged [AppendInput]s held in memory.
-    ///
-    /// **Note:** It must be at least `1`.
-    ///
-    /// Defaults to no limit.
-    pub max_inflight_batches: Option<u32>,
+    max_inflight_bytes: u32,
+    max_inflight_batches: Option<u32>,
 }
 
 impl Default for AppendSessionConfig {
@@ -112,12 +102,16 @@ impl Default for AppendSessionConfig {
 }
 
 impl AppendSessionConfig {
-    /// Create a new [AppendSessionConfig] with default values.
+    /// Create a new [`AppendSessionConfig`] with default values.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Set the limit on total metered bytes of unacknowledged [AppendInput]s held in memory.
+    /// Set the limit on total metered bytes of unacknowledged [`AppendInput`]s held in memory.
+    ///
+    /// **Note:** It must be at least `1MiB`.
+    ///
+    /// Defaults to `10MiB`.
     pub fn with_max_inflight_bytes(self, max_inflight_bytes: u32) -> Result<Self, ValidationError> {
         if max_inflight_bytes < ONE_MIB {
             return Err(format!("max_inflight_bytes must be at least {ONE_MIB}").into());
@@ -128,16 +122,15 @@ impl AppendSessionConfig {
         })
     }
 
-    /// Set the limit on number of unacknowledged [AppendInput]s held in memory.
+    /// Set the limit on number of unacknowledged [`AppendInput`]s held in memory.
+    ///
+    /// Defaults to no limit.
     pub fn with_max_inflight_batches(
         self,
-        max_inflight_batches: u32,
+        max_inflight_batches: NonZeroU32,
     ) -> Result<Self, ValidationError> {
-        if max_inflight_batches < 1 {
-            return Err("max_inflight_batches must be at least 1".into());
-        }
         Ok(Self {
-            max_inflight_batches: Some(max_inflight_batches),
+            max_inflight_batches: Some(max_inflight_batches.get()),
             ..self
         })
     }
@@ -155,9 +148,9 @@ struct SessionState {
 }
 
 /// A session for high-throughput appending with backpressure control. It can be created from
-/// [append_session](crate::S2Stream::append_session).
+/// [`append_session`](crate::S2Stream::append_session).
 ///
-/// Supports pipelining multiple [AppendInput]s while preserving submission order.
+/// Supports pipelining multiple [`AppendInput`]s while preserving submission order.
 pub struct AppendSession {
     cmd_tx: mpsc::Sender<Command>,
     permits: InflightPermits,
@@ -203,7 +196,7 @@ impl AppendSession {
 
     /// Submit a batch of records for appending.
     ///
-    /// **Note**: You must call [AppendSession::close] if want to ensure all submitted batches are
+    /// **Note**: You must call [`AppendSession::close`] to ensure all submitted batches are
     /// appended.
     pub async fn submit(&self, input: AppendInput) -> Result<BatchSubmitTicket, S2Error> {
         let permit = self.reserve(input.records.metered_bytes() as u32).await?;

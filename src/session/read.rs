@@ -15,7 +15,7 @@ use crate::{
 pub enum ReadSessionError {
     #[error(transparent)]
     Api(#[from] ApiError),
-    #[error("Heartbeat timeout")]
+    #[error("heartbeat timeout")]
     HeartbeatTimeout,
 }
 

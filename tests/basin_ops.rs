@@ -92,6 +92,7 @@ async fn reconfigure_stream(basin: &S2Basin) -> Result<(), S2Error> {
         updated_config.delete_on_empty,
         Some(DeleteOnEmptyConfig {
             min_age_secs: 43200,
+            ..
         })
     );
 
@@ -211,7 +212,7 @@ async fn list_streams_with_start_after_returns_empty_page(basin: &S2Basin) -> Re
 
 #[test_context(S2Basin)]
 #[tokio_shared_rt::test(shared)]
-async fn list_streams_with_start_after_less_than_prefix_fails(
+async fn list_streams_with_start_after_less_than_prefix_errors(
     basin: &S2Basin,
 ) -> Result<(), S2Error> {
     let prefix = uuid();
@@ -256,7 +257,7 @@ async fn list_streams_with_start_after_less_than_prefix_fails(
 
 #[test_context(S2Basin)]
 #[tokio_shared_rt::test(shared)]
-async fn delete_nonexistent_stream_fails(basin: &S2Basin) -> Result<(), S2Error> {
+async fn delete_nonexistent_stream_errors(basin: &S2Basin) -> Result<(), S2Error> {
     let result = basin
         .delete_stream(DeleteStreamInput::new(unique_stream_name()))
         .await;

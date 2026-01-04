@@ -21,7 +21,7 @@ use crate::{
     types::{AppendAck, AppendInput, AppendRecord, FencingToken, MeteredBytes, S2Error},
 };
 
-/// A [Future] that resolves to an acknowledgement once the record is appended.
+/// A [`Future`] that resolves to an acknowledgement once the record is appended.
 pub struct RecordSubmitTicket {
     rx: oneshot::Receiver<Result<IndexedAppendAck, S2Error>>,
 }
@@ -40,6 +40,7 @@ impl Future for RecordSubmitTicket {
 
 /// Acknowledgement for an appended record.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct IndexedAppendAck {
     /// Sequence number assigned to the record.
     pub seq_num: u64,
@@ -49,15 +50,15 @@ pub struct IndexedAppendAck {
 
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-/// Configuration for [Producer].
+/// Configuration for [`Producer`].
 pub struct ProducerConfig {
-    /// Configuration for batching records into [AppendInput]s before appending.
+    /// Configuration for batching records into [`AppendInput`]s before appending.
     pub batching: BatchingConfig,
-    /// Fencing token for all [AppendInput]s.
+    /// Fencing token for all [`AppendInput`]s.
     ///
     /// Defaults to `None`.
     pub fencing_token: Option<FencingToken>,
-    /// Match sequence number for the initial [AppendInput]. It will be auto-incremented for the
+    /// Match sequence number for the initial [`AppendInput`]. It will be auto-incremented for the
     /// subsequent ones.
     ///
     /// Defaults to `None`.
@@ -65,17 +66,17 @@ pub struct ProducerConfig {
 }
 
 impl ProducerConfig {
-    /// Create a new [ProducerConfig] with default settings.
+    /// Create a new [`ProducerConfig`] with default settings.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Set the configuration for batching records into [AppendInput]s before appending.
+    /// Set the configuration for batching records into [`AppendInput`]s before appending.
     pub fn with_batching(self, batching: BatchingConfig) -> Self {
         Self { batching, ..self }
     }
 
-    /// Set the fencing token for all [AppendInput]s.
+    /// Set the fencing token for all [`AppendInput`]s.
     pub fn with_fencing_token(self, fencing_token: FencingToken) -> Self {
         Self {
             fencing_token: Some(fencing_token),
@@ -83,7 +84,7 @@ impl ProducerConfig {
         }
     }
 
-    /// Set the match sequence number for the initial [AppendInput]. It will be auto-incremented
+    /// Set the match sequence number for the initial [`AppendInput`]. It will be auto-incremented
     /// for the subsequent ones.
     pub fn with_match_seq_num(self, match_seq_num: u64) -> Self {
         Self {
@@ -93,17 +94,17 @@ impl ProducerConfig {
     }
 }
 
-/// High-level interface for submitting individual [AppendRecord]s.
+/// High-level interface for submitting individual [`AppendRecord`]s.
 ///
-/// Wraps an [AppendSession] and handles batching records into [AppendInput]s automatically based on
-/// the provided [configuration](ProducerConfig).
+/// Wraps an [`AppendSession`] and handles batching records into [`AppendInput`]s automatically
+/// based on the provided [`configuration`](ProducerConfig).
 pub struct Producer {
     cmd_tx: mpsc::Sender<Command>,
     _handle: AbortOnDropHandle<()>,
 }
 
 impl Producer {
-    /// Create a new [Producer].
+    /// Create a new [`Producer`].
     pub fn new(session: AppendSession, config: ProducerConfig) -> Self {
         let (cmd_tx, cmd_rx) = mpsc::channel::<Command>(RECORD_BATCH_MAX.count);
         let _handle = AbortOnDropHandle::new(tokio::spawn(Self::run(session, config, cmd_rx)));
@@ -112,8 +113,7 @@ impl Producer {
 
     /// Submit a record for appending.
     ///
-    /// **Note**: You must call [Producer::close] if want to ensure all submitted records are
-    /// appended.
+    /// **Note**: You must call [`Producer::close`] to ensure all submitted records are appended.
     pub async fn submit(&self, record: AppendRecord) -> Result<RecordSubmitTicket, S2Error> {
         let (ack_tx, ack_rx) = oneshot::channel();
         self.cmd_tx

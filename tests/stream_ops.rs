@@ -374,7 +374,7 @@ async fn append_empty_body_record(stream: &S2Stream) -> Result<(), S2Error> {
 
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
-async fn append_with_mismatched_seq_num_fails(stream: &S2Stream) -> Result<(), S2Error> {
+async fn append_with_mismatched_seq_num_errors(stream: &S2Stream) -> Result<(), S2Error> {
     let input1 = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
         "lorem",
     )?])?);
@@ -435,7 +435,7 @@ async fn append_with_mismatched_fencing_token(stream: &S2Stream) -> Result<(), S
 
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
-async fn read_empty_stream_fails(stream: &S2Stream) -> Result<(), S2Error> {
+async fn read_empty_stream_errors(stream: &S2Stream) -> Result<(), S2Error> {
     let result = stream.read(ReadInput::new()).await;
 
     assert_matches!(
@@ -632,7 +632,7 @@ async fn read_from_timestamp_with_bytes_limit(stream: &S2Stream) -> Result<(), S
 
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
-async fn read_from_timestamp_in_future_fails(stream: &S2Stream) -> Result<(), S2Error> {
+async fn read_from_timestamp_in_future_errors(stream: &S2Stream) -> Result<(), S2Error> {
     let base_timestamp = OffsetDateTime::now_utc().unix_timestamp() as u64;
     let input = AppendInput::new(AppendRecordBatch::try_from_iter([
         AppendRecord::new("lorem")?.with_timestamp(base_timestamp),
