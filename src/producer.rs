@@ -208,14 +208,14 @@ impl Producer {
                     }
                 }
 
-                session_permit = session.reserve(stashed_input_bytes), if stashed_input.is_some() => {
-                    match session_permit {
-                        Ok(session_permit) => {
+                submit_permit = session.reserve(stashed_input_bytes), if stashed_input.is_some() => {
+                    match submit_permit {
+                        Ok(permit) => {
                             let input = stashed_input
                                 .take()
                                 .expect("stashed_input should not be None");
                             let batch_len = input.records.len();
-                            let ticket = session_permit.send(input);
+                            let ticket = permit.submit(input);
                             claimable_tickets.push(ticket.map({
                                 let ack_txs = ack_txs.drain(..batch_len).collect::<Vec<_>>();
                                 |batch_ack| (batch_ack, ack_txs)

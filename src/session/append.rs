@@ -181,14 +181,16 @@ impl AppendSession {
         }
     }
 
-    pub(crate) async fn reserve(&self, bytes: u32) -> Result<AppendSessionPermit<'_>, S2Error> {
+    /// MYDO
+    pub async fn reserve(&self, bytes: u32) -> Result<BatchSubmitPermit, S2Error> {
         let inflight_permit = self.permits.acquire(bytes).await;
         let cmd_tx_permit = self
             .cmd_tx
-            .reserve()
+            .clone()
+            .reserve_owned()
             .await
             .map_err(|_| AppendSessionError::SessionClosed)?;
-        Ok(AppendSessionPermit {
+        Ok(BatchSubmitPermit {
             inflight_permit,
             cmd_tx_permit,
         })
@@ -200,7 +202,7 @@ impl AppendSession {
     /// appended.
     pub async fn submit(&self, input: AppendInput) -> Result<BatchSubmitTicket, S2Error> {
         let permit = self.reserve(input.records.metered_bytes() as u32).await?;
-        Ok(permit.send(input))
+        Ok(permit.submit(input))
     }
 
     /// Close the session and wait for all submitted batch of records to be appended.
@@ -499,13 +501,15 @@ impl AppendSession {
     }
 }
 
-pub(crate) struct AppendSessionPermit<'a> {
+/// MYDO
+pub struct BatchSubmitPermit {
     inflight_permit: InflightPermit,
-    cmd_tx_permit: mpsc::Permit<'a, Command>,
+    cmd_tx_permit: mpsc::OwnedPermit<Command>,
 }
 
-impl AppendSessionPermit<'_> {
-    pub(crate) fn send(self, input: AppendInput) -> BatchSubmitTicket {
+impl BatchSubmitPermit {
+    /// MYDO
+    pub fn submit(self, input: AppendInput) -> BatchSubmitTicket {
         let (ack_tx, ack_rx) = oneshot::channel();
         self.cmd_tx_permit.send(Command::Submit {
             input,
