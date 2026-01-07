@@ -10,7 +10,7 @@
     </a>
   </p>
 
-  <h1>Rust SDK for S2</h1>
+  <h1>Rust SDK for s2.dev</h1>
 
   <p>
     <!-- Crates.io -->
@@ -26,15 +26,15 @@
   </p>
 </div>
 
-The Rust SDK provides ergonomic wrappers and utilities to interact with the
-[S2 REST API](https://s2.dev/docs/rest/protocol).
+The Rust SDK provides ergonomic interface and utilities to interact with the
+[S2 API](https://s2.dev/docs/rest/records/overview).
 
 ## Getting started
 
-1. Ensure you have `tokio` added as a dependency. The SDK relies on
-   [Tokio](https://crates.io/crates/tokio) for executing async code.
+1. Ensure you have added [tokio](https://crates.io/crates/tokio) and [futures](https://crates.io/crates/futures) as dependencies.
    ```bash
    cargo add tokio --features full
+   cargo add futures
    ```
 
 1. Add the `streamstore` dependency to your project:
@@ -42,21 +42,23 @@ The Rust SDK provides ergonomic wrappers and utilities to interact with the
    cargo add streamstore
    ```
 
-1. Generate an access token by logging onto the web console at
+1. Generate an access token by logging into the web console at
    [s2.dev](https://s2.dev/dashboard).
 
-1. Make a request using SDK client.
+1. Perform an operation.
    ```rust
-   #[tokio::main]
-   async fn main() -> Result<(), Box<dyn std::error::Error>> {
-       let config = s2::ClientConfig::new("<YOUR ACCESS TOKEN>");
-       let client = s2::Client::new(config);
+    use s2::{
+        S2,
+        types::{ListBasinsInput, S2Config},
+    };
 
-       let basins = client.list_basins(Default::default()).await?;
-       println!("My basins: {:?}", basins);
-
-       Ok(())
-   }
+    #[tokio::main]
+    async fn main() -> Result<(), Box<dyn std::error::Error>> {
+        let s2 = S2::new(S2Config::new("<YOUR_ACCESS_TOKEN>"))?;
+        let page = s2.list_basins(ListBasinsInput::new()).await?;
+        println!("My basins: {:?}", page.values);
+        Ok(())
+    }
    ```
 
 ## Examples
@@ -64,17 +66,14 @@ The Rust SDK provides ergonomic wrappers and utilities to interact with the
 The [`examples`](./examples) directory in this repository contains a variety of
 example use cases demonstrating how to use the SDK effectively.
 
-Run any example using the following command:
+You might have to set either one or all of these env vars based on the example you run.
 
 ```bash
-export S2_ACCESS_TOKEN="<YOUR ACCESS TOKEN>"
+export S2_ACCESS_TOKEN="<YOUR_ACCESS_TOKEN>"
+export S2_BASIN="<YOUR_BASIN_NAME>"
+export S2_STREAM="<YOUR_STREAM_NAME>"
 cargo run --example <example_name>
 ```
-
-> [!NOTE]
-> You might want to update the basin name in the example before running since
-> basin names are globally unique and each example uses the same basin name
-> (`"my-favorite-basin"`).
 
 ## SDK Docs and Reference
 
