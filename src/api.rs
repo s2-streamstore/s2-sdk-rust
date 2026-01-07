@@ -664,11 +664,31 @@ impl From<TerminalMessage> for ApiError {
             Ok(s) => s,
             Err(e) => return ApiError::S2STerminalDecode(e.into()),
         };
-        let response = match serde_json::from_str::<ApiErrorResponse>(&msg.body) {
-            Ok(r) => r,
-            Err(e) => return ApiError::S2STerminalDecode(e.into()),
-        };
-        ApiError::Server(status, response)
+        if status == StatusCode::PRECONDITION_FAILED {
+            let condition_failed = match serde_json::from_str::<AppendConditionFailed>(&msg.body) {
+                Ok(condition_failed) => condition_failed,
+                Err(err) => {
+                    return ApiError::S2STerminalDecode(err.into());
+                }
+            };
+            ApiError::AppendConditionFailed(condition_failed)
+        } else if status == StatusCode::RANGE_NOT_SATISFIABLE {
+            let tail = match serde_json::from_str::<TailResponse>(&msg.body) {
+                Ok(tail) => tail,
+                Err(err) => {
+                    return ApiError::S2STerminalDecode(err.into());
+                }
+            };
+            ApiError::ReadBeyondTail(tail)
+        } else {
+            let response = match serde_json::from_str::<ApiErrorResponse>(&msg.body) {
+                Ok(response) => response,
+                Err(err) => {
+                    return ApiError::S2STerminalDecode(err.into());
+                }
+            };
+            ApiError::Server(status, response)
+        }
     }
 }
 
