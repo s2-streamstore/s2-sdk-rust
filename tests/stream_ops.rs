@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use assert_matches::assert_matches;
 use common::S2Stream;
+use futures::StreamExt;
 use s2::{
     append_session::AppendSessionConfig,
     batching::BatchingConfig,
@@ -403,7 +404,38 @@ async fn append_with_mismatched_seq_num_errors(stream: &S2Stream) -> Result<(), 
 
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
-async fn append_with_mismatched_fencing_token(stream: &S2Stream) -> Result<(), S2Error> {
+async fn append_session_with_mismatched_seq_num_errors(stream: &S2Stream) -> Result<(), S2Error> {
+    let session = stream.append_session(AppendSessionConfig::new());
+
+    let input1 = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
+        "lorem",
+    )?])?);
+
+    let ack = session.submit(input1).await?.await?;
+
+    assert_eq!(ack.start.seq_num, 0);
+    assert_eq!(ack.end.seq_num, 1);
+
+    let input2 = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
+        "ipsum",
+    )?])?)
+    .with_match_seq_num(0);
+
+    let result = session.submit(input2).await?.await;
+
+    assert_matches!(
+        result,
+        Err(S2Error::AppendConditionFailed(
+            AppendConditionFailed::SeqNumMismatch(1)
+        ))
+    );
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn append_with_mismatched_fencing_token_errors(stream: &S2Stream) -> Result<(), S2Error> {
     let fencing_token_1 = FencingToken::generate(30).expect("valid fencing token");
     let input1 = AppendInput::new(AppendRecordBatch::try_from_iter([CommandRecord::fence(
         fencing_token_1.clone(),
@@ -435,6 +467,42 @@ async fn append_with_mismatched_fencing_token(stream: &S2Stream) -> Result<(), S
 
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
+async fn append_session_with_mismatched_fencing_token_errors(
+    stream: &S2Stream,
+) -> Result<(), S2Error> {
+    let session = stream.append_session(AppendSessionConfig::new());
+
+    let fencing_token_1 = FencingToken::generate(30).expect("valid fencing token");
+    let input1 = AppendInput::new(AppendRecordBatch::try_from_iter([CommandRecord::fence(
+        fencing_token_1.clone(),
+    )
+    .into()])?);
+
+    let ack = session.submit(input1).await?.await?;
+
+    assert_eq!(ack.start.seq_num, 0);
+    assert_eq!(ack.end.seq_num, 1);
+
+    let fencing_token_2 = FencingToken::generate(30).expect("valid fencing token");
+    let input2 = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
+        "ipsum",
+    )?])?)
+    .with_fencing_token(fencing_token_2);
+
+    let result = session.submit(input2).await?.await;
+
+    assert_matches!(
+        result,
+        Err(S2Error::AppendConditionFailed(AppendConditionFailed::FencingTokenMismatch(fencing_token))) => {
+            assert_eq!(fencing_token, fencing_token_1)
+        }
+    );
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
 async fn read_empty_stream_errors(stream: &S2Stream) -> Result<(), S2Error> {
     let result = stream.read(ReadInput::new()).await;
 
@@ -446,6 +514,148 @@ async fn read_empty_stream_errors(stream: &S2Stream) -> Result<(), S2Error> {
             ..
         }))
     );
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn read_beyond_tail_errors(stream: &S2Stream) -> Result<(), S2Error> {
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
+        "lorem",
+    )?])?);
+
+    let ack = stream.append(input).await?;
+
+    assert_eq!(ack.start.seq_num, 0);
+    assert_eq!(ack.end.seq_num, 1);
+
+    let result = stream
+        .read(ReadInput::new().with_start(ReadStart::new().with_from(ReadFrom::SeqNum(10))))
+        .await;
+
+    assert_matches!(
+        result,
+        Err(S2Error::ReadBeyondTail(StreamPosition { seq_num: 1, .. }))
+    );
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn read_beyond_tail_with_clamp_to_tail_errors(stream: &S2Stream) -> Result<(), S2Error> {
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
+        "lorem",
+    )?])?);
+
+    let ack = stream.append(input).await?;
+
+    assert_eq!(ack.start.seq_num, 0);
+    assert_eq!(ack.end.seq_num, 1);
+
+    let result = stream
+        .read(
+            ReadInput::new().with_start(
+                ReadStart::new()
+                    .with_from(ReadFrom::SeqNum(10))
+                    .with_clamp_to_tail(true),
+            ),
+        )
+        .await;
+
+    assert_matches!(
+        result,
+        Err(S2Error::ReadBeyondTail(StreamPosition { seq_num: 1, .. }))
+    );
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn read_beyond_tail_with_clamp_to_tail_and_wait_returns_empty_batch(
+    stream: &S2Stream,
+) -> Result<(), S2Error> {
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
+        "lorem",
+    )?])?);
+
+    let ack = stream.append(input).await?;
+
+    assert_eq!(ack.start.seq_num, 0);
+    assert_eq!(ack.end.seq_num, 1);
+
+    let batch = stream
+        .read(
+            ReadInput::new()
+                .with_start(
+                    ReadStart::new()
+                        .with_from(ReadFrom::SeqNum(10))
+                        .with_clamp_to_tail(true),
+                )
+                .with_stop(ReadStop::new().with_wait(1)),
+        )
+        .await?;
+
+    assert!(batch.records.is_empty());
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn read_session_beyond_tail_errors(stream: &S2Stream) -> Result<(), S2Error> {
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
+        "lorem",
+    )?])?);
+
+    let ack = stream.append(input).await?;
+
+    assert_eq!(ack.start.seq_num, 0);
+    assert_eq!(ack.end.seq_num, 1);
+
+    let mut batches = stream
+        .read_session(ReadInput::new().with_start(ReadStart::new().with_from(ReadFrom::SeqNum(10))))
+        .await;
+
+    let result = batches.next().await;
+
+    assert_matches!(
+        result,
+        Some(Err(S2Error::ReadBeyondTail(StreamPosition {
+            seq_num: 1,
+            ..
+        })))
+    );
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn read_session_beyond_tail_with_clamp_to_tail(stream: &S2Stream) -> Result<(), S2Error> {
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
+        "lorem",
+    )?])?);
+
+    let ack = stream.append(input).await?;
+
+    assert_eq!(ack.start.seq_num, 0);
+    assert_eq!(ack.end.seq_num, 1);
+
+    let mut batches = stream
+        .read_session(
+            ReadInput::new().with_start(
+                ReadStart::new()
+                    .with_from(ReadFrom::SeqNum(10))
+                    .with_clamp_to_tail(true),
+            ),
+        )
+        .await;
+
+    let result = tokio::time::timeout(Duration::from_secs(1), batches.next()).await;
+    assert_matches!(result, Err(tokio::time::error::Elapsed { .. }));
 
     Ok(())
 }
