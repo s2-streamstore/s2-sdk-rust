@@ -156,7 +156,8 @@ static SHARED_BASIN_USERS: AtomicU32 = AtomicU32::new(0);
 static TEST_COUNTER: AtomicU32 = AtomicU32::new(0);
 
 fn s2_config() -> Result<S2Config, ValidationError> {
-    let access_token = std::env::var("S2_ACCESS_TOKEN").expect("S2_ACCESS_TOKEN env var not set");
+    let access_token =
+        std::env::var("S2_ACCESS_TOKEN").map_err(|_| "S2_ACCESS_TOKEN env var not set")?;
     let config = if std::env::var("S2_ACCOUNT_ENDPOINT").is_ok()
         && std::env::var("S2_BASIN_ENDPOINT").is_ok()
     {
