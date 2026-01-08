@@ -9,8 +9,9 @@ use std::{
 
 use s2::types::{
     BasinName, CreateBasinInput, CreateStreamInput, DeleteBasinInput, DeleteStreamInput, S2Config,
-    StreamName,
+    S2Endpoints, StreamName,
 };
+use s2_common::types::ValidationError;
 use test_context::AsyncTestContext;
 
 pub struct SharedS2Basin(Arc<S2Basin>);
@@ -29,7 +30,7 @@ impl AsyncTestContext for SharedS2Basin {
 
         let basin = SHARED_BASIN_INNER
             .get_or_init(|| async {
-                let config = s2_config();
+                let config = s2_config().expect("valid S2 config");
                 let s2 = s2::S2::new(config.clone()).expect("valid S2");
                 let basin_name = unique_basin_name();
                 s2.create_basin(CreateBasinInput::new(basin_name.clone()))
@@ -75,7 +76,7 @@ impl Deref for S2Basin {
 
 impl AsyncTestContext for S2Basin {
     async fn setup() -> Self {
-        let config = s2_config();
+        let config = s2_config().expect("valid S2 config");
         let s2 = s2::S2::new(config.clone()).expect("valid S2");
         let basin_name = unique_basin_name();
         s2.create_basin(CreateBasinInput::new(basin_name.clone()))
@@ -154,14 +155,21 @@ static SHARED_BASIN_USERS: AtomicU32 = AtomicU32::new(0);
 
 static TEST_COUNTER: AtomicU32 = AtomicU32::new(0);
 
-fn s2_config() -> S2Config {
-    let access_token = std::env::var("S2_ACCESS_TOKEN")
-        .expect("S2_ACCESS_TOKEN environment variable must be set for e2e tests");
-    S2Config::new(access_token)
+fn s2_config() -> Result<S2Config, ValidationError> {
+    let access_token = std::env::var("S2_ACCESS_TOKEN").expect("S2_ACCESS_TOKEN env var not set");
+    let config = if std::env::var("S2_ACCOUNT_ENDPOINT").is_ok()
+        && std::env::var("S2_BASIN_ENDPOINT").is_ok()
+    {
+        S2Config::new(access_token).with_endpoints(S2Endpoints::from_env()?)
+    } else {
+        S2Config::new(access_token)
+    };
+    Ok(config)
 }
 
 pub fn s2() -> s2::S2 {
-    s2::S2::new(s2_config()).expect("valid S2")
+    let config = s2_config().expect("valid S2 config");
+    s2::S2::new(config).expect("valid S2")
 }
 
 pub fn unique_basin_name() -> BasinName {
