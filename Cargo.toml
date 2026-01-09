@@ -5,7 +5,7 @@ version = "0.21.0"
 edition = "2024"
 license = "MIT"
 keywords = ["s2", "durable", "streams", "client", "sdk"]
-categories = ["database", "api-bindings"]
+categories = ["api-bindings", "database"]
 repository = "https://github.com/s2-streamstore/s2-sdk-rust"
 homepage = "https://github.com/s2-streamstore/s2-sdk-rust"
 
