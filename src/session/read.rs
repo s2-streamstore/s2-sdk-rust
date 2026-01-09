@@ -45,12 +45,35 @@ pub async fn read_session(
     mut start: ReadStart,
     mut end: ReadEnd,
     ignore_command_records: bool,
-) -> Streaming<ReadBatch> {
+) -> Result<Streaming<ReadBatch>, ReadSessionError> {
     let retry_builder = retry_builder(&client.config.retry);
     let mut retry_backoffs: VecDeque<Duration> = retry_builder.build().collect();
 
-    Box::pin(stream! {
-        let mut batches: Option<Streaming<ReadBatch>> = None;
+    let batches = loop {
+        match session_inner(
+            client.clone(),
+            name.clone(),
+            start.clone(),
+            end.clone(),
+            ignore_command_records,
+        )
+        .await
+        {
+            Ok(batches) => {
+                retry_backoffs = retry_builder.build().collect();
+                break batches;
+            }
+            Err(err) => {
+                if can_retry(&err, &mut retry_backoffs).await {
+                    continue;
+                }
+                return Err(err);
+            }
+        }
+    };
+
+    Ok(Box::pin(stream! {
+        let mut batches: Option<Streaming<ReadBatch>> = Some(batches);
 
         loop {
             if batches.is_none() {
@@ -108,7 +131,7 @@ pub async fn read_session(
                 None => break,
             }
         }
-    })
+    }))
 }
 
 async fn session_inner(
