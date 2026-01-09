@@ -329,7 +329,7 @@ async fn issue_access_token_with_no_permitted_ops_errors() -> Result<(), S2Error
 
     let result_matches = |result: Result<String, S2Error>| {
         assert_matches!(result, Err(S2Error::Server(ErrorResponse { code, message, .. })) => {
-            assert_eq!(code, "bad_params");
+            assert_eq!(code, "invalid");
             assert_eq!(message, "Access token permissions cannot be empty");
         });
     };

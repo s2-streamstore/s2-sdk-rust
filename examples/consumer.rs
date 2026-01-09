@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stream = s2.basin(basin_name).stream(stream_name);
 
     let input = ReadInput::new();
-    let mut batches = stream.read_session(input).await;
+    let mut batches = stream.read_session(input).await?;
     loop {
         select! {
             batch = batches.next() => {

@@ -356,18 +356,7 @@ impl BasinClient {
             .build()?;
         let response = self
             .request(request)
-            .error_handler(|status, response| async move {
-                if status == StatusCode::RANGE_NOT_SATISFIABLE {
-                    Err(ApiError::ReadBeyondTail(
-                        response.json::<TailResponse>().await?,
-                    ))
-                } else {
-                    Err(ApiError::Server(
-                        status,
-                        response.json::<ApiErrorResponse>().await?,
-                    ))
-                }
-            })
+            .error_handler(read_response_error_handler)
             .send()
             .await?;
         Ok(ReadBatch::decode(response.bytes().await?)?)
@@ -460,7 +449,11 @@ impl BasinClient {
             .query(&end)
             .timeout(SESSION_REQUEST_TIMEOUT);
         request = add_basin_header_if_required(request, &self.config.endpoints, &self.name);
-        let response = request.send().await?.into_result().await?;
+        let response = request
+            .send()
+            .await?
+            .into_result_with_handler(read_response_error_handler)
+            .await?;
         let mut bytes_stream = response.bytes_stream();
 
         let mut buffer = BytesMut::new();
@@ -507,6 +500,22 @@ impl BasinClient {
     }
 }
 
+async fn read_response_error_handler(
+    status: StatusCode,
+    response: Response,
+) -> Result<Response, ApiError> {
+    if status == StatusCode::RANGE_NOT_SATISFIABLE {
+        Err(ApiError::ReadUnwritten(
+            response.json::<TailResponse>().await?,
+        ))
+    } else {
+        Err(ApiError::Server(
+            status,
+            response.json::<ApiErrorResponse>().await?,
+        ))
+    }
+}
+
 impl Deref for BasinClient {
     type Target = BaseClient;
 
@@ -538,8 +547,8 @@ pub enum ApiError {
     Compression(#[from] std::io::Error),
     #[error("append condition check failed")]
     AppendConditionFailed(AppendConditionFailed),
-    #[error("read beyond tail")]
-    ReadBeyondTail(TailResponse),
+    #[error("read from an unwritten position")]
+    ReadUnwritten(TailResponse),
     #[error("{1}")]
     Server(StatusCode, ApiErrorResponse),
 }
@@ -679,7 +688,7 @@ impl From<TerminalMessage> for ApiError {
                     return ApiError::S2STerminalDecode(err.into());
                 }
             };
-            ApiError::ReadBeyondTail(tail)
+            ApiError::ReadUnwritten(tail)
         } else {
             let response = match serde_json::from_str::<ApiErrorResponse>(&msg.body) {
                 Ok(response) => response,
@@ -926,7 +935,7 @@ fn base_url(endpoints: &S2Endpoints, kind: ClientKind) -> Url {
 
 trait IntoResult {
     async fn into_result(self) -> Result<Response, ApiError>;
-    async fn into_result_with_handler<F, Fut>(self, handler: &F) -> Result<Response, ApiError>
+    async fn into_result_with_handler<F, Fut>(self, handler: F) -> Result<Response, ApiError>
     where
         F: Fn(StatusCode, Response) -> Fut,
         Fut: Future<Output = Result<Response, ApiError>>;
@@ -945,7 +954,7 @@ impl IntoResult for Response {
         }
     }
 
-    async fn into_result_with_handler<F, Fut>(self, handler: &F) -> Result<Response, ApiError>
+    async fn into_result_with_handler<F, Fut>(self, handler: F) -> Result<Response, ApiError>
     where
         F: Fn(StatusCode, Response) -> Fut,
         Fut: Future<Output = Result<Response, ApiError>>,

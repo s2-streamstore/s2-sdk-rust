@@ -1,5 +1,3 @@
-use std::pin::Pin;
-
 use futures::StreamExt;
 
 use crate::{
@@ -11,7 +9,7 @@ use crate::{
         GetAccountMetricsInput, GetBasinMetricsInput, GetStreamMetricsInput, IssueAccessTokenInput,
         ListAccessTokensInput, ListBasinsInput, ListStreamsInput, Metric, Page, ReadBatch,
         ReadInput, ReconfigureBasinInput, ReconfigureStreamInput, S2Config, S2Error, StreamConfig,
-        StreamInfo, StreamName, StreamPosition,
+        StreamInfo, StreamName, StreamPosition, Streaming,
     },
 };
 
@@ -258,22 +256,18 @@ impl S2Stream {
     }
 
     /// Create a read session.
-    pub async fn read_session(&self, input: ReadInput) -> Streaming<ReadBatch> {
-        let client = self.client.clone();
-        let name = self.name.clone();
+    pub async fn read_session(&self, input: ReadInput) -> Result<Streaming<ReadBatch>, S2Error> {
         let batches = session::read_session(
-            client,
-            name,
+            self.client.clone(),
+            self.name.clone(),
             input.start.into(),
             input.stop.into(),
             input.ignore_command_records,
         )
-        .await;
-        Box::pin(batches.map(|res| match res {
+        .await?;
+        Ok(Box::pin(batches.map(|res| match res {
             Ok(batch) => Ok(batch),
             Err(err) => Err(err.into()),
-        }))
+        })))
     }
 }
-
-pub type Streaming<R> = Pin<Box<dyn Send + futures::Stream<Item = Result<R, S2Error>>>>;

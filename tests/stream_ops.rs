@@ -508,7 +508,7 @@ async fn read_empty_stream_errors(stream: &S2Stream) -> Result<(), S2Error> {
 
     assert_matches!(
         result,
-        Err(S2Error::ReadBeyondTail(StreamPosition {
+        Err(S2Error::ReadUnwritten(StreamPosition {
             seq_num: 0,
             timestamp: 0,
             ..
@@ -536,7 +536,7 @@ async fn read_beyond_tail_errors(stream: &S2Stream) -> Result<(), S2Error> {
 
     assert_matches!(
         result,
-        Err(S2Error::ReadBeyondTail(StreamPosition { seq_num: 1, .. }))
+        Err(S2Error::ReadUnwritten(StreamPosition { seq_num: 1, .. }))
     );
 
     Ok(())
@@ -566,7 +566,7 @@ async fn read_beyond_tail_with_clamp_to_tail_errors(stream: &S2Stream) -> Result
 
     assert_matches!(
         result,
-        Err(S2Error::ReadBeyondTail(StreamPosition { seq_num: 1, .. }))
+        Err(S2Error::ReadUnwritten(StreamPosition { seq_num: 1, .. }))
     );
 
     Ok(())
@@ -615,18 +615,14 @@ async fn read_session_beyond_tail_errors(stream: &S2Stream) -> Result<(), S2Erro
     assert_eq!(ack.start.seq_num, 0);
     assert_eq!(ack.end.seq_num, 1);
 
-    let mut batches = stream
+    let result = stream
         .read_session(ReadInput::new().with_start(ReadStart::new().with_from(ReadFrom::SeqNum(10))))
         .await;
 
-    let result = batches.next().await;
-
+    assert!(result.is_err());
     assert_matches!(
-        result,
-        Some(Err(S2Error::ReadBeyondTail(StreamPosition {
-            seq_num: 1,
-            ..
-        })))
+        result.err().expect("should be err"),
+        S2Error::ReadUnwritten(StreamPosition { seq_num: 1, .. })
     );
 
     Ok(())
@@ -652,7 +648,7 @@ async fn read_session_beyond_tail_with_clamp_to_tail(stream: &S2Stream) -> Resul
                     .with_clamp_to_tail(true),
             ),
         )
-        .await;
+        .await?;
 
     let result = tokio::time::timeout(Duration::from_secs(1), batches.next()).await;
     assert_matches!(result, Err(tokio::time::error::Elapsed { .. }));
@@ -863,7 +859,7 @@ async fn read_from_timestamp_in_future_errors(stream: &S2Stream) -> Result<(), S
         )
         .await;
 
-    assert_matches!(result, Err(S2Error::ReadBeyondTail(tail)) => {
+    assert_matches!(result, Err(S2Error::ReadUnwritten(tail)) => {
         assert_eq!(tail.seq_num, 2);
         assert_eq!(tail.timestamp, base_timestamp + 1);
     });

@@ -6,6 +6,7 @@ use std::{
     fmt,
     num::NonZeroU32,
     ops::{Deref, RangeTo},
+    pin::Pin,
     str::FromStr,
     time::Duration,
 };
@@ -3220,6 +3221,9 @@ impl ReadBatch {
     }
 }
 
+/// A [`Stream`](futures::Stream) of values of type `Result<T, S2Error>`.
+pub type Streaming<T> = Pin<Box<dyn Send + futures::Stream<Item = Result<T, S2Error>>>>;
+
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 /// Why an append condition check failed.
@@ -3256,21 +3260,21 @@ pub enum S2Error {
     /// Validation error.
     Validation(#[from] ValidationError),
     #[error("{0}")]
-    /// Append condition check failed.
+    /// Append condition check failed. Contains the failure reason.
     AppendConditionFailed(AppendConditionFailed),
-    #[error("read beyond tail: {0}")]
-    /// Read starting position is beyond the stream's tail. Contains the current tail.
-    ReadBeyondTail(StreamPosition),
+    #[error("read from an unwritten position. current tail: {0}")]
+    /// Read from an unwritten position. Contains the current tail.
+    ReadUnwritten(StreamPosition),
     #[error("{0}")]
-    /// Server-side error.
+    /// Other server-side error.
     Server(ErrorResponse),
 }
 
 impl From<ApiError> for S2Error {
     fn from(err: ApiError) -> Self {
         match err {
-            ApiError::ReadBeyondTail(tail_response) => {
-                Self::ReadBeyondTail(tail_response.tail.into())
+            ApiError::ReadUnwritten(tail_response) => {
+                Self::ReadUnwritten(tail_response.tail.into())
             }
             ApiError::AppendConditionFailed(condition_failed) => {
                 Self::AppendConditionFailed(condition_failed.into())
