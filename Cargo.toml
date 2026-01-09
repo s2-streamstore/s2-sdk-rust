@@ -4,7 +4,7 @@ description = "Rust SDK for s2.dev"
 version = "0.21.0"
 edition = "2024"
 license = "MIT"
-keywords = ["wal", "s2", "s2.dev", "log", "stream", "durable streams"]
+keywords = ["s2", "s2.dev", "log", "stream", "durable streams"]
 repository = "https://github.com/s2-streamstore/s2-sdk-rust"
 homepage = "https://github.com/s2-streamstore/s2-sdk-rust"
 
