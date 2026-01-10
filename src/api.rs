@@ -5,7 +5,7 @@ use crate::types::{
 };
 use async_compression::Level;
 use async_compression::tokio::write::{GzipEncoder, ZstdEncoder};
-use async_stream::stream;
+use async_stream::try_stream;
 use bytes::BytesMut;
 use futures::{Stream, StreamExt};
 use http::header::InvalidHeaderValue;
@@ -392,40 +392,22 @@ impl BasinClient {
         let mut buffer = BytesMut::new();
         let mut decoder = FrameDecoder;
 
-        Ok(Box::pin(stream! {
+        Ok(Box::pin(try_stream! {
             while let Some(chunk) = bytes_stream.next().await {
                 let chunk = chunk?;
                 buffer.extend_from_slice(&chunk);
 
-                let mut session_done = false;
                 loop {
                     match decoder.decode(&mut buffer) {
                         Ok(Some(SessionMessage::Regular(msg))) => {
-                            match msg.try_into_proto() {
-                                Ok(ack) => yield Ok(ack),
-                                Err(err) => {
-                                    yield Err(err.into());
-                                    session_done = true;
-                                    break;
-                                }
-                            }
-                        },
+                            yield msg.try_into_proto()?;
+                        }
                         Ok(Some(SessionMessage::Terminal(msg))) => {
-                            yield Err(msg.into());
-                            session_done = true;
-                            break;
+                            Err::<(), ApiError>(msg.into())?;
                         }
                         Ok(None) => break,
-                        Err(err) => {
-                            yield Err(err.into());
-                            session_done = true;
-                            break;
-                        }
+                        Err(err) => Err(err)?,
                     }
-                }
-
-                if session_done {
-                    break;
                 }
             }
         }))
@@ -459,41 +441,22 @@ impl BasinClient {
         let mut buffer = BytesMut::new();
         let mut decoder = FrameDecoder;
 
-        Ok(Box::pin(stream! {
+        Ok(Box::pin(try_stream! {
             while let Some(chunk) = bytes_stream.next().await {
                 let chunk = chunk?;
                 buffer.extend_from_slice(&chunk);
 
-                let mut session_done = false;
-
                 loop {
                     match decoder.decode(&mut buffer) {
                         Ok(Some(SessionMessage::Regular(msg))) => {
-                            match msg.try_into_proto() {
-                                Ok(batch) => yield Ok(batch),
-                                Err(err) => {
-                                    yield Err(err.into());
-                                    session_done = true;
-                                    break;
-                                }
-                            }
-                        },
+                            yield msg.try_into_proto()?;
+                        }
                         Ok(Some(SessionMessage::Terminal(msg))) => {
-                            yield Err(msg.into());
-                            session_done = true;
-                            break;
+                            Err::<(), ApiError>(msg.into())?;
                         }
                         Ok(None) => break,
-                        Err(err) => {
-                            yield Err(err.into());
-                            session_done = true;
-                            break;
-                        }
+                        Err(err) => Err(err)?,
                     }
-                }
-
-                if session_done {
-                    break;
                 }
             }
         }))

@@ -5,11 +5,12 @@ use crate::{
     session::{self, AppendSession, AppendSessionConfig},
     types::{
         AccessTokenId, AccessTokenInfo, AppendAck, AppendInput, BasinConfig, BasinInfo, BasinName,
-        CreateBasinInput, CreateStreamInput, DeleteBasinInput, DeleteStreamInput,
+        BasinState, CreateBasinInput, CreateStreamInput, DeleteBasinInput, DeleteStreamInput,
         GetAccountMetricsInput, GetBasinMetricsInput, GetStreamMetricsInput, IssueAccessTokenInput,
-        ListAccessTokensInput, ListBasinsInput, ListStreamsInput, Metric, Page, ReadBatch,
-        ReadInput, ReconfigureBasinInput, ReconfigureStreamInput, S2Config, S2Error, StreamConfig,
-        StreamInfo, StreamName, StreamPosition, Streaming,
+        ListAccessTokensInput, ListAllAccessTokensInput, ListAllBasinsInput, ListAllStreamsInput,
+        ListBasinsInput, ListStreamsInput, Metric, Page, ReadBatch, ReadInput,
+        ReconfigureBasinInput, ReconfigureStreamInput, S2Config, S2Error, StreamConfig, StreamInfo,
+        StreamName, StreamPosition, Streaming,
     },
 };
 
@@ -34,7 +35,9 @@ impl S2 {
         }
     }
 
-    /// List basins.
+    /// List a page of basins.
+    ///
+    /// See [`list_all_basins`](crate::S2::list_all_basins) for automatic pagination.
     pub async fn list_basins(&self, input: ListBasinsInput) -> Result<Page<BasinInfo>, S2Error> {
         let response = self.client.list_basins(input.into()).await?;
         Ok(Page::new(
@@ -45,6 +48,33 @@ impl S2 {
                 .collect::<Vec<_>>(),
             response.has_more,
         ))
+    }
+
+    /// List all basins, paginating automatically.
+    pub fn list_all_basins(&self, input: ListAllBasinsInput) -> Streaming<BasinInfo> {
+        let s2 = self.clone();
+        let prefix = input.prefix;
+        let ignore_pending_deletions = input.ignore_pending_deletions;
+        let mut input = ListBasinsInput::new().with_prefix(prefix);
+        Box::pin(async_stream::try_stream! {
+            loop {
+                let page = s2.list_basins(input.clone()).await?;
+
+                let start_after = page.values.last().map(|info| info.name.clone().into());
+                for info in page.values {
+                    if ignore_pending_deletions && info.state == BasinState::Deleting {
+                        continue;
+                    }
+                    yield info;
+                }
+
+                if page.has_more && let Some(start_after) = start_after {
+                    input = input.with_start_after(start_after);
+                } else {
+                    break;
+                }
+            }
+        })
     }
 
     /// Create a basin.
@@ -80,7 +110,9 @@ impl S2 {
         Ok(config.into())
     }
 
-    /// List access tokens.
+    /// List a page of access tokens.
+    ///
+    /// See [`list_all_access_tokens`](crate::S2::list_all_access_tokens) for automatic pagination.
     pub async fn list_access_tokens(
         &self,
         input: ListAccessTokensInput,
@@ -94,6 +126,32 @@ impl S2 {
                 .collect::<Result<Vec<_>, _>>()?,
             response.has_more,
         ))
+    }
+
+    /// List all access tokens, paginating automatically.
+    pub fn list_all_access_tokens(
+        &self,
+        input: ListAllAccessTokensInput,
+    ) -> Streaming<AccessTokenInfo> {
+        let s2 = self.clone();
+        let prefix = input.prefix;
+        let mut input = ListAccessTokensInput::new().with_prefix(prefix);
+        Box::pin(async_stream::try_stream! {
+            loop {
+                let page = s2.list_access_tokens(input.clone()).await?;
+
+                let start_after = page.values.last().map(|info| info.id.clone().into());
+                for info in page.values {
+                    yield info;
+                }
+
+                if page.has_more && let Some(start_after) = start_after {
+                    input = input.with_start_after(start_after);
+                } else {
+                    break;
+                }
+            }
+        })
     }
 
     /// Issue an access token.
@@ -160,7 +218,9 @@ impl S2Basin {
         }
     }
 
-    /// List streams.
+    /// List a page of streams.
+    ///
+    /// See [`list_all_streams`](crate::S2Basin::list_all_streams) for automatic pagination.
     pub async fn list_streams(&self, input: ListStreamsInput) -> Result<Page<StreamInfo>, S2Error> {
         let response = self.client.list_streams(input.into()).await?;
         Ok(Page::new(
@@ -171,6 +231,33 @@ impl S2Basin {
                 .collect::<Vec<_>>(),
             response.has_more,
         ))
+    }
+
+    /// List all streams, paginating automatically.
+    pub fn list_all_streams(&self, input: ListAllStreamsInput) -> Streaming<StreamInfo> {
+        let basin = self.clone();
+        let prefix = input.prefix;
+        let ignore_pending_deletions = input.ignore_pending_deletions;
+        let mut input = ListStreamsInput::new().with_prefix(prefix);
+        Box::pin(async_stream::try_stream! {
+            loop {
+                let page = basin.list_streams(input.clone()).await?;
+
+                let start_after = page.values.last().map(|info| info.name.clone().into());
+                for info in page.values {
+                    if ignore_pending_deletions && info.deleted_at.is_some() {
+                        continue;
+                    }
+                    yield info;
+                }
+
+                if page.has_more && let Some(start_after) = start_after {
+                    input = input.with_start_after(start_after);
+                } else {
+                    break;
+                }
+            }
+        })
     }
 
     /// Create a stream.
