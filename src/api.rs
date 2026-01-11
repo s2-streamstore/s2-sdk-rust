@@ -522,12 +522,13 @@ impl ApiError {
             Self::Server(status, _) => {
                 matches!(
                     *status,
-                    StatusCode::SERVICE_UNAVAILABLE
-                        | StatusCode::GATEWAY_TIMEOUT
-                        | StatusCode::INTERNAL_SERVER_ERROR
+                    StatusCode::REQUEST_TIMEOUT
+                        | StatusCode::CONFLICT
                         | StatusCode::TOO_MANY_REQUESTS
-                        | StatusCode::REQUEST_TIMEOUT
+                        | StatusCode::INTERNAL_SERVER_ERROR
                         | StatusCode::BAD_GATEWAY
+                        | StatusCode::SERVICE_UNAVAILABLE
+                        | StatusCode::GATEWAY_TIMEOUT
                 )
             }
             Self::Client(err) => err.is_retryable(),
