@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, pin::Pin, time::Duration};
 
-use async_stream::stream;
+use async_stream::{stream, try_stream};
 use futures::StreamExt;
 use s2_api::v1::stream::{ReadEnd, ReadStart};
 use tokio::time::timeout;
@@ -142,30 +142,17 @@ async fn session_inner(
     ignore_command_records: bool,
 ) -> Result<Streaming<ReadBatch>, ReadSessionError> {
     let mut batches = client.read_session(&name, start, end).await?;
-    Ok(Box::pin(stream! {
+    Ok(Box::pin(try_stream! {
         loop {
             match timeout(Duration::from_secs(20), batches.next()).await {
                 Ok(Some(batch)) => {
-                    match batch {
-                        Ok(batch) => {
-                            let batch = ReadBatch::from_api(batch, ignore_command_records);
-                            if !batch.records.is_empty() {
-                                yield Ok(batch);
-                            }
-                        }
-                        Err(err) => {
-                            yield Err(err.into());
-                            break;
-                        }
+                    let batch = ReadBatch::from_api(batch?, ignore_command_records);
+                    if !batch.records.is_empty() {
+                        yield batch;
                     }
                 }
-                Ok(None) => {
-                    break;
-                }
-                Err(_) => {
-                    yield Err(ReadSessionError::HeartbeatTimeout);
-                    break;
-                }
+                Ok(None) => break,
+                Err(_) => Err(ReadSessionError::HeartbeatTimeout)?,
             }
         }
     }))

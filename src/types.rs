@@ -934,6 +934,39 @@ impl From<ListBasinsInput> for api::basin::ListBasinsRequest {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+/// Input for [`S2::list_all_basins`](crate::S2::list_all_basins).
+pub struct ListAllBasinsInput {
+    /// Filter basins whose names begin with this value.
+    ///
+    /// Defaults to `""`.
+    pub prefix: BasinNamePrefix,
+    /// Whether to ignore basins that have been requested for deletion but not yet deleted.
+    ///
+    /// Defaults to `false`.
+    pub ignore_pending_deletions: bool,
+}
+
+impl ListAllBasinsInput {
+    /// Create a new [`ListAllBasinsInput`] with default values.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the prefix used to filter basins whose names begin with this value.
+    pub fn with_prefix(self, prefix: BasinNamePrefix) -> Self {
+        Self { prefix, ..self }
+    }
+
+    /// Set whether to ignore basins that have been requested for deletion but not yet deleted.
+    pub fn with_ignore_pending_deletions(self, ignore_pending_deletions: bool) -> Self {
+        Self {
+            ignore_pending_deletions,
+            ..self
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 /// Current state of a basin.
@@ -1223,13 +1256,13 @@ pub struct ListAccessTokensInput {
     /// Filter access tokens whose IDs begin with this value.
     ///
     /// Defaults to `""`.
-    pub prefix: Option<AccessTokenIdPrefix>,
+    pub prefix: AccessTokenIdPrefix,
     /// Filter access tokens whose IDs are lexicographically greater than this value.
     ///
     /// **Note:** It must be greater than or equal to [`prefix`](ListAccessTokensInput::prefix).
     ///
     /// Defaults to `""`.
-    pub start_after: Option<AccessTokenIdStartAfter>,
+    pub start_after: AccessTokenIdStartAfter,
     /// Number of access tokens to return in a page. Will be clamped to a maximum of `1000`.
     ///
     /// Defaults to `1000`.
@@ -1244,17 +1277,14 @@ impl ListAccessTokensInput {
 
     /// Set the prefix used to filter access tokens whose IDs begin with this value.
     pub fn with_prefix(self, prefix: AccessTokenIdPrefix) -> Self {
-        Self {
-            prefix: Some(prefix),
-            ..self
-        }
+        Self { prefix, ..self }
     }
 
     /// Set the value used to filter access tokens whose IDs are lexicographically greater than this
     /// value.
     pub fn with_start_after(self, start_after: AccessTokenIdStartAfter) -> Self {
         Self {
-            start_after: Some(start_after),
+            start_after,
             ..self
         }
     }
@@ -1271,10 +1301,31 @@ impl ListAccessTokensInput {
 impl From<ListAccessTokensInput> for api::access::ListAccessTokensRequest {
     fn from(value: ListAccessTokensInput) -> Self {
         Self {
-            prefix: value.prefix,
-            start_after: value.start_after,
+            prefix: Some(value.prefix),
+            start_after: Some(value.start_after),
             limit: value.limit,
         }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+/// Input for [`S2::list_all_access_tokens`](crate::S2::list_all_access_tokens).
+pub struct ListAllAccessTokensInput {
+    /// Filter access tokens whose IDs begin with this value.
+    ///
+    /// Defaults to `""`.
+    pub prefix: AccessTokenIdPrefix,
+}
+
+impl ListAllAccessTokensInput {
+    /// Create a new [`ListAllAccessTokensInput`] with default values.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the prefix used to filter access tokens whose IDs begin with this value.
+    pub fn with_prefix(self, prefix: AccessTokenIdPrefix) -> Self {
+        Self { prefix }
     }
 }
 
@@ -1698,7 +1749,7 @@ impl AccessTokenScopeInput {
     /// Set the permitted access tokens.
     ///
     /// Defaults to no access tokens.
-    pub fn with_tokens(self, access_tokens: AccessTokenMatcher) -> Self {
+    pub fn with_access_tokens(self, access_tokens: AccessTokenMatcher) -> Self {
         Self {
             access_tokens: Some(access_tokens),
             ..self
@@ -2355,6 +2406,39 @@ impl From<ListStreamsInput> for api::stream::ListStreamsRequest {
             prefix: Some(value.prefix),
             start_after: Some(value.start_after),
             limit: value.limit,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+/// Input for [`S2Basin::list_all_streams`](crate::S2Basin::list_all_streams).
+pub struct ListAllStreamsInput {
+    /// Filter streams whose names begin with this value.
+    ///
+    /// Defaults to `""`.
+    pub prefix: StreamNamePrefix,
+    /// Whether to ignore streams that have been requested for deletion but not yet deleted.
+    ///
+    /// Defaults to `false`.
+    pub ignore_pending_deletions: bool,
+}
+
+impl ListAllStreamsInput {
+    /// Create a new [`ListAllStreamsInput`] with default values.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the prefix used to filter streams whose names begin with this value.
+    pub fn with_prefix(self, prefix: StreamNamePrefix) -> Self {
+        Self { prefix, ..self }
+    }
+
+    /// Set whether to ignore streams that have been requested for deletion but not yet deleted.
+    pub fn with_ignore_pending_deletions(self, ignore_pending_deletions: bool) -> Self {
+        Self {
+            ignore_pending_deletions,
+            ..self
         }
     }
 }
@@ -3168,6 +3252,13 @@ pub struct SequencedRecord {
     pub timestamp: u64,
 }
 
+impl SequencedRecord {
+    /// Whether this is a command record.
+    pub fn is_command_record(&self) -> bool {
+        self.headers.len() == 1 && *self.headers[0].name == *b""
+    }
+}
+
 impl From<api::stream::proto::SequencedRecord> for SequencedRecord {
     fn from(value: api::stream::proto::SequencedRecord) -> Self {
         Self {
@@ -3188,8 +3279,10 @@ metered_bytes_impl!(SequencedRecord);
 pub struct ReadBatch {
     /// Records that are durably sequenced on the stream.
     ///
-    /// It can be empty only for a [`read`](crate::S2Stream::read) operation when the stop
-    /// condition is already met.
+    /// It can be empty only for a [`read`](crate::S2Stream::read) operation when:
+    /// - the [`stop condition`](ReadInput::stop) was already met, or
+    /// - all records in the batch were command records and
+    ///   [`ignore_command_records`](ReadInput::ignore_command_records) was set to `true`.
     pub records: Vec<SequencedRecord>,
     /// Sequence number that will be assigned to the next record on the stream, and timestamp of
     /// the last record.
@@ -3208,13 +3301,7 @@ impl ReadBatch {
                 .records
                 .into_iter()
                 .map(Into::into)
-                .filter(|sr: &SequencedRecord| {
-                    if ignore_command_records {
-                        !(sr.headers.len() == 1 && *sr.headers[0].name == *b"")
-                    } else {
-                        true
-                    }
-                })
+                .filter(|sr: &SequencedRecord| !ignore_command_records || !sr.is_command_record())
                 .collect(),
             tail: batch.tail.map(Into::into),
         }

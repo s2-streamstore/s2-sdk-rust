@@ -183,7 +183,7 @@ fn append_record_batches(
     mut records: impl Stream<Item = impl Into<AppendRecord> + Send> + Send + Unpin + 'static,
     config: BatchingConfig,
 ) -> impl Stream<Item = Result<AppendRecordBatch, ValidationError>> + Send + 'static {
-    async_stream::stream! {
+    async_stream::try_stream! {
         let mut batch = AppendRecordBatch::with_capacity(config.max_batch_records);
         let mut overflowed_record: Option<AppendRecord> = None;
 
@@ -201,11 +201,10 @@ fn append_record_batches(
 
             let record_bytes = first_record.metered_bytes();
             if record_bytes > config.max_batch_bytes {
-                yield Err(ValidationError(format!(
+                Err(ValidationError(format!(
                     "record size in metered bytes ({record_bytes}) exceeds max_batch_bytes ({})",
                     config.max_batch_bytes
-                )));
-                break;
+                )))?;
             }
             batch.push(first_record);
 
@@ -230,7 +229,7 @@ fn append_record_batches(
                                 }
                             }
                             None => {
-                                yield Ok(std::mem::replace(&mut batch, AppendRecordBatch::with_capacity(config.max_batch_records)));
+                                yield std::mem::replace(&mut batch, AppendRecordBatch::with_capacity(config.max_batch_records));
                                 break 'outer;
                             }
                         }
@@ -241,10 +240,10 @@ fn append_record_batches(
                 };
             }
 
-            yield Ok(std::mem::replace(
+            yield std::mem::replace(
                 &mut batch,
                 AppendRecordBatch::with_capacity(config.max_batch_records),
-            ));
+            );
         }
     }
 }
