@@ -217,7 +217,6 @@ impl S2Endpoints {
 }
 
 #[derive(Debug, Clone, Copy)]
-#[non_exhaustive]
 /// Compression algorithm for request and response bodies.
 pub enum Compression {
     /// No compression.
@@ -441,7 +440,6 @@ impl<T> Page<T> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
 /// Storage class for recent appends.
 pub enum StorageClass {
     /// Standard storage class that offers append latencies under `500ms`.
@@ -469,7 +467,6 @@ impl From<StorageClass> for api::config::StorageClass {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
 /// Retention policy for records in a stream.
 pub enum RetentionPolicy {
     /// Age in seconds. Records older than this age are automatically trimmed.
@@ -499,7 +496,6 @@ impl From<RetentionPolicy> for api::config::RetentionPolicy {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
 /// Timestamping mode for appends that influences how timestamps are handled.
 pub enum TimestampingMode {
     /// Prefer client-specified timestamp if present otherwise use arrival time.
@@ -540,8 +536,8 @@ pub struct TimestampingConfig {
     pub mode: Option<TimestampingMode>,
     /// Whether client-specified timestamps are allowed to exceed the arrival time.
     ///
-    /// Defaults to client timestamps getting capped at the arrival time.
-    pub uncapped: Option<bool>,
+    /// Defaults to `false` (client timestamps are capped at the arrival time).
+    pub uncapped: bool,
 }
 
 impl TimestampingConfig {
@@ -560,10 +556,7 @@ impl TimestampingConfig {
 
     /// Set whether client-specified timestamps are allowed to exceed the arrival time.
     pub fn with_uncapped(self, uncapped: bool) -> Self {
-        Self {
-            uncapped: Some(uncapped),
-            ..self
-        }
+        Self { uncapped, ..self }
     }
 }
 
@@ -571,7 +564,7 @@ impl From<api::config::TimestampingConfig> for TimestampingConfig {
     fn from(value: api::config::TimestampingConfig) -> Self {
         Self {
             mode: value.mode.map(Into::into),
-            uncapped: value.uncapped,
+            uncapped: value.uncapped.unwrap_or_default(),
         }
     }
 }
@@ -580,7 +573,7 @@ impl From<TimestampingConfig> for api::config::TimestampingConfig {
     fn from(value: TimestampingConfig) -> Self {
         Self {
             mode: value.mode.map(Into::into),
-            uncapped: value.uncapped,
+            uncapped: Some(value.uncapped),
         }
     }
 }
@@ -779,7 +772,6 @@ impl From<BasinConfig> for api::config::BasinConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
 /// Scope of a basin.
 pub enum BasinScope {
     /// AWS `us-east-1` region.
@@ -983,7 +975,6 @@ impl ListAllBasinsInput {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
 /// Current state of a basin.
 pub enum BasinState {
     /// Active
@@ -1392,7 +1383,6 @@ impl TryFrom<api::access::AccessTokenInfo> for AccessTokenInfo {
 }
 
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 /// Pattern for matching basins.
 ///
 /// See [`AccessTokenScope::basins`].
@@ -1406,7 +1396,6 @@ pub enum BasinMatcher {
 }
 
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 /// Pattern for matching streams.
 ///
 /// See [`AccessTokenScope::streams`].
@@ -1420,7 +1409,6 @@ pub enum StreamMatcher {
 }
 
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 /// Pattern for matching access tokens.
 ///
 /// See [`AccessTokenScope::access_tokens`].
@@ -1595,7 +1583,6 @@ impl From<api::access::PermittedOperationGroups> for OperationGroupPermissions {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
 /// Individual operation that can be permitted.
 ///
 /// See [`AccessTokenScope::ops`].
@@ -1893,10 +1880,14 @@ pub struct IssueAccessTokenInput {
     /// Defaults to the expiration time of requestor's access token passed via
     /// [`S2Config`](S2Config::new).
     pub expires_at: Option<S2DateTime>,
-    /// Auto-prefixing mode for stream names.
+    /// Whether to automatically prefix stream names during creation and strip the prefix during
+    /// listing.
     ///
-    /// Defaults to disabled.
-    pub auto_prefixing_mode: AutoPrefixingMode,
+    /// **Note:** [`scope.streams`](AccessTokenScopeInput::with_streams) must be set with the
+    /// prefix.
+    ///
+    /// Defaults to `false`.
+    pub auto_prefix_streams: bool,
     /// Scope of the token.
     pub scope: AccessTokenScopeInput,
 }
@@ -1907,7 +1898,7 @@ impl IssueAccessTokenInput {
         Self {
             id,
             expires_at: None,
-            auto_prefixing_mode: AutoPrefixingMode::Disabled,
+            auto_prefix_streams: false,
             scope,
         }
     }
@@ -1920,12 +1911,11 @@ impl IssueAccessTokenInput {
         }
     }
 
-    /// Set the auto-prefixing mode for stream names.
-    ///
-    /// Defaults to disabled.
-    pub fn with_auto_prefixing_mode(self, auto_prefixing_mode: AutoPrefixingMode) -> Self {
+    /// Set whether to automatically prefix stream names during creation and strip the prefix during
+    /// listing.
+    pub fn with_auto_prefix_streams(self, auto_prefix_streams: bool) -> Self {
         Self {
-            auto_prefixing_mode,
+            auto_prefix_streams,
             ..self
         }
     }
@@ -1933,36 +1923,16 @@ impl IssueAccessTokenInput {
 
 impl From<IssueAccessTokenInput> for api::access::AccessTokenInfo {
     fn from(value: IssueAccessTokenInput) -> Self {
-        let mut scope = value.scope;
-        let mut auto_prefix_streams = false;
-        if let AutoPrefixingMode::Enabled(prefix) = value.auto_prefixing_mode {
-            scope.streams = Some(StreamMatcher::Prefix(prefix));
-            auto_prefix_streams = true;
-        }
         Self {
             id: value.id,
             expires_at: value.expires_at.map(Into::into),
-            auto_prefix_streams: Some(auto_prefix_streams),
-            scope: scope.into(),
+            auto_prefix_streams: value.auto_prefix_streams.then_some(true),
+            scope: value.scope.into(),
         }
     }
 }
 
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-/// Auto-prefixing mode for stream names in create and list operations.
-pub enum AutoPrefixingMode {
-    /// Auto-prefixing is disabled.
-    Disabled,
-    /// Auto-prefixing is enabled with the given prefix.
-    ///
-    /// Stream names will be automatically prefixed during creation
-    /// and stripped during listing.
-    Enabled(StreamNamePrefix),
-}
-
 #[derive(Debug, Clone, Copy)]
-#[non_exhaustive]
 /// Interval to accumulate over for timeseries metric sets.
 pub enum TimeseriesInterval {
     /// Minute.
@@ -2044,7 +2014,6 @@ impl TimeRangeAndInterval {
 }
 
 #[derive(Debug, Clone, Copy)]
-#[non_exhaustive]
 /// Account metric set to return.
 pub enum AccountMetricSet {
     /// Returns a [`LabelMetric`] representing all basins which had at least one stream within the
@@ -2269,7 +2238,6 @@ impl From<GetStreamMetricsInput> for (BasinName, StreamName, api::metrics::Strea
 }
 
 #[derive(Debug, Clone, Copy)]
-#[non_exhaustive]
 /// Unit in which metric values are measured.
 pub enum MetricUnit {
     /// Size in bytes.
@@ -2340,7 +2308,6 @@ pub struct LabelMetric {
 }
 
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 /// Individual metric in a returned metric set.
 pub enum Metric {
     /// Single named value.
@@ -2907,7 +2874,6 @@ impl MeteredBytes for AppendRecordBatch {
 }
 
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 /// Command to signal an operation.
 pub enum Command {
     /// Fence operation.
@@ -3076,7 +3042,6 @@ impl From<api::stream::proto::AppendAck> for AppendAck {
 }
 
 #[derive(Debug, Clone, Copy)]
-#[non_exhaustive]
 /// Starting position for reading from a stream.
 pub enum ReadFrom {
     /// Read from this sequence number.
@@ -3357,7 +3322,6 @@ impl ReadBatch {
 pub type Streaming<T> = Pin<Box<dyn Send + futures::Stream<Item = Result<T, S2Error>>>>;
 
 #[derive(Debug, Clone, thiserror::Error)]
-#[non_exhaustive]
 /// Why an append condition check failed.
 pub enum AppendConditionFailed {
     #[error("fencing token mismatch, expected: {0}")]
@@ -3382,7 +3346,6 @@ impl From<api::stream::AppendConditionFailed> for AppendConditionFailed {
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
-#[non_exhaustive]
 /// Errors from S2 operations.
 pub enum S2Error {
     #[error("{0}")]

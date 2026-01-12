@@ -296,12 +296,13 @@ async fn issue_access_token_with_expiration_and_auto_prefix_streams() -> Result<
                 token_id.clone(),
                 AccessTokenScopeInput::from_op_group_perms(
                     OperationGroupPermissions::read_write_all(),
-                ),
+                )
+                .with_streams(StreamMatcher::Prefix(
+                    "namespace".parse().expect("valid prefix"),
+                )),
             )
             .with_expires_at(expires_at)
-            .with_auto_prefixing_mode(AutoPrefixingMode::Enabled(
-                "namespace".parse().expect("valid prefix"),
-            )),
+            .with_auto_prefix_streams(true),
         )
         .await?;
 
@@ -319,6 +320,31 @@ async fn issue_access_token_with_expiration_and_auto_prefix_streams() -> Result<
 
     s2.revoke_access_token(token_id).await?;
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn issue_access_token_with_auto_prefix_streams_but_without_prefix_errors()
+-> Result<(), S2Error> {
+    let s2 = s2();
+    let token_id: AccessTokenId = uuid().parse().expect("valid token id");
+
+    let result = s2
+        .issue_access_token(
+            IssueAccessTokenInput::new(
+                token_id.clone(),
+                AccessTokenScopeInput::from_op_group_perms(
+                    OperationGroupPermissions::read_write_all(),
+                ),
+            )
+            .with_auto_prefix_streams(true),
+        )
+        .await;
+
+    assert_matches!(result, Err(S2Error::Server(ErrorResponse { code, message, .. })) => {
+        assert_eq!(code, "invalid");
+        assert_eq!(message, "Auto prefixing is only allowed for streams with prefix matching");
+    });
     Ok(())
 }
 
