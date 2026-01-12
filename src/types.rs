@@ -941,6 +941,12 @@ pub struct ListAllBasinsInput {
     ///
     /// Defaults to `""`.
     pub prefix: BasinNamePrefix,
+    /// Filter basins whose names are lexicographically greater than this value.
+    ///
+    /// **Note:** It must be greater than or equal to [`prefix`](ListAllBasinsInput::prefix).
+    ///
+    /// Defaults to `""`.
+    pub start_after: BasinNameStartAfter,
     /// Whether to ignore basins that have been requested for deletion but not yet deleted.
     ///
     /// Defaults to `false`.
@@ -956,6 +962,15 @@ impl ListAllBasinsInput {
     /// Set the prefix used to filter basins whose names begin with this value.
     pub fn with_prefix(self, prefix: BasinNamePrefix) -> Self {
         Self { prefix, ..self }
+    }
+
+    /// Set the value used to filter basins whose names are lexicographically greater than this
+    /// value.
+    pub fn with_start_after(self, start_after: BasinNameStartAfter) -> Self {
+        Self {
+            start_after,
+            ..self
+        }
     }
 
     /// Set whether to ignore basins that have been requested for deletion but not yet deleted.
@@ -1315,6 +1330,12 @@ pub struct ListAllAccessTokensInput {
     ///
     /// Defaults to `""`.
     pub prefix: AccessTokenIdPrefix,
+    /// Filter access tokens whose IDs are lexicographically greater than this value.
+    ///
+    /// **Note:** It must be greater than or equal to [`prefix`](ListAllAccessTokensInput::prefix).
+    ///
+    /// Defaults to `""`.
+    pub start_after: AccessTokenIdStartAfter,
 }
 
 impl ListAllAccessTokensInput {
@@ -1325,7 +1346,16 @@ impl ListAllAccessTokensInput {
 
     /// Set the prefix used to filter access tokens whose IDs begin with this value.
     pub fn with_prefix(self, prefix: AccessTokenIdPrefix) -> Self {
-        Self { prefix }
+        Self { prefix, ..self }
+    }
+
+    /// Set the value used to filter access tokens whose IDs are lexicographically greater than
+    /// this value.
+    pub fn with_start_after(self, start_after: AccessTokenIdStartAfter) -> Self {
+        Self {
+            start_after,
+            ..self
+        }
     }
 }
 
@@ -2417,6 +2447,12 @@ pub struct ListAllStreamsInput {
     ///
     /// Defaults to `""`.
     pub prefix: StreamNamePrefix,
+    /// Filter streams whose names are lexicographically greater than this value.
+    ///
+    /// **Note:** It must be greater than or equal to [`prefix`](ListAllStreamsInput::prefix).
+    ///
+    /// Defaults to `""`.
+    pub start_after: StreamNameStartAfter,
     /// Whether to ignore streams that have been requested for deletion but not yet deleted.
     ///
     /// Defaults to `false`.
@@ -2432,6 +2468,15 @@ impl ListAllStreamsInput {
     /// Set the prefix used to filter streams whose names begin with this value.
     pub fn with_prefix(self, prefix: StreamNamePrefix) -> Self {
         Self { prefix, ..self }
+    }
+
+    /// Set the value used to filter streams whose names are lexicographically greater than this
+    /// value.
+    pub fn with_start_after(self, start_after: StreamNameStartAfter) -> Self {
+        Self {
+            start_after,
+            ..self
+        }
     }
 
     /// Set whether to ignore streams that have been requested for deletion but not yet deleted.
