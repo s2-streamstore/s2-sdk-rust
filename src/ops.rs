@@ -54,8 +54,11 @@ impl S2 {
     pub fn list_all_basins(&self, input: ListAllBasinsInput) -> Streaming<BasinInfo> {
         let s2 = self.clone();
         let prefix = input.prefix;
+        let start_after = input.start_after;
         let ignore_pending_deletions = input.ignore_pending_deletions;
-        let mut input = ListBasinsInput::new().with_prefix(prefix);
+        let mut input = ListBasinsInput::new()
+            .with_prefix(prefix)
+            .with_start_after(start_after);
         Box::pin(async_stream::try_stream! {
             loop {
                 let page = s2.list_basins(input.clone()).await?;
@@ -135,7 +138,10 @@ impl S2 {
     ) -> Streaming<AccessTokenInfo> {
         let s2 = self.clone();
         let prefix = input.prefix;
-        let mut input = ListAccessTokensInput::new().with_prefix(prefix);
+        let start_after = input.start_after;
+        let mut input = ListAccessTokensInput::new()
+            .with_prefix(prefix)
+            .with_start_after(start_after);
         Box::pin(async_stream::try_stream! {
             loop {
                 let page = s2.list_access_tokens(input.clone()).await?;
@@ -237,8 +243,11 @@ impl S2Basin {
     pub fn list_all_streams(&self, input: ListAllStreamsInput) -> Streaming<StreamInfo> {
         let basin = self.clone();
         let prefix = input.prefix;
+        let start_after = input.start_after;
         let ignore_pending_deletions = input.ignore_pending_deletions;
-        let mut input = ListStreamsInput::new().with_prefix(prefix);
+        let mut input = ListStreamsInput::new()
+            .with_prefix(prefix)
+            .with_start_after(start_after);
         Box::pin(async_stream::try_stream! {
             loop {
                 let page = basin.list_streams(input.clone()).await?;
