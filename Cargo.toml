@@ -38,8 +38,8 @@ reqwest = { version = "0.13.1", default-features = false, features = [
     "zstd",
     "rustls",
 ] }
-s2-api = { git = "https://github.com/s2-streamstore/s2", rev = "55906c4cd2ea6b727c04186d2eb3c662bd3f0725", package = "s2-api" }
-s2-common = { git = "https://github.com/s2-streamstore/s2", rev = "55906c4cd2ea6b727c04186d2eb3c662bd3f0725", package = "s2-common" }
+s2-api = "0.2.0"
+s2-common = "0.2.0"
 secrecy = "0.10.3"
 serde = { version = "1.0.228" }
 serde_json = "1.0.148"
