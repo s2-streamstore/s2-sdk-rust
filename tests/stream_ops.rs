@@ -6,9 +6,7 @@ use assert_matches::assert_matches;
 use common::S2Stream;
 use futures::StreamExt;
 use s2::{
-    append_session::AppendSessionConfig,
-    batching::BatchingConfig,
-    producer::{Producer, ProducerConfig},
+    append_session::AppendSessionConfig, batching::BatchingConfig, producer::ProducerConfig,
     types::*,
 };
 use test_context::test_context;
@@ -938,8 +936,7 @@ async fn batch_submit_ticket_drop_should_not_affect_others(
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
 async fn producer_delivers_all_acks(stream: &S2Stream) -> Result<(), S2Error> {
-    let session = stream.append_session(AppendSessionConfig::default());
-    let producer = Producer::new(session, ProducerConfig::default());
+    let producer = stream.producer(ProducerConfig::default());
 
     let ack1 = producer.submit(AppendRecord::new("lorem")?).await?.await?;
     let ack2 = producer.submit(AppendRecord::new("ipsum")?).await?.await?;
@@ -957,8 +954,7 @@ async fn producer_delivers_all_acks(stream: &S2Stream) -> Result<(), S2Error> {
 async fn producer_close_delivers_all_indexed_acks_from_same_ack(
     stream: &S2Stream,
 ) -> Result<(), S2Error> {
-    let session = stream.append_session(AppendSessionConfig::default());
-    let producer = Producer::new(session, ProducerConfig::default());
+    let producer = stream.producer(ProducerConfig::default());
 
     let ticket1 = producer.submit(AppendRecord::new("lorem")?).await?;
     let ticket2 = producer.submit(AppendRecord::new("ipsum")?).await?;
@@ -985,9 +981,7 @@ async fn producer_close_delivers_all_indexed_acks_from_same_ack(
 async fn producer_close_delivers_all_indexed_acks_from_different_acks(
     stream: &S2Stream,
 ) -> Result<(), S2Error> {
-    let session = stream.append_session(AppendSessionConfig::default());
-    let producer = Producer::new(
-        session,
+    let producer = stream.producer(
         ProducerConfig::default()
             .with_batching(BatchingConfig::default().with_max_batch_records(1)?),
     );
@@ -1015,9 +1009,7 @@ async fn producer_close_delivers_all_indexed_acks_from_different_acks(
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
 async fn producer_drop_errors_all_claimable_tickets(stream: &S2Stream) -> Result<(), S2Error> {
-    let session = stream.append_session(AppendSessionConfig::default());
-    let producer = Producer::new(
-        session,
+    let producer = stream.producer(
         ProducerConfig::default()
             .with_batching(BatchingConfig::default().with_linger(Duration::from_secs(1))),
     );
@@ -1043,8 +1035,7 @@ async fn producer_drop_errors_all_claimable_tickets(stream: &S2Stream) -> Result
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
 async fn producer_drop_errors_no_claimable_tickets(stream: &S2Stream) -> Result<(), S2Error> {
-    let session = stream.append_session(AppendSessionConfig::default());
-    let producer = Producer::new(session, ProducerConfig::default());
+    let producer = stream.producer(ProducerConfig::default());
 
     let ticket1 = producer.submit(AppendRecord::new("lorem")?).await?;
     let ticket2 = producer.submit(AppendRecord::new("ipsum")?).await?;
@@ -1067,8 +1058,7 @@ async fn producer_drop_errors_no_claimable_tickets(stream: &S2Stream) -> Result<
 async fn record_submit_ticket_drop_should_not_affect_others(
     stream: &S2Stream,
 ) -> Result<(), S2Error> {
-    let session = stream.append_session(AppendSessionConfig::default());
-    let producer = Producer::new(session, ProducerConfig::default());
+    let producer = stream.producer(ProducerConfig::default());
 
     let _ticket1 = producer.submit(AppendRecord::new("lorem")?).await?;
     drop(_ticket1);

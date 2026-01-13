@@ -2,6 +2,7 @@ use futures::StreamExt;
 
 use crate::{
     api::{AccountClient, BasinClient},
+    producer::{Producer, ProducerConfig},
     session::{self, AppendSession, AppendSessionConfig},
     types::{
         AccessTokenId, AccessTokenInfo, AppendAck, AppendInput, BasinConfig, BasinInfo, BasinName,
@@ -346,9 +347,14 @@ impl S2Stream {
         Ok(ReadBatch::from_api(batch, input.ignore_command_records))
     }
 
-    /// Create an append session.
+    /// Create an append session for submitting [`AppendInput`]s.
     pub fn append_session(&self, config: AppendSessionConfig) -> AppendSession {
         AppendSession::new(self.client.clone(), self.name.clone(), config)
+    }
+
+    /// Create a producer for submitting individual [`AppendRecord`](crate::types::AppendRecord)s.
+    pub fn producer(&self, config: ProducerConfig) -> Producer {
+        Producer::new(self.client.clone(), self.name.clone(), config)
     }
 
     /// Create a read session.
