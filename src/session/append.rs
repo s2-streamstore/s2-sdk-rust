@@ -374,7 +374,7 @@ async fn run_session_with_retry(
         prev_ack_end: None,
     };
     let mut prev_total_acked_records = 0;
-    let mut retry_backoffs: VecDeque<Duration> = retry_builder.build().collect();
+    let mut retry_backoffs = retry_builder.build();
 
     loop {
         let result = run_session(&client, &stream, &mut state, buffer_size).await;
@@ -386,7 +386,7 @@ async fn run_session_with_retry(
             Err(err) => {
                 if prev_total_acked_records < state.total_acked_records {
                     prev_total_acked_records = state.total_acked_records;
-                    retry_backoffs = retry_builder.build().collect();
+                    retry_backoffs.reset();
                 }
 
                 let retry_policy_compliant = retry_policy_compliant(
@@ -396,12 +396,12 @@ async fn run_session_with_retry(
 
                 if retry_policy_compliant
                     && err.is_retryable()
-                    && let Some(backoff) = retry_backoffs.pop_front()
+                    && let Some(backoff) = retry_backoffs.next()
                 {
                     debug!(
                         %err,
                         ?backoff,
-                        num_retries_remaining = retry_backoffs.len(),
+                        num_retries_remaining = retry_backoffs.remaining(),
                         "retrying append session"
                     );
                     tokio::time::sleep(backoff).await;
@@ -409,7 +409,7 @@ async fn run_session_with_retry(
                     debug!(
                         %err,
                         retry_policy_compliant,
-                        retries_exhausted = retry_backoffs.is_empty(),
+                        retries_exhausted = retry_backoffs.is_exhausted(),
                         "not retrying append session"
                     );
 
