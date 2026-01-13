@@ -1,4 +1,4 @@
-use crate::retry::RetryBackoffBuilder;
+use crate::retry::{RetryBackoff, RetryBackoffBuilder};
 use crate::types::{
     AccessTokenId, BasinAuthority, BasinName, Compression, RetryConfig, S2Config, S2Endpoints,
     StreamName,
@@ -28,7 +28,6 @@ use s2_api::v1::stream::{
     proto::{AppendAck, AppendInput, ReadBatch},
 };
 use secrecy::ExposeSecret;
-use std::collections::VecDeque;
 use std::ops::Deref;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -787,9 +786,9 @@ impl<'a> RequestBuilder<'a> {
         let mut request = self.request;
         self.client.compress_request(&mut request).await?;
 
-        let mut retry_backoffs: Option<VecDeque<_>> = self
+        let mut retry_backoffs: Option<RetryBackoff> = self
             .retry_enabled
-            .then(|| self.client.retry_builder.build().collect());
+            .then(|| self.client.retry_builder.build());
 
         loop {
             let response = self
@@ -839,13 +838,13 @@ impl<'a> RequestBuilder<'a> {
             };
 
             if err.is_retryable()
-                && let Some(backoff) = retry_backoffs.as_mut().and_then(|b| b.pop_front())
+                && let Some(backoff) = retry_backoffs.as_mut().and_then(|b| b.next())
             {
                 let backoff = retry_after.unwrap_or(backoff);
                 debug!(
                     %err,
                     ?backoff,
-                    num_retries_remaining = retry_backoffs.as_ref().map(|b| b.len()).unwrap_or(0),
+                    num_retries_remaining = retry_backoffs.as_ref().map(|b| b.remaining()).unwrap_or(0),
                     "retrying request"
                 );
                 tokio::time::sleep(backoff).await;
@@ -854,7 +853,7 @@ impl<'a> RequestBuilder<'a> {
                     %err,
                     is_retryable = err.is_retryable(),
                     retry_enabled = self.retry_enabled,
-                    retries_exhausted = retry_backoffs.as_ref().is_none_or(|b| b.is_empty()),
+                    retries_exhausted = retry_backoffs.as_ref().is_none_or(|b| b.is_exhausted()),
                     "not retrying request"
                 );
                 return Err(err);

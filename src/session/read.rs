@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, pin::Pin, time::Duration};
+use std::{pin::Pin, time::Duration};
 
 use async_stream::{stream, try_stream};
 use futures::StreamExt;
@@ -8,6 +8,7 @@ use tracing::debug;
 
 use crate::{
     api::{ApiError, BasinClient, retry_builder},
+    retry::RetryBackoff,
     types::{MeteredBytes, ReadBatch, S2Error, StreamName},
 };
 
@@ -47,7 +48,7 @@ pub async fn read_session(
     ignore_command_records: bool,
 ) -> Result<Streaming<ReadBatch>, ReadSessionError> {
     let retry_builder = retry_builder(&client.config.retry);
-    let mut retry_backoffs: VecDeque<Duration> = retry_builder.build().collect();
+    let mut retry_backoffs = retry_builder.build();
 
     let batches = loop {
         match session_inner(
@@ -60,7 +61,7 @@ pub async fn read_session(
         .await
         {
             Ok(batches) => {
-                retry_backoffs = retry_builder.build().collect();
+                retry_backoffs.reset();
                 break batches;
             }
             Err(err) => {
@@ -102,8 +103,8 @@ pub async fn read_session(
                 .await
             {
                 Some(Ok(batch)) => {
-                    if retry_backoffs.len() < retry_builder.max_retries as usize {
-                        retry_backoffs = retry_builder.build().collect();
+                    if retry_backoffs.attempts_used() > 0 {
+                        retry_backoffs.reset();
                     }
 
                     if let Some(record) = batch.records.last() {
@@ -158,14 +159,14 @@ async fn session_inner(
     }))
 }
 
-async fn can_retry(err: &ReadSessionError, backoffs: &mut VecDeque<Duration>) -> bool {
+async fn can_retry(err: &ReadSessionError, backoffs: &mut RetryBackoff) -> bool {
     if err.is_retryable()
-        && let Some(backoff) = backoffs.pop_front()
+        && let Some(backoff) = backoffs.next()
     {
         debug!(
             %err,
             ?backoff,
-            num_retries_remaining = backoffs.len(),
+            num_retries_remaining = backoffs.remaining(),
             "retrying read session"
         );
         tokio::time::sleep(backoff).await;
@@ -174,7 +175,7 @@ async fn can_retry(err: &ReadSessionError, backoffs: &mut VecDeque<Duration>) ->
         debug!(
             %err,
             is_retryable = err.is_retryable(),
-            retries_exhausted = backoffs.is_empty(),
+            retries_exhausted = backoffs.is_exhausted(),
             "not retrying read session"
         );
         false

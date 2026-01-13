@@ -58,6 +58,24 @@ pub struct RetryBackoff {
     cur_attempt: u32,
 }
 
+impl RetryBackoff {
+    pub fn remaining(&self) -> u32 {
+        self.max_attempts.saturating_sub(self.cur_attempt)
+    }
+
+    pub fn is_exhausted(&self) -> bool {
+        self.cur_attempt >= self.max_attempts
+    }
+
+    pub fn reset(&mut self) {
+        self.cur_attempt = 0;
+    }
+
+    pub fn attempts_used(&self) -> u32 {
+        self.cur_attempt
+    }
+}
+
 impl Iterator for RetryBackoff {
     type Item = Duration;
 
@@ -107,5 +125,40 @@ mod tests {
 
         assert!(backoffs[5] >= Duration::from_millis(1000));
         assert!(backoffs[5] <= Duration::from_millis(2000));
+    }
+
+    #[test]
+    fn backoff_with_reset() {
+        let mut backoff = RetryBackoffBuilder::default().with_max_retries(3).build();
+
+        assert_eq!(backoff.attempts_used(), 0);
+        assert_eq!(backoff.remaining(), 3);
+        assert!(!backoff.is_exhausted());
+
+        assert!(backoff.next().is_some());
+        assert_eq!(backoff.attempts_used(), 1);
+        assert_eq!(backoff.remaining(), 2);
+        assert!(!backoff.is_exhausted());
+
+        backoff.reset();
+
+        assert_eq!(backoff.attempts_used(), 0);
+        assert_eq!(backoff.remaining(), 3);
+        assert!(!backoff.is_exhausted());
+
+        assert!(backoff.next().is_some());
+        assert_eq!(backoff.attempts_used(), 1);
+        assert_eq!(backoff.remaining(), 2);
+
+        assert!(backoff.next().is_some());
+        assert_eq!(backoff.attempts_used(), 2);
+        assert_eq!(backoff.remaining(), 1);
+
+        assert!(backoff.next().is_some());
+        assert_eq!(backoff.attempts_used(), 3);
+        assert_eq!(backoff.remaining(), 0);
+        assert!(backoff.is_exhausted());
+
+        assert!(backoff.next().is_none());
     }
 }
