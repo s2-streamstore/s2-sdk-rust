@@ -1,5 +1,18 @@
+#![deprecated(
+    since = "0.21.1",
+    note = "This crate has been renamed to `s2-sdk`. Please update your Cargo.toml to use `s2-sdk` instead."
+)]
+
 /*!
-Rust SDK for S2.
+DEPRECATED: This crate has been renamed to [`s2-sdk`](https://crates.io/crates/s2-sdk).
+
+Please update your `Cargo.toml`:
+```toml
+[dependencies]
+s2-sdk = "0.22"
+```
+
+And update your imports from `use s2::...` to `use s2_sdk::...`.
 
 The Rust SDK provides ergonomic wrappers and utilities to interact with the
 [S2 API](https://s2.dev/docs/interface/grpc).
