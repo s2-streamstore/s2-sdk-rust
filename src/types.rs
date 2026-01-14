@@ -369,7 +369,9 @@ impl S2Config {
             request_timeout: Duration::from_secs(5),
             retry: RetryConfig::new(),
             compression: Compression::None,
-            user_agent: "s2-sdk-rust".parse().expect("valid user agent"),
+            user_agent: concat!("s2-sdk-rust/", env!("CARGO_PKG_VERSION"))
+                .parse()
+                .expect("valid user agent"),
         }
     }
 
