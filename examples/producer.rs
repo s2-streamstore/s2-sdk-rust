@@ -1,4 +1,4 @@
-use s2::{
+use s2_sdk::{
     S2,
     producer::ProducerConfig,
     types::{AppendRecord, BasinName, S2Config, StreamName},

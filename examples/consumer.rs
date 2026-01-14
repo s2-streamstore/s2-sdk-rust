@@ -1,5 +1,5 @@
 use futures::StreamExt;
-use s2::{
+use s2_sdk::{
     S2,
     types::{BasinName, ReadInput, S2Config, StreamName},
 };

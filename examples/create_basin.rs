@@ -1,4 +1,4 @@
-use s2::{
+use s2_sdk::{
     S2,
     types::{BasinConfig, BasinName, CreateBasinInput, RetentionPolicy, S2Config, StreamConfig},
 };

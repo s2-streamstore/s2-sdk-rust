@@ -1,5 +1,5 @@
 [package]
-name = "streamstore"
+name = "s2-sdk"
 description = "Rust SDK for s2.dev"
 version = "0.21.0"
 edition = "2024"
@@ -8,10 +8,6 @@ keywords = ["s2", "durable", "streams", "client", "sdk"]
 categories = ["api-bindings", "database"]
 repository = "https://github.com/s2-streamstore/s2-sdk-rust"
 homepage = "https://github.com/s2-streamstore/s2-sdk-rust"
-
-[lib]
-name = "s2"
-path = "src/lib.rs"
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]

@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use assert_matches::assert_matches;
 use common::{S2Basin, unique_stream_name, uuid};
-use s2::types::*;
+use s2_sdk::types::*;
 use test_context::test_context;
 
 #[test_context(S2Basin)]

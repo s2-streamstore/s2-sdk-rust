@@ -399,6 +399,8 @@ impl S2Config {
     }
 
     /// Set the retry configuration for requests.
+    ///
+    /// See [`RetryConfig`] for defaults.
     pub fn with_retry(self, retry: RetryConfig) -> Self {
         Self { retry, ..self }
     }

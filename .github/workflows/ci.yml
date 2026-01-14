@@ -39,10 +39,6 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
-      - name: install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: Swatinem/rust-cache@v2
       - name: Run cargo tests
         run: cargo test
@@ -60,10 +56,6 @@ jobs:
         with:
           toolchain: stable nightly
           components: rustfmt, clippy
-      - name: install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: Swatinem/rust-cache@v2
       - name: Install cargo-sort
         uses: baptiste0928/cargo-install@v3

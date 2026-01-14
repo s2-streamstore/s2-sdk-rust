@@ -1,22 +1,21 @@
 /*!
-Rust SDK for [S2](https://s2.dev/).
+Rust SDK for [s2.dev](https://s2.dev/).
 
 The Rust SDK provides ergonomic wrappers and utilities to interact with the
-[S2 API](https://s2.dev/docs/rest/protocol).
+[S2 API](https://s2.dev/docs/rest/records/overview).
 
 # Getting started
 
-1. Ensure you have `tokio` added as a dependency. The SDK relies on [Tokio](https://crates.io/crates/tokio)
-   for executing async code.
-
+1. Ensure you have added [tokio](https://crates.io/crates/tokio) and [futures](https://crates.io/crates/futures) as dependencies.
    ```bash
    cargo add tokio --features full
+   cargo add futures
    ```
 
-1. Add the `streamstore` dependency to your project:
+1. Add the `s2-sdk` dependency to your project:
 
    ```bash
-   cargo add streamstore
+   cargo add s2-sdk
    ```
 
 1. Generate an access token by logging into the web console at [s2.dev](https://s2.dev/dashboard).
@@ -24,7 +23,7 @@ The Rust SDK provides ergonomic wrappers and utilities to interact with the
 1. Perform an operation.
 
    ```no_run
-    use s2::{
+    use s2_sdk::{
         S2,
         types::{ListBasinsInput, S2Config},
     };
