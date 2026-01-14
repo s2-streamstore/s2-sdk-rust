@@ -18,6 +18,7 @@ use http::{
 };
 use rand::Rng;
 use s2_api::{v1 as api, v1::stream::s2s::CompressionAlgorithm};
+pub use s2_common::caps::RECORD_BATCH_MAX;
 /// Validation error.
 pub use s2_common::types::ValidationError;
 /// Access token ID.
@@ -48,7 +49,7 @@ pub use s2_common::types::stream::StreamNameStartAfter;
 
 pub(crate) const ONE_MIB: u32 = 1024 * 1024;
 
-use s2_common::{caps::RECORD_BATCH_MAX, maybe::Maybe, record::MAX_FENCING_TOKEN_LENGTH};
+use s2_common::{maybe::Maybe, record::MAX_FENCING_TOKEN_LENGTH};
 use secrecy::SecretString;
 
 use crate::api::{ApiError, ApiErrorResponse};
