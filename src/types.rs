@@ -135,65 +135,25 @@ impl S2Endpoints {
     /// - `S2_ACCOUNT_ENDPOINT` - Account-level endpoint.
     /// - `S2_BASIN_ENDPOINT` - Basin-level endpoint.
     pub fn from_env() -> Result<Self, ValidationError> {
-        fn parse_account_endpoint(s: &str) -> Result<(Scheme, Authority), ValidationError> {
-            let (scheme, authority) = match s.find("://") {
-                Some(idx) => {
-                    let scheme: Scheme = s[..idx]
-                        .parse()
-                        .map_err(|_| "invalid S2_ACCOUNT_ENDPOINT scheme".to_string())?;
-                    (scheme, &s[idx + 3..])
-                }
-                None => (Scheme::HTTPS, s),
-            };
-            Ok((
-                scheme,
-                authority
-                    .parse()
-                    .map_err(|e| format!("invalid S2_ACCOUNT_ENDPOINT authority: {e}"))?,
-            ))
-        }
-
-        fn parse_basin_endpoint(s: &str) -> Result<(Scheme, BasinAuthority), ValidationError> {
-            let (scheme, authority) = match s.find("://") {
-                Some(idx) => {
-                    let scheme: Scheme = s[..idx]
-                        .parse()
-                        .map_err(|_| "invalid S2_BASIN_ENDPOINT scheme".to_string())?;
-                    (scheme, &s[idx + 3..])
-                }
-                None => (Scheme::HTTPS, s),
-            };
-            let authority = if let Some(authority) = authority.strip_prefix("{basin}.") {
-                BasinAuthority::ParentZone(
-                    authority
-                        .parse()
-                        .map_err(|e| format!("invalid S2_BASIN_ENDPOINT authority: {e}"))?,
-                )
-            } else {
-                BasinAuthority::Direct(
-                    authority
-                        .parse()
-                        .map_err(|e| format!("invalid S2_BASIN_ENDPOINT authority: {e}"))?,
-                )
-            };
-            Ok((scheme, authority))
-        }
-
-        let (account_scheme, account_authority) = match std::env::var("S2_ACCOUNT_ENDPOINT") {
-            Ok(s) => parse_account_endpoint(&s)?,
+        let account_endpoint = match std::env::var("S2_ACCOUNT_ENDPOINT") {
+            Ok(s) => s,
             Err(VarError::NotPresent) => return Err("S2_ACCOUNT_ENDPOINT env var not set".into()),
             Err(VarError::NotUnicode(_)) => {
                 return Err("S2_ACCOUNT_ENDPOINT is not valid unicode".into());
             }
         };
 
-        let (basin_scheme, basin_authority) = match std::env::var("S2_BASIN_ENDPOINT") {
-            Ok(s) => parse_basin_endpoint(&s)?,
+        let basin_endpoint = match std::env::var("S2_BASIN_ENDPOINT") {
+            Ok(s) => s,
             Err(VarError::NotPresent) => return Err("S2_BASIN_ENDPOINT env var not set".into()),
             Err(VarError::NotUnicode(_)) => {
                 return Err("S2_BASIN_ENDPOINT is not valid unicode".into());
             }
         };
+
+        let (account_scheme, account_authority) = parse_account_endpoint(&account_endpoint)?;
+
+        let (basin_scheme, basin_authority) = parse_basin_endpoint(&basin_endpoint)?;
 
         if account_scheme != basin_scheme {
             return Err(
@@ -201,6 +161,21 @@ impl S2Endpoints {
             );
         }
 
+        Ok(S2Endpoints::new(account_authority, basin_authority).with_scheme(account_scheme))
+    }
+
+    #[doc(hidden)]
+    #[cfg(feature = "_hidden")]
+    pub fn parse_from(
+        account_endpoint: &str,
+        basin_endpoint: &str,
+    ) -> Result<Self, ValidationError> {
+        let (account_scheme, account_authority) = parse_account_endpoint(account_endpoint)?;
+        let (basin_scheme, basin_authority) = parse_basin_endpoint(basin_endpoint)?;
+
+        if account_scheme != basin_scheme {
+            return Err("account and basin endpoints must have the same scheme".into());
+        }
         Ok(S2Endpoints::new(account_authority, basin_authority).with_scheme(account_scheme))
     }
 
@@ -218,6 +193,50 @@ impl S2Endpoints {
             ),
         }
     }
+}
+
+fn parse_account_endpoint(s: &str) -> Result<(Scheme, Authority), ValidationError> {
+    let (scheme, authority) = match s.find("://") {
+        Some(idx) => {
+            let scheme: Scheme = s[..idx]
+                .parse()
+                .map_err(|_| "invalid account endpoint scheme".to_string())?;
+            (scheme, &s[idx + 3..])
+        }
+        None => (Scheme::HTTPS, s),
+    };
+    Ok((
+        scheme,
+        authority
+            .parse()
+            .map_err(|e| format!("invalid account endpoint authority: {e}"))?,
+    ))
+}
+
+fn parse_basin_endpoint(s: &str) -> Result<(Scheme, BasinAuthority), ValidationError> {
+    let (scheme, authority) = match s.find("://") {
+        Some(idx) => {
+            let scheme: Scheme = s[..idx]
+                .parse()
+                .map_err(|_| "invalid basin endpoint scheme".to_string())?;
+            (scheme, &s[idx + 3..])
+        }
+        None => (Scheme::HTTPS, s),
+    };
+    let authority = if let Some(authority) = authority.strip_prefix("{basin}.") {
+        BasinAuthority::ParentZone(
+            authority
+                .parse()
+                .map_err(|e| format!("invalid basin endpoint authority: {e}"))?,
+        )
+    } else {
+        BasinAuthority::Direct(
+            authority
+                .parse()
+                .map_err(|e| format!("invalid basin endpoint authority: {e}"))?,
+        )
+    };
+    Ok((scheme, authority))
 }
 
 #[derive(Debug, Clone, Copy)]
