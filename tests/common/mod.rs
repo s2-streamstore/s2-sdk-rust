@@ -141,7 +141,8 @@ impl AsyncTestContext for S2Stream {
 
 pub fn unique_stream_name() -> StreamName {
     use std::sync::LazyLock;
-    static PREFIX: LazyLock<String> = LazyLock::new(|| uuid::Uuid::new_v4().simple().to_string()[..8].to_string());
+    static PREFIX: LazyLock<String> =
+        LazyLock::new(|| uuid::Uuid::new_v4().simple().to_string()[..8].to_string());
 
     let counter = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
     format!("stream-{}-{:04}", *PREFIX, counter)
@@ -174,7 +175,8 @@ pub fn s2() -> s2::S2 {
 
 pub fn unique_basin_name() -> BasinName {
     use std::sync::LazyLock;
-    static PREFIX: LazyLock<String> = LazyLock::new(|| uuid::Uuid::new_v4().simple().to_string()[..8].to_string());
+    static PREFIX: LazyLock<String> =
+        LazyLock::new(|| uuid::Uuid::new_v4().simple().to_string()[..8].to_string());
 
     let counter = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
     format!("basin-{}-{:04}", *PREFIX, counter)
