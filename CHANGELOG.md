@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.22.1] - 2026-01-14
+
+### Miscellaneous Tasks
+
+- Add `parse_from` to `S2Endpoints` for internal use ([#245](https://github.com/s2-streamstore/s2-sdk-rust/issues/245))
+
 ## [0.22.0] - 2026-01-14
 
 ### Features
