@@ -174,9 +174,7 @@ impl S2Endpoints {
         let (basin_scheme, basin_authority) = parse_basin_endpoint(basin_endpoint)?;
 
         if account_scheme != basin_scheme {
-            return Err(
-                "S2_ACCOUNT_ENDPOINT and S2_BASIN_ENDPOINT must have the same scheme".into(),
-            );
+            return Err("account and basin endpoints must have the same scheme".into());
         }
         Ok(S2Endpoints::new(account_authority, basin_authority).with_scheme(account_scheme))
     }
@@ -202,7 +200,7 @@ fn parse_account_endpoint(s: &str) -> Result<(Scheme, Authority), ValidationErro
         Some(idx) => {
             let scheme: Scheme = s[..idx]
                 .parse()
-                .map_err(|_| "invalid S2_ACCOUNT_ENDPOINT scheme".to_string())?;
+                .map_err(|_| "invalid account endpoint scheme".to_string())?;
             (scheme, &s[idx + 3..])
         }
         None => (Scheme::HTTPS, s),
@@ -211,7 +209,7 @@ fn parse_account_endpoint(s: &str) -> Result<(Scheme, Authority), ValidationErro
         scheme,
         authority
             .parse()
-            .map_err(|e| format!("invalid S2_ACCOUNT_ENDPOINT authority: {e}"))?,
+            .map_err(|e| format!("invalid account endpoint authority: {e}"))?,
     ))
 }
 
@@ -220,7 +218,7 @@ fn parse_basin_endpoint(s: &str) -> Result<(Scheme, BasinAuthority), ValidationE
         Some(idx) => {
             let scheme: Scheme = s[..idx]
                 .parse()
-                .map_err(|_| "invalid S2_BASIN_ENDPOINT scheme".to_string())?;
+                .map_err(|_| "invalid basin endpoint scheme".to_string())?;
             (scheme, &s[idx + 3..])
         }
         None => (Scheme::HTTPS, s),
@@ -229,13 +227,13 @@ fn parse_basin_endpoint(s: &str) -> Result<(Scheme, BasinAuthority), ValidationE
         BasinAuthority::ParentZone(
             authority
                 .parse()
-                .map_err(|e| format!("invalid S2_BASIN_ENDPOINT authority: {e}"))?,
+                .map_err(|e| format!("invalid basin endpoint authority: {e}"))?,
         )
     } else {
         BasinAuthority::Direct(
             authority
                 .parse()
-                .map_err(|e| format!("invalid S2_BASIN_ENDPOINT authority: {e}"))?,
+                .map_err(|e| format!("invalid basin endpoint authority: {e}"))?,
         )
     };
     Ok((scheme, authority))
