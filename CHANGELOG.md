@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.22.0] - 2026-01-14
+
+### Features
+
+- [**breaking**] Migrate from `gRPC` to `REST` API ([#220](https://github.com/s2-streamstore/s2-sdk-rust/issues/220))
+- [**breaking**] Add validation for `AppendSessionConfig` ([#225](https://github.com/s2-streamstore/s2-sdk-rust/issues/225))
+- [**breaking**] Add `list_all_*` methods for automatic pagination  ([#235](https://github.com/s2-streamstore/s2-sdk-rust/issues/235))
+- Support `start_after` in `list_all_*` ops ([#237](https://github.com/s2-streamstore/s2-sdk-rust/issues/237))
+- [**breaking**] Expose `reserve` in `AppendSession`, support `reserve` in `Producer` ([#229](https://github.com/s2-streamstore/s2-sdk-rust/issues/229))
+- Expose `RECORD_BATCH_MAX`  ([#242](https://github.com/s2-streamstore/s2-sdk-rust/issues/242))
+
+### Bug Fixes
+
+- Incorrect lexicographical order in tests ([#228](https://github.com/s2-streamstore/s2-sdk-rust/issues/228))
+- Unhandled error variants in session ops ([#230](https://github.com/s2-streamstore/s2-sdk-rust/issues/230))
+- Misclassification of 409 as non-retryable ([#236](https://github.com/s2-streamstore/s2-sdk-rust/issues/236))
+
+### Refactor
+
+- Make `RetryConfig::max_attempts` field a `NonZeroU32` as well ([#223](https://github.com/s2-streamstore/s2-sdk-rust/issues/223))
+- Remove irrelevant backoff reset in unary request context ([#224](https://github.com/s2-streamstore/s2-sdk-rust/issues/224))
+- [**breaking**] Restrict public items for misuse safety  ([#227](https://github.com/s2-streamstore/s2-sdk-rust/issues/227))
+- [**breaking**] Make tests runnable against non-prod envs ([#231](https://github.com/s2-streamstore/s2-sdk-rust/issues/231))
+- [**breaking**] Rename `ReadBeyondTail` as `ReadUnwritten`, change `read_session` return type ([#234](https://github.com/s2-streamstore/s2-sdk-rust/issues/234))
+- [**breaking**] Remove `non_exhaustive` marker for enums, make `IssueAccessTokenInput` and `AccessTokenInfo` symmetrical ([#238](https://github.com/s2-streamstore/s2-sdk-rust/issues/238))
+- Consume backoffs lazily  ([#239](https://github.com/s2-streamstore/s2-sdk-rust/issues/239))
+- [**breaking**] Rename `streamstore` crate to `s2-sdk` ([#221](https://github.com/s2-streamstore/s2-sdk-rust/issues/221))
+- Include package version in `User-Agent` header ([#243](https://github.com/s2-streamstore/s2-sdk-rust/issues/243))
+
+### Testing
+
+- Fix basin/stream collisions ([#241](https://github.com/s2-streamstore/s2-sdk-rust/issues/241))
+
+### Miscellaneous Tasks
+
+- Update license to MIT ([#222](https://github.com/s2-streamstore/s2-sdk-rust/issues/222))
+- Crates.io only allows 5 keywords ([#232](https://github.com/s2-streamstore/s2-sdk-rust/issues/232))
+- Add categories to Cargo manifest ([#233](https://github.com/s2-streamstore/s2-sdk-rust/issues/233))
+- Bump `s2-api` and `s2-common` versions ([#240](https://github.com/s2-streamstore/s2-sdk-rust/issues/240))
+
 ## [0.21.0] - 2025-09-11
 
 ### Miscellaneous Tasks
