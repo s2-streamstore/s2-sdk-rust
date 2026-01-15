@@ -72,35 +72,43 @@ jobs:
         run: cargo clippy --workspace --all-features --all-targets -- -D warnings --allow deprecated
       - name: check Cargo.toml sorting
         run: cargo sort --workspace --check
-  integration:
-    name: s2-lite
+  build-s2-lite:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
-      - name: Checkout SDK
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-      - name: Checkout s2
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           repository: s2-streamstore/s2
-          path: s2-server
           submodules: true
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: ". -> target\ns2-server -> s2-server/target"
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
+      - uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build s2-lite
-        run: cargo build --release -p s2-lite --manifest-path s2-server/Cargo.toml
-      - name: Start s2-lite server
+      - run: cargo build --release -p s2-lite
+      - uses: actions/upload-artifact@v4
+        with:
+          name: s2-lite
+          path: target/release/server
+          retention-days: 1
+  integration:
+    name: s2-lite
+    needs: build-s2-lite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/download-artifact@v4
+        with:
+          name: s2-lite
+          path: bin
+      - name: Start s2-lite
         run: |
-          s2-server/target/release/server --port 8080 > /tmp/server.log 2>&1 &
+          chmod +x bin/server
+          bin/server --port 8080 > /tmp/server.log 2>&1 &
           for i in {1..30}; do
             if curl -sf http://localhost:8080/ping; then
               echo "Server is ready"
@@ -118,6 +126,5 @@ jobs:
           S2_ACCOUNT_ENDPOINT: http://localhost:8080
           S2_BASIN_ENDPOINT: http://localhost:8080
         run: cargo test --all-features -- --skip access_token
-      - name: Dump server logs
-        if: failure()
+      - if: failure()
         run: cat /tmp/server.log
