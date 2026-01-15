@@ -3,8 +3,9 @@ mod common;
 use std::time::Duration;
 
 use assert_matches::assert_matches;
-use common::S2Stream;
+use common::{S2Stream, s2_config, unique_basin_name, unique_stream_name};
 use futures::StreamExt;
+use rstest::rstest;
 use s2_sdk::{
     append_session::AppendSessionConfig, batching::BatchingConfig, producer::ProducerConfig,
     types::*,
@@ -1069,6 +1070,100 @@ async fn record_submit_ticket_drop_should_not_affect_others(
 
     let ack2 = ticket2.await?;
     assert_eq!(ack2.seq_num, 1);
+
+    Ok(())
+}
+
+#[rstest]
+#[case::gzip(Compression::Gzip)]
+#[case::zstd(Compression::Zstd)]
+#[tokio::test]
+async fn compression_roundtrip_unary(#[case] compression: Compression) -> Result<(), S2Error> {
+    let config = s2_config(compression).expect("valid S2 config");
+    let s2 = s2_sdk::S2::new(config).expect("valid S2");
+
+    let basin_name = unique_basin_name();
+    let basin_config = BasinConfig::new()
+        .with_default_stream_config(StreamConfig::new().with_storage_class(StorageClass::Standard));
+    s2.create_basin(CreateBasinInput::new(basin_name.clone()).with_config(basin_config))
+        .await?;
+
+    let basin = s2.basin(basin_name.clone());
+    let stream_name = unique_stream_name();
+    let stream_config =
+        StreamConfig::new().with_timestamping(TimestampingConfig::new().with_uncapped(true));
+    basin
+        .create_stream(CreateStreamInput::new(stream_name.clone()).with_config(stream_config))
+        .await?;
+
+    let stream = basin.stream(stream_name.clone());
+
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([
+        AppendRecord::new("s".repeat(2048))?,
+        AppendRecord::new("2".repeat(2048))?,
+    ])?);
+    let ack = stream.append(input).await?;
+    assert_eq!(ack.start.seq_num, 0);
+    assert_eq!(ack.end.seq_num, 2);
+
+    let batch = stream.read(ReadInput::new()).await?;
+    assert_eq!(batch.records.len(), 2);
+
+    basin
+        .delete_stream(DeleteStreamInput::new(stream_name))
+        .await?;
+    s2.delete_basin(DeleteBasinInput::new(basin_name)).await?;
+
+    Ok(())
+}
+
+#[rstest]
+#[case::gzip(Compression::Gzip)]
+#[case::zstd(Compression::Zstd)]
+#[tokio::test]
+async fn compression_roundtrip_session(#[case] compression: Compression) -> Result<(), S2Error> {
+    let config = s2_config(compression).expect("valid S2 config");
+    let s2 = s2_sdk::S2::new(config).expect("valid S2");
+
+    let basin_name = unique_basin_name();
+    let basin_config = BasinConfig::new().with_default_stream_config(
+        StreamConfig::new()
+            .with_timestamping(TimestampingConfig::new().with_mode(TimestampingMode::Arrival)),
+    );
+    s2.create_basin(CreateBasinInput::new(basin_name.clone()).with_config(basin_config))
+        .await?;
+
+    let basin = s2.basin(basin_name.clone());
+    let stream_name = unique_stream_name();
+    let stream_config = StreamConfig::new().with_storage_class(StorageClass::Standard);
+    basin
+        .create_stream(CreateStreamInput::new(stream_name.clone()).with_config(stream_config))
+        .await?;
+
+    let stream = basin.stream(stream_name.clone());
+
+    // Payload must be >= 1KB to trigger compression (COMPRESSION_THRESHOLD_BYTES)
+    let session = stream.append_session(AppendSessionConfig::default());
+    let ticket = session
+        .submit(AppendInput::new(AppendRecordBatch::try_from_iter([
+            AppendRecord::new("s2".repeat(10240))?,
+        ])?))
+        .await?;
+    session.close().await?;
+
+    let ack = ticket.await?;
+    assert_eq!(ack.start.seq_num, 0);
+    assert_eq!(ack.end.seq_num, 1);
+
+    let mut batches = stream.read_session(ReadInput::new()).await?;
+    let batch = batches.next().await.expect("should have batch")?;
+    assert_eq!(batch.records.len(), 1);
+    assert_eq!(batch.records[0].body.len(), 20480);
+
+    basin
+        .delete_stream(DeleteStreamInput::new(stream_name))
+        .await?;
+    s2.delete_basin(DeleteBasinInput::new(basin_name)).await?;
 
     Ok(())
 }
