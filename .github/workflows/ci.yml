@@ -20,7 +20,7 @@ jobs:
     permissions:
       contents: none
     name: CI
-    needs: [test, lint, integration-test]
+    needs: [test, lint, integration]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -72,8 +72,8 @@ jobs:
         run: cargo clippy --workspace --all-features --all-targets -- -D warnings --allow deprecated
       - name: check Cargo.toml sorting
         run: cargo sort --workspace --check
-  integration-test:
-    name: Integration Tests (s2-lite)
+  integration:
+    name: s2-lite
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -89,26 +89,18 @@ jobs:
           submodules: true
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      - name: Cache s2-lite build
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: s2-server -> s2-server/target
-          prefix-key: s2-lite
-      - name: Cache SDK build
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: sdk
+          workspaces: ". -> target\ns2-server -> s2-server/target"
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build s2-lite
-        working-directory: s2-server
-        run: cargo build --release -p s2-lite
+        run: cargo build --release -p s2-lite --manifest-path s2-server/Cargo.toml
       - name: Start s2-lite server
         run: |
           s2-server/target/release/server --port 8080 > /tmp/server.log 2>&1 &
-          echo $! > /tmp/server.pid
           for i in {1..30}; do
             if curl -sf http://localhost:8080/ping; then
               echo "Server is ready"
@@ -120,16 +112,9 @@ jobs:
           echo "Server failed to start"
           cat /tmp/server.log
           exit 1
-      - name: Extract token
-        id: token
-        run: |
-          token=$(sed -n 's/.*S2_ACCESS_TOKEN="\([^"]*\)".*/\1/p' /tmp/server.log | head -1)
-          token="${token:-test}"
-          echo "::add-mask::$token"
-          echo "value=$token" >> "$GITHUB_OUTPUT"
       - name: Run tests
         env:
-          S2_ACCESS_TOKEN: ${{ steps.token.outputs.value }}
+          S2_ACCESS_TOKEN: test
           S2_ACCOUNT_ENDPOINT: http://localhost:8080
           S2_BASIN_ENDPOINT: http://localhost:8080
         run: cargo test --all-features -- --skip access_token
