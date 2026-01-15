@@ -139,12 +139,11 @@ impl AsyncTestContext for S2Stream {
 }
 
 pub fn unique_stream_name() -> StreamName {
+    use std::sync::LazyLock;
+    static PREFIX: LazyLock<String> =
+        LazyLock::new(|| uuid::Uuid::new_v4().simple().to_string()[..8].to_string());
     let counter = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    format!("stream-{}-{:04}", timestamp, counter)
+    format!("stream-{}-{:04}", *PREFIX, counter)
         .parse()
         .expect("valid stream name")
 }
@@ -175,12 +174,11 @@ pub fn s2() -> s2_sdk::S2 {
 }
 
 pub fn unique_basin_name() -> BasinName {
+    use std::sync::LazyLock;
+    static PREFIX: LazyLock<String> =
+        LazyLock::new(|| uuid::Uuid::new_v4().simple().to_string()[..8].to_string());
     let counter = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    format!("basin-{}-{:04}", timestamp, counter)
+    format!("basin-{}-{:04}", *PREFIX, counter)
         .parse()
         .expect("valid basin name")
 }
