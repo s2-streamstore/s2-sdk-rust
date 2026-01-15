@@ -91,7 +91,7 @@ jobs:
           path: target/release/server
           retention-days: 1
   integration:
-    name: s2-lite
+    name: s2-lite integration
     needs: build-s2-lite
     runs-on: ubuntu-latest
     timeout-minutes: 15
