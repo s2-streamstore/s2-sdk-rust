@@ -50,13 +50,13 @@ impl AsyncTestContext for SharedS2Basin {
 
     async fn teardown(self) {
         let mut guard = SHARED_BASIN.lock().await;
-        if SHARED_BASIN_USERS.fetch_sub(1, Ordering::SeqCst) == 1 {
-            if let Some(basin) = guard.take() {
-                let _ = basin
-                    .s2
-                    .delete_basin(DeleteBasinInput::new(basin.basin_name.clone()))
-                    .await;
-            }
+        if SHARED_BASIN_USERS.fetch_sub(1, Ordering::SeqCst) == 1
+            && let Some(basin) = guard.take()
+        {
+            let _ = basin
+                .s2
+                .delete_basin(DeleteBasinInput::new(basin.basin_name.clone()))
+                .await;
         }
     }
 }
