@@ -116,10 +116,10 @@ impl AsyncTestContext for S2Stream {
         let basin = SharedS2Basin::setup().await;
 
         let stream_name = unique_stream_name();
-        // Just a best effort op to ensure basin teardown always happens.
-        let _ = basin
+        basin
             .create_stream(CreateStreamInput::new(stream_name.clone()))
-            .await;
+            .await
+            .expect("stream creation failed");
         let stream = basin.stream(stream_name.clone());
         Self {
             basin,
