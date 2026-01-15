@@ -73,6 +73,7 @@ jobs:
       - name: check Cargo.toml sorting
         run: cargo sort --workspace --check
   build-s2-lite:
+    name: build s2-lite
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
