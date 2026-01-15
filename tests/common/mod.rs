@@ -25,35 +25,38 @@ impl Deref for SharedS2Basin {
 
 impl AsyncTestContext for SharedS2Basin {
     async fn setup() -> Self {
+        let mut guard = SHARED_BASIN.lock().await;
         SHARED_BASIN_USERS.fetch_add(1, Ordering::SeqCst);
-
-        let basin = SHARED_BASIN_INNER
-            .get_or_init(|| async {
-                let config = default_s2_config().expect("valid S2 config");
-                let s2 = s2_sdk::S2::new(config.clone()).expect("valid S2");
-                let basin_name = unique_basin_name();
-                s2.create_basin(CreateBasinInput::new(basin_name.clone()))
-                    .await
-                    .expect("valid BasinInfo");
-                let basin = s2.basin(basin_name.clone());
-                Arc::new(S2Basin {
-                    s2,
-                    basin,
-                    basin_name,
-                })
-            })
-            .await
-            .clone();
-
+        let basin = if let Some(basin) = guard.as_ref() {
+            basin.clone()
+        } else {
+            let config = default_s2_config().expect("valid S2 config");
+            let s2 = s2_sdk::S2::new(config.clone()).expect("valid S2");
+            let basin_name = unique_basin_name();
+            s2.create_basin(CreateBasinInput::new(basin_name.clone()))
+                .await
+                .expect("valid BasinInfo");
+            let basin = s2.basin(basin_name.clone());
+            let basin = Arc::new(S2Basin {
+                s2,
+                basin,
+                basin_name,
+            });
+            *guard = Some(basin.clone());
+            basin
+        };
         SharedS2Basin(basin)
     }
 
     async fn teardown(self) {
-        if SHARED_BASIN_USERS.fetch_sub(1, Ordering::SeqCst) == 1 {
-            self.s2
-                .delete_basin(DeleteBasinInput::new(self.basin_name.clone()))
-                .await
-                .expect("succesful deletion");
+        let mut guard = SHARED_BASIN.lock().await;
+        if SHARED_BASIN_USERS.fetch_sub(1, Ordering::SeqCst) == 1
+            && let Some(basin) = guard.take()
+        {
+            let _ = basin
+                .s2
+                .delete_basin(DeleteBasinInput::new(basin.basin_name.clone()))
+                .await;
         }
     }
 }
@@ -116,10 +119,10 @@ impl AsyncTestContext for S2Stream {
         let basin = SharedS2Basin::setup().await;
 
         let stream_name = unique_stream_name();
-        // Just a best effort op to ensure basin teardown always happens.
-        let _ = basin
+        basin
             .create_stream(CreateStreamInput::new(stream_name.clone()))
-            .await;
+            .await
+            .expect("stream creation failed");
         let stream = basin.stream(stream_name.clone());
         Self {
             basin,
@@ -142,14 +145,13 @@ pub fn unique_stream_name() -> StreamName {
     use std::sync::LazyLock;
     static PREFIX: LazyLock<String> =
         LazyLock::new(|| uuid::Uuid::new_v4().simple().to_string()[..8].to_string());
-
     let counter = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
     format!("stream-{}-{:04}", *PREFIX, counter)
         .parse()
         .expect("valid stream name")
 }
 
-static SHARED_BASIN_INNER: tokio::sync::OnceCell<Arc<S2Basin>> = tokio::sync::OnceCell::const_new();
+static SHARED_BASIN: tokio::sync::Mutex<Option<Arc<S2Basin>>> = tokio::sync::Mutex::const_new(None);
 static SHARED_BASIN_USERS: AtomicU32 = AtomicU32::new(0);
 
 static TEST_COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -178,7 +180,6 @@ pub fn unique_basin_name() -> BasinName {
     use std::sync::LazyLock;
     static PREFIX: LazyLock<String> =
         LazyLock::new(|| uuid::Uuid::new_v4().simple().to_string()[..8].to_string());
-
     let counter = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
     format!("basin-{}-{:04}", *PREFIX, counter)
         .parse()
