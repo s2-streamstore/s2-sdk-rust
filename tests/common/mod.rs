@@ -8,8 +8,8 @@ use std::{
 };
 
 use s2_sdk::types::{
-    BasinName, CreateBasinInput, CreateStreamInput, DeleteBasinInput, DeleteStreamInput, S2Config,
-    S2Endpoints, StreamName, ValidationError,
+    BasinName, Compression, CreateBasinInput, CreateStreamInput, DeleteBasinInput,
+    DeleteStreamInput, S2Config, S2Endpoints, StreamName, ValidationError,
 };
 use test_context::AsyncTestContext;
 
@@ -29,7 +29,7 @@ impl AsyncTestContext for SharedS2Basin {
 
         let basin = SHARED_BASIN_INNER
             .get_or_init(|| async {
-                let config = s2_config().expect("valid S2 config");
+                let config = default_s2_config().expect("valid S2 config");
                 let s2 = s2_sdk::S2::new(config.clone()).expect("valid S2");
                 let basin_name = unique_basin_name();
                 s2.create_basin(CreateBasinInput::new(basin_name.clone()))
@@ -75,7 +75,7 @@ impl Deref for S2Basin {
 
 impl AsyncTestContext for S2Basin {
     async fn setup() -> Self {
-        let config = s2_config().expect("valid S2 config");
+        let config = default_s2_config().expect("valid S2 config");
         let s2 = s2_sdk::S2::new(config.clone()).expect("valid S2");
         let basin_name = unique_basin_name();
         s2.create_basin(CreateBasinInput::new(basin_name.clone()))
@@ -154,21 +154,23 @@ static SHARED_BASIN_USERS: AtomicU32 = AtomicU32::new(0);
 
 static TEST_COUNTER: AtomicU32 = AtomicU32::new(0);
 
-fn s2_config() -> Result<S2Config, ValidationError> {
+fn default_s2_config() -> Result<S2Config, ValidationError> {
+    s2_config(Compression::None)
+}
+
+pub fn s2_config(compression: Compression) -> Result<S2Config, ValidationError> {
     let access_token =
         std::env::var("S2_ACCESS_TOKEN").map_err(|_| "S2_ACCESS_TOKEN env var not set")?;
-    let config = if std::env::var("S2_ACCOUNT_ENDPOINT").is_ok()
-        && std::env::var("S2_BASIN_ENDPOINT").is_ok()
-    {
-        S2Config::new(access_token).with_endpoints(S2Endpoints::from_env()?)
-    } else {
-        S2Config::new(access_token)
-    };
+    let mut config = S2Config::new(access_token);
+    if std::env::var("S2_ACCOUNT_ENDPOINT").is_ok() && std::env::var("S2_BASIN_ENDPOINT").is_ok() {
+        config = config.with_endpoints(S2Endpoints::from_env()?)
+    }
+    config = config.with_compression(compression);
     Ok(config)
 }
 
 pub fn s2() -> s2_sdk::S2 {
-    let config = s2_config().expect("valid S2 config");
+    let config = default_s2_config().expect("valid S2 config");
     s2_sdk::S2::new(config).expect("valid S2")
 }
 

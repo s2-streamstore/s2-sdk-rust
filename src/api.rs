@@ -9,7 +9,7 @@ use async_stream::try_stream;
 use bytes::BytesMut;
 use futures::{Stream, StreamExt};
 use http::header::InvalidHeaderValue;
-use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
+use http::header::{ACCEPT, AUTHORIZATION, CONTENT_ENCODING, CONTENT_TYPE};
 use http::{HeaderMap, HeaderValue, StatusCode};
 use prost::{self, Message};
 use reqwest::{Request, Response};
@@ -711,12 +711,18 @@ impl BaseClient {
                     encoder.write_all(bytes).await?;
                     encoder.shutdown().await?;
                     *body = encoder.into_inner().into();
+                    request
+                        .headers_mut()
+                        .insert(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
                 }
                 Compression::Zstd => {
                     let mut encoder = ZstdEncoder::with_quality(Vec::new(), Level::Fastest);
                     encoder.write_all(bytes).await?;
                     encoder.shutdown().await?;
                     *body = encoder.into_inner().into();
+                    request
+                        .headers_mut()
+                        .insert(CONTENT_ENCODING, HeaderValue::from_static("zstd"));
                 }
             }
         }
