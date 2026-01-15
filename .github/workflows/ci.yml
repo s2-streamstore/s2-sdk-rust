@@ -77,8 +77,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: s2-streamstore/s2
-          ref: m/fixing-tests
+          repository: s2-streamstore/s2          
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
