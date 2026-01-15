@@ -10,7 +10,7 @@
     </a>
   </p>
 
-  <h1>Rust SDK for s2.dev</h1>
+  <h1>Rust SDK for S2</h1>
 
   <p>
     <!-- Crates.io -->

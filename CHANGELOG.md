@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.22.2] - 2026-01-15
+
+### Bug Fixes
+
+- Missing `CONTENT_ENCODING` header for unary requests  ([#247](https://github.com/s2-streamstore/s2-sdk-rust/issues/247))
+
 ## [0.22.1] - 2026-01-14
 
 ### Miscellaneous Tasks

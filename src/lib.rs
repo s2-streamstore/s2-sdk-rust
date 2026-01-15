@@ -1,5 +1,5 @@
 /*!
-Rust SDK for [s2.dev](https://s2.dev/).
+Rust SDK for [S2](https://s2.dev/).
 
 The Rust SDK provides ergonomic wrappers and utilities to interact with the
 [S2 API](https://s2.dev/docs/rest/records/overview).
