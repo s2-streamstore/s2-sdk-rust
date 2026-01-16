@@ -20,7 +20,7 @@ jobs:
     permissions:
       contents: none
     name: CI
-    needs: [test, lint]
+    needs: [test, lint, s2-lite-integration]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -72,3 +72,17 @@ jobs:
         run: cargo clippy --workspace --all-features --all-targets -- -D warnings --allow deprecated
       - name: check Cargo.toml sorting
         run: cargo sort --workspace --check
+  build-s2-lite:
+    name: Build S2-lite
+    uses: s2-streamstore/s2/.github/workflows/build-s2-lite.yml@main
+
+  s2-lite-integration:
+    name: S2-lite Integration
+    needs: build-s2-lite
+    uses: s2-streamstore/s2/.github/workflows/sdk-tests.yml@main
+    with:
+      server-binary: server
+      server-args: "--port 8080"
+      server-port: 8080
+      sdks: |
+        [{"name": "rust", "repo": "${{ github.repository }}", "ref": "${{ github.ref }}", "lang": "rust", "test_cmd": "cargo test --all-features -- --skip access_token"}]
