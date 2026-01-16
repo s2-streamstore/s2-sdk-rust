@@ -20,7 +20,7 @@ jobs:
     permissions:
       contents: none
     name: CI
-    needs: [test, lint, integration]
+    needs: [test, lint, s2-lite-integration]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -73,59 +73,24 @@ jobs:
       - name: check Cargo.toml sorting
         run: cargo sort --workspace --check
   build-s2-lite:
-    name: build s2-lite
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: s2-streamstore/s2          
-          submodules: true
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: cargo build --release -p s2-lite
-      - uses: actions/upload-artifact@v4
-        with:
-          name: s2-lite
-          path: target/release/server
-          retention-days: 1
-  integration:
-    name: s2-lite integration
+    name: Build S2-lite
+    uses: s2-streamstore/s2/.github/workflows/build-s2-lite.yml@main
+
+  s2-lite-integration:
+    name: S2-lite Integration
     needs: build-s2-lite
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/download-artifact@v4
-        with:
-          name: s2-lite
-          path: bin
-      - name: Start s2-lite
-        run: |
-          chmod +x bin/server
-          bin/server --port 8080 > /tmp/server.log 2>&1 &
-          for i in {1..30}; do
-            if curl -sf http://localhost:8080/ping; then
-              echo "Server is ready"
-              exit 0
-            fi
-            echo "Waiting for server... ($i/30)"
-            sleep 1
-          done
-          echo "Server failed to start"
-          cat /tmp/server.log
-          exit 1
-      - name: Run tests
-        env:
-          S2_ACCESS_TOKEN: test
-          S2_ACCOUNT_ENDPOINT: http://localhost:8080
-          S2_BASIN_ENDPOINT: http://localhost:8080
-        run: cargo test --all-features -- --skip access_token
-      - if: failure()
-        run: cat /tmp/server.log
+    uses: s2-streamstore/s2/.github/workflows/sdk-tests.yml@main
+    with:
+      server-binary: server
+      server-args: "--port 8080"
+      server-port: 8080
+      sdks: |
+        [
+          {
+            "name": "rust",
+            "repo": "${{ github.repository }}",
+            "ref": "${{ github.ref }}",
+            "lang": "rust",
+            "test_cmd": "cargo test --all-features -- --skip access_token"
+          }
+        ]
