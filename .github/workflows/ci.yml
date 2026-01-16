@@ -85,4 +85,12 @@ jobs:
       server-args: "--port 8080"
       server-port: 8080
       sdks: |
-        [{"name": "rust", "repo": "${{ github.repository }}", "ref": "${{ github.ref }}", "lang": "rust", "test_cmd": "cargo test --all-features -- --skip access_token"}]
+        [
+          {
+            "name": "rust",
+            "repo": "${{ github.repository }}",
+            "ref": "${{ github.ref }}",
+            "lang": "rust",
+            "test_cmd": "cargo test --all-features -- --skip access_token"
+          }
+        ]
