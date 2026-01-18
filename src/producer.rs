@@ -215,7 +215,6 @@ impl Producer {
         let mut pending_acks: VecDeque<PendingRecordAck> = VecDeque::new();
         let mut claimable_tickets: FuturesUnordered<_> = FuturesUnordered::new();
         let mut close_tx: Option<oneshot::Sender<Result<(), S2Error>>> = None;
-        let mut closing = false;
         let mut stashed_submission: Option<StashedSubmission> = None;
         let mut submit_fut: Option<SubmitFuture> = None;
         let mut submit_batch_len: Option<usize> = None;
@@ -238,7 +237,7 @@ impl Producer {
                 cmd = cmd_rx.recv(), if stashed_submission.is_none() => {
                     match cmd {
                         Some(Command::Submit { record, ack_tx, permit }) => {
-                            if closing {
+                            if close_tx.is_some() {
                                 let _ = ack_tx.send(
                                     Err(ProducerError::Closing.into())
                                 );
@@ -247,7 +246,6 @@ impl Producer {
                             }
                         }
                         Some(Command::Close { done_tx }) => {
-                            closing = true;
                             close_tx = Some(done_tx);
                         }
                         None => {
@@ -271,6 +269,9 @@ impl Producer {
                             }
                             if let Some(submission) = stashed_submission.take() {
                                 let _ = submission.ack_tx.send(Err(err.clone().into()));
+                            }
+                            if let Some(done_tx) = close_tx.take() {
+                                let _ = done_tx.send(Err(err.into()));
                             }
                             return;
                         }
@@ -301,6 +302,9 @@ impl Producer {
                             if let Some(submission) = stashed_submission.take() {
                                 let _ = submission.ack_tx.send(Err(err.clone()));
                             }
+                            if let Some(done_tx) = close_tx.take() {
+                                let _ = done_tx.send(Err(err));
+                            }
                             return;
                         }
                     }
@@ -311,7 +315,7 @@ impl Producer {
                 }
             }
 
-            if closing
+            if close_tx.is_some()
                 && pending_acks.is_empty()
                 && claimable_tickets.is_empty()
                 && stashed_submission.is_none()
