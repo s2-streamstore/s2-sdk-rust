@@ -1454,7 +1454,7 @@ dependencies = [
 
 [[package]]
 name = "s2-sdk"
-version = "0.22.3"
+version = "0.22.4"
 dependencies = [
  "assert_matches",
  "async-compression",
