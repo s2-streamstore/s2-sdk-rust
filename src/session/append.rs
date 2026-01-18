@@ -138,10 +138,10 @@ struct SessionState {
     inflight_appends: VecDeque<InflightAppend>,
     inflight_bytes: usize,
     close_tx: Option<oneshot::Sender<Result<(), S2Error>>>,
-    closing: bool,
     total_records: usize,
     total_acked_records: usize,
     prev_ack_end: Option<StreamPosition>,
+    stashed_submission: Option<StashedSubmission>,
 }
 
 /// A session for high-throughput appending with backpressure control. It can be created from
@@ -368,10 +368,10 @@ async fn run_session_with_retry(
         inflight_appends: VecDeque::new(),
         inflight_bytes: 0,
         close_tx: None,
-        closing: false,
         total_records: 0,
         total_acked_records: 0,
         prev_ack_end: None,
+        stashed_submission: None,
     };
     let mut prev_total_acked_records = 0;
     let mut retry_backoffs = retry_builder.build();
@@ -414,8 +414,25 @@ async fn run_session_with_retry(
                     );
 
                     let err: S2Error = err.into();
+
                     for inflight_append in state.inflight_appends.drain(..) {
                         let _ = inflight_append.ack_tx.send(Err(err.clone()));
+                    }
+
+                    if let Some(stashed) = state.stashed_submission.take() {
+                        let _ = stashed.ack_tx.send(Err(err.clone()));
+                    }
+
+                    state.cmd_rx.close();
+                    while let Some(cmd) = state.cmd_rx.recv().await {
+                        match cmd {
+                            Command::Submit { ack_tx, .. } => {
+                                let _ = ack_tx.send(Err(err.clone()));
+                            }
+                            Command::Close { done_tx } => {
+                                let _ = done_tx.send(Err(err.clone()));
+                            }
+                        }
                     }
 
                     if let Some(done_tx) = state.close_tx.take() {
@@ -451,8 +468,6 @@ async fn run_session(
     let timer = MuxTimer::<N_TIMER_VARIANTS>::default();
     tokio::pin!(timer);
 
-    let mut stashed_submission: Option<StashedSubmission> = None;
-
     loop {
         tokio::select! {
             (event_ord, _deadline) = &mut timer, if timer.is_armed() => {
@@ -463,10 +478,10 @@ async fn run_session(
                 }
             }
 
-            input_tx_permit = input_tx.reserve(), if stashed_submission.is_some() => {
+            input_tx_permit = input_tx.reserve(), if state.stashed_submission.is_some() => {
                 let input_tx_permit = input_tx_permit
                     .map_err(|_| AppendSessionError::ServerDisconnected)?;
-                let submission = stashed_submission
+                let submission = state.stashed_submission
                     .take()
                     .expect("stashed_submission should not be None");
 
@@ -483,16 +498,16 @@ async fn run_session(
                 state.inflight_appends.push_back(submission.into());
             }
 
-            cmd = state.cmd_rx.recv(), if stashed_submission.is_none() => {
+            cmd = state.cmd_rx.recv(), if state.stashed_submission.is_none() => {
                 match cmd {
                     Some(Command::Submit { input, ack_tx, permit }) => {
-                        if state.closing {
+                        if state.close_tx.is_some() {
                             let _ = ack_tx.send(
                                 Err(AppendSessionError::SessionClosing.into())
                             );
                         } else {
                             let input_metered_bytes = input.records.metered_bytes();
-                            stashed_submission = Some(StashedSubmission {
+                            state.stashed_submission = Some(StashedSubmission {
                                 input,
                                 input_metered_bytes,
                                 ack_tx,
@@ -502,7 +517,6 @@ async fn run_session(
                         }
                     }
                     Some(Command::Close { done_tx }) => {
-                        state.closing = true;
                         state.close_tx = Some(done_tx);
                     }
                     None => {
@@ -525,7 +539,7 @@ async fn run_session(
                         return Err(err.into());
                     }
                     None => {
-                        if !state.inflight_appends.is_empty() || stashed_submission.is_some() {
+                        if !state.inflight_appends.is_empty() || state.stashed_submission.is_some() {
                             return Err(AppendSessionError::StreamClosedEarly);
                         }
                         break;
@@ -534,14 +548,17 @@ async fn run_session(
             }
         }
 
-        if state.closing && state.inflight_appends.is_empty() && stashed_submission.is_none() {
+        if state.close_tx.is_some()
+            && state.inflight_appends.is_empty()
+            && state.stashed_submission.is_none()
+        {
             break;
         }
     }
 
     assert!(state.inflight_appends.is_empty());
     assert_eq!(state.inflight_bytes, 0);
-    assert!(stashed_submission.is_none());
+    assert!(state.stashed_submission.is_none());
 
     Ok(())
 }
