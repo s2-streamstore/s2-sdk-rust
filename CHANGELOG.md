@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.22.4] - 2026-01-18
+
+### Bug Fixes
+
+- Terminal error propagation in append session and producer  ([#259](https://github.com/s2-streamstore/s2-sdk-rust/issues/259))
+
+### Miscellaneous Tasks
+
+- Bump `s2-api` and `s2-common` versions ([#260](https://github.com/s2-streamstore/s2-sdk-rust/issues/260))
+
 ## [0.22.3] - 2026-01-18
 
 ### Bug Fixes
