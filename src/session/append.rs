@@ -3,7 +3,7 @@ use std::{
     future::Future,
     num::NonZeroU32,
     pin::Pin,
-    sync::Arc,
+    sync::{Arc, OnceLock},
     task::{Context, Poll},
     time::Duration,
 };
@@ -68,6 +68,7 @@ impl From<AppendSessionError> for S2Error {
 /// A [`Future`] that resolves to an acknowledgement once the batch of records is appended.
 pub struct BatchSubmitTicket {
     rx: oneshot::Receiver<Result<AppendAck, S2Error>>,
+    terminal_err: Arc<OnceLock<S2Error>>,
 }
 
 impl Future for BatchSubmitTicket {
@@ -76,7 +77,11 @@ impl Future for BatchSubmitTicket {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match Pin::new(&mut self.rx).poll(cx) {
             Poll::Ready(Ok(res)) => Poll::Ready(res),
-            Poll::Ready(Err(_)) => Poll::Ready(Err(AppendSessionError::SessionDropped.into())),
+            Poll::Ready(Err(_)) => Poll::Ready(Err(self
+                .terminal_err
+                .get()
+                .cloned()
+                .unwrap_or_else(|| AppendSessionError::SessionDropped.into()))),
             Poll::Pending => Poll::Pending,
         }
     }
@@ -151,6 +156,7 @@ struct SessionState {
 pub struct AppendSession {
     cmd_tx: mpsc::Sender<Command>,
     permits: AppendPermits,
+    terminal_err: Arc<OnceLock<S2Error>>,
     _handle: AbortOnDropHandle<()>,
 }
 
@@ -167,16 +173,19 @@ impl AppendSession {
         let (cmd_tx, cmd_rx) = mpsc::channel(buffer_size);
         let permits = AppendPermits::new(config.max_inflight_batches, config.max_inflight_bytes);
         let retry_builder = retry_builder(&client.config.retry);
+        let terminal_err = Arc::new(OnceLock::new());
         let handle = AbortOnDropHandle::new(tokio::spawn(run_session_with_retry(
             client,
             stream,
             cmd_rx,
             retry_builder,
             buffer_size,
+            terminal_err.clone(),
         )));
         Self {
             cmd_tx,
             permits,
+            terminal_err,
             _handle: handle,
         }
     }
@@ -218,10 +227,11 @@ impl AppendSession {
             .clone()
             .reserve_owned()
             .await
-            .map_err(|_| AppendSessionError::SessionClosed)?;
+            .map_err(|_| self.terminal_err())?;
         Ok(BatchSubmitPermit {
             append_permit,
             cmd_tx_permit,
+            terminal_err: self.terminal_err.clone(),
         })
     }
 
@@ -231,11 +241,16 @@ impl AppendSession {
         self.cmd_tx
             .send(Command::Close { done_tx })
             .await
-            .map_err(|_| AppendSessionError::SessionClosed)?;
-        done_rx
-            .await
-            .map_err(|_| AppendSessionError::SessionClosed)??;
+            .map_err(|_| self.terminal_err())?;
+        done_rx.await.map_err(|_| self.terminal_err())??;
         Ok(())
+    }
+
+    fn terminal_err(&self) -> S2Error {
+        self.terminal_err
+            .get()
+            .cloned()
+            .unwrap_or_else(|| AppendSessionError::SessionClosed.into())
     }
 }
 
@@ -243,6 +258,7 @@ impl AppendSession {
 pub struct BatchSubmitPermit {
     append_permit: AppendPermit,
     cmd_tx_permit: mpsc::OwnedPermit<Command>,
+    terminal_err: Arc<OnceLock<S2Error>>,
 }
 
 impl BatchSubmitPermit {
@@ -254,12 +270,16 @@ impl BatchSubmitPermit {
             ack_tx,
             permit: Some(self.append_permit),
         });
-        BatchSubmitTicket { rx: ack_rx }
+        BatchSubmitTicket {
+            rx: ack_rx,
+            terminal_err: self.terminal_err,
+        }
     }
 }
 
 pub(crate) struct AppendSessionInternal {
     cmd_tx: mpsc::Sender<Command>,
+    terminal_err: Arc<OnceLock<S2Error>>,
     _handle: AbortOnDropHandle<()>,
 }
 
@@ -268,15 +288,18 @@ impl AppendSessionInternal {
         let buffer_size = DEFAULT_CHANNEL_BUFFER_SIZE;
         let (cmd_tx, cmd_rx) = mpsc::channel(buffer_size);
         let retry_builder = retry_builder(&client.config.retry);
+        let terminal_err = Arc::new(OnceLock::new());
         let handle = AbortOnDropHandle::new(tokio::spawn(run_session_with_retry(
             client,
             stream,
             cmd_rx,
             retry_builder,
             buffer_size,
+            terminal_err.clone(),
         )));
         Self {
             cmd_tx,
+            terminal_err,
             _handle: handle,
         }
     }
@@ -286,6 +309,7 @@ impl AppendSessionInternal {
         input: AppendInput,
     ) -> impl Future<Output = Result<BatchSubmitTicket, S2Error>> + Send + 'static {
         let cmd_tx = self.cmd_tx.clone();
+        let terminal_err = self.terminal_err.clone();
         async move {
             let (ack_tx, ack_rx) = oneshot::channel();
             cmd_tx
@@ -295,8 +319,16 @@ impl AppendSessionInternal {
                     permit: None,
                 })
                 .await
-                .map_err(|_| AppendSessionError::SessionClosed)?;
-            Ok(BatchSubmitTicket { rx: ack_rx })
+                .map_err(|_| {
+                    terminal_err
+                        .get()
+                        .cloned()
+                        .unwrap_or_else(|| AppendSessionError::SessionClosed.into())
+                })?;
+            Ok(BatchSubmitTicket {
+                rx: ack_rx,
+                terminal_err,
+            })
         }
     }
 
@@ -305,11 +337,16 @@ impl AppendSessionInternal {
         self.cmd_tx
             .send(Command::Close { done_tx })
             .await
-            .map_err(|_| AppendSessionError::SessionClosed)?;
-        done_rx
-            .await
-            .map_err(|_| AppendSessionError::SessionClosed)??;
+            .map_err(|_| self.terminal_err())?;
+        done_rx.await.map_err(|_| self.terminal_err())??;
         Ok(())
+    }
+
+    fn terminal_err(&self) -> S2Error {
+        self.terminal_err
+            .get()
+            .cloned()
+            .unwrap_or_else(|| AppendSessionError::SessionClosed.into())
     }
 }
 
@@ -362,6 +399,7 @@ async fn run_session_with_retry(
     cmd_rx: mpsc::Receiver<Command>,
     retry_builder: RetryBackoffBuilder,
     buffer_size: usize,
+    terminal_err: Arc<OnceLock<S2Error>>,
 ) {
     let mut state = SessionState {
         cmd_rx,
@@ -415,6 +453,8 @@ async fn run_session_with_retry(
 
                     let err: S2Error = err.into();
 
+                    let _ = terminal_err.set(err.clone());
+
                     for inflight_append in state.inflight_appends.drain(..) {
                         let _ = inflight_append.ack_tx.send(Err(err.clone()));
                     }
@@ -423,20 +463,13 @@ async fn run_session_with_retry(
                         let _ = stashed.ack_tx.send(Err(err.clone()));
                     }
 
-                    state.cmd_rx.close();
-                    while let Some(cmd) = state.cmd_rx.recv().await {
-                        match cmd {
-                            Command::Submit { ack_tx, .. } => {
-                                let _ = ack_tx.send(Err(err.clone()));
-                            }
-                            Command::Close { done_tx } => {
-                                let _ = done_tx.send(Err(err.clone()));
-                            }
-                        }
+                    if let Some(done_tx) = state.close_tx.take() {
+                        let _ = done_tx.send(Err(err.clone()));
                     }
 
-                    if let Some(done_tx) = state.close_tx.take() {
-                        let _ = done_tx.send(Err(err));
+                    state.cmd_rx.close();
+                    while let Some(cmd) = state.cmd_rx.recv().await {
+                        cmd.reject(err.clone());
                     }
                     break;
                 }
@@ -757,6 +790,19 @@ enum Command {
     Close {
         done_tx: oneshot::Sender<Result<(), S2Error>>,
     },
+}
+
+impl Command {
+    fn reject(self, err: S2Error) {
+        match self {
+            Command::Submit { ack_tx, .. } => {
+                let _ = ack_tx.send(Err(err));
+            }
+            Command::Close { done_tx } => {
+                let _ = done_tx.send(Err(err));
+            }
+        }
+    }
 }
 
 const DEFAULT_CHANNEL_BUFFER_SIZE: usize = 100;

@@ -6,6 +6,7 @@ use std::{
     collections::VecDeque,
     future::Future,
     pin::Pin,
+    sync::{Arc, OnceLock},
     task::{Context, Poll},
 };
 
@@ -28,6 +29,7 @@ use crate::{
 /// A [`Future`] that resolves to an acknowledgement once the record is appended.
 pub struct RecordSubmitTicket {
     rx: oneshot::Receiver<Result<IndexedAppendAck, S2Error>>,
+    terminal_err: Arc<OnceLock<S2Error>>,
 }
 
 impl Future for RecordSubmitTicket {
@@ -36,7 +38,11 @@ impl Future for RecordSubmitTicket {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match Pin::new(&mut self.rx).poll(cx) {
             Poll::Ready(Ok(res)) => Poll::Ready(res),
-            Poll::Ready(Err(_)) => Poll::Ready(Err(ProducerError::Dropped.into())),
+            Poll::Ready(Err(_)) => Poll::Ready(Err(self
+                .terminal_err
+                .get()
+                .cloned()
+                .unwrap_or_else(|| ProducerError::Dropped.into()))),
             Poll::Pending => Poll::Pending,
         }
     }
@@ -130,6 +136,7 @@ impl ProducerConfig {
 pub struct Producer {
     cmd_tx: mpsc::Sender<Command>,
     permits: AppendPermits,
+    terminal_err: Arc<OnceLock<S2Error>>,
     _handle: AbortOnDropHandle<()>,
 }
 
@@ -138,10 +145,17 @@ impl Producer {
         let (cmd_tx, cmd_rx) = mpsc::channel::<Command>(RECORD_BATCH_MAX.count);
         let permits = AppendPermits::new(None, config.max_unacked_bytes);
         let session = AppendSessionInternal::new(client, stream);
-        let _handle = AbortOnDropHandle::new(tokio::spawn(Self::run(session, config, cmd_rx)));
+        let terminal_err = Arc::new(OnceLock::new());
+        let _handle = AbortOnDropHandle::new(tokio::spawn(Self::run(
+            session,
+            config,
+            cmd_rx,
+            terminal_err.clone(),
+        )));
         Self {
             cmd_tx,
             permits,
+            terminal_err,
             _handle,
         }
     }
@@ -183,10 +197,11 @@ impl Producer {
             .clone()
             .reserve_owned()
             .await
-            .map_err(|_| ProducerError::Closed)?;
+            .map_err(|_| self.terminal_err())?;
         Ok(RecordSubmitPermit {
             append_permit,
             cmd_tx_permit,
+            terminal_err: self.terminal_err.clone(),
         })
     }
 
@@ -196,14 +211,22 @@ impl Producer {
         self.cmd_tx
             .send(Command::Close { done_tx })
             .await
-            .map_err(|_| ProducerError::Closed)?;
-        done_rx.await.map_err(|_| ProducerError::Closed)?
+            .map_err(|_| self.terminal_err())?;
+        done_rx.await.map_err(|_| self.terminal_err())?
+    }
+
+    fn terminal_err(&self) -> S2Error {
+        self.terminal_err
+            .get()
+            .cloned()
+            .unwrap_or_else(|| ProducerError::Closed.into())
     }
 
     async fn run(
         session: AppendSessionInternal,
         config: ProducerConfig,
         mut cmd_rx: mpsc::Receiver<Command>,
+        terminal_err: Arc<OnceLock<S2Error>>,
     ) {
         let (record_tx, record_rx) = mpsc::channel::<AppendRecord>(RECORD_BATCH_MAX.count);
         let mut inputs = AppendInputs {
@@ -264,15 +287,15 @@ impl Producer {
                             submit_fut = Some(Box::pin(session.submit(input)));
                         }
                         Err(err) => {
-                            for pending in pending_acks.drain(..) {
-                                let _ = pending.ack_tx.send(Err(err.clone().into()));
-                            }
-                            if let Some(submission) = stashed_submission.take() {
-                                let _ = submission.ack_tx.send(Err(err.clone().into()));
-                            }
-                            if let Some(done_tx) = close_tx.take() {
-                                let _ = done_tx.send(Err(err.into()));
-                            }
+                            propagate_terminal_error(
+                                err.into(),
+                                &terminal_err,
+                                &mut pending_acks,
+                                &mut stashed_submission,
+                                &mut close_tx,
+                                &mut cmd_rx,
+                            )
+                            .await;
                             return;
                         }
                     }
@@ -296,15 +319,15 @@ impl Producer {
                             }));
                         }
                         Err(err) => {
-                            for pending in pending_acks.drain(..) {
-                                let _ = pending.ack_tx.send(Err(err.clone()));
-                            }
-                            if let Some(submission) = stashed_submission.take() {
-                                let _ = submission.ack_tx.send(Err(err.clone()));
-                            }
-                            if let Some(done_tx) = close_tx.take() {
-                                let _ = done_tx.send(Err(err));
-                            }
+                            propagate_terminal_error(
+                                err,
+                                &terminal_err,
+                                &mut pending_acks,
+                                &mut stashed_submission,
+                                &mut close_tx,
+                                &mut cmd_rx,
+                            )
+                            .await;
                             return;
                         }
                     }
@@ -337,6 +360,7 @@ impl Producer {
 pub struct RecordSubmitPermit {
     append_permit: AppendPermit,
     cmd_tx_permit: mpsc::OwnedPermit<Command>,
+    terminal_err: Arc<OnceLock<S2Error>>,
 }
 
 impl RecordSubmitPermit {
@@ -348,7 +372,10 @@ impl RecordSubmitPermit {
             ack_tx,
             permit: self.append_permit,
         });
-        RecordSubmitTicket { rx: ack_rx }
+        RecordSubmitTicket {
+            rx: ack_rx,
+            terminal_err: self.terminal_err,
+        }
     }
 }
 
@@ -381,6 +408,19 @@ enum Command {
     },
 }
 
+impl Command {
+    fn reject(self, err: S2Error) {
+        match self {
+            Command::Submit { ack_tx, .. } => {
+                let _ = ack_tx.send(Err(err));
+            }
+            Command::Close { done_tx } => {
+                let _ = done_tx.send(Err(err));
+            }
+        }
+    }
+}
+
 struct StashedSubmission {
     record: AppendRecord,
     ack_tx: oneshot::Sender<Result<IndexedAppendAck, S2Error>>,
@@ -408,5 +448,29 @@ fn dispatch_acks(batch_ack: Result<AppendAck, S2Error>, pending_acks: Vec<Pendin
                 let _ = pending.ack_tx.send(Err(err.clone()));
             }
         }
+    }
+}
+
+async fn propagate_terminal_error(
+    err: S2Error,
+    terminal_err: &OnceLock<S2Error>,
+    pending_acks: &mut VecDeque<PendingRecordAck>,
+    stashed_submission: &mut Option<StashedSubmission>,
+    close_tx: &mut Option<oneshot::Sender<Result<(), S2Error>>>,
+    cmd_rx: &mut mpsc::Receiver<Command>,
+) {
+    let _ = terminal_err.set(err.clone());
+    for pending in pending_acks.drain(..) {
+        let _ = pending.ack_tx.send(Err(err.clone()));
+    }
+    if let Some(submission) = stashed_submission.take() {
+        let _ = submission.ack_tx.send(Err(err.clone()));
+    }
+    if let Some(done_tx) = close_tx.take() {
+        let _ = done_tx.send(Err(err.clone()));
+    }
+    cmd_rx.close();
+    while let Some(cmd) = cmd_rx.recv().await {
+        cmd.reject(err.clone());
     }
 }

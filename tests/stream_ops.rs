@@ -1195,15 +1195,23 @@ async fn append_session_for_non_existent_stream_errors(
 async fn producer_for_non_existent_stream_errors(basin: &SharedS2Basin) -> Result<(), S2Error> {
     let stream = basin.stream(unique_stream_name());
 
-    let producer = stream.producer(ProducerConfig::default());
+    let producer = stream.producer(
+        ProducerConfig::new().with_batching(BatchingConfig::new().with_max_batch_records(10)?),
+    );
     let num_records = 2000;
 
     let mut tickets = Vec::with_capacity(num_records);
     for i in 0..num_records {
-        let ticket = producer
+        match producer
             .submit(AppendRecord::new(format!("record-{i}"))?)
-            .await?;
-        tickets.push(ticket);
+            .await
+        {
+            Ok(ticket) => tickets.push(ticket),
+            Err(S2Error::Server(err)) => {
+                assert_eq!(err.code, "stream_not_found");
+            }
+            Err(e) => return Err(e),
+        }
     }
 
     for ticket in tickets {
