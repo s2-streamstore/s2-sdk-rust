@@ -3,7 +3,7 @@ mod common;
 use std::time::Duration;
 
 use assert_matches::assert_matches;
-use common::{S2Stream, s2_config, unique_basin_name, unique_stream_name};
+use common::{S2Stream, SharedS2Basin, s2_config, unique_basin_name, unique_stream_name};
 use futures::StreamExt;
 use rstest::rstest;
 use s2_sdk::{
@@ -1142,7 +1142,7 @@ async fn compression_roundtrip_session(#[case] compression: Compression) -> Resu
 
     let stream = basin.stream(stream_name.clone());
 
-    // Payload must be >= 1KB to trigger compression (COMPRESSION_THRESHOLD_BYTES)
+    // Payload must be >= 1KiB to trigger compression (COMPRESSION_THRESHOLD_BYTES)
     let session = stream.append_session(AppendSessionConfig::default());
     let ticket = session
         .submit(AppendInput::new(AppendRecordBatch::try_from_iter([
@@ -1164,6 +1164,54 @@ async fn compression_roundtrip_session(#[case] compression: Compression) -> Resu
         .delete_stream(DeleteStreamInput::new(stream_name))
         .await?;
     s2.delete_basin(DeleteBasinInput::new(basin_name)).await?;
+
+    Ok(())
+}
+
+#[test_context(SharedS2Basin)]
+#[tokio_shared_rt::test(shared)]
+async fn append_session_for_non_existent_stream_errors(
+    basin: &SharedS2Basin,
+) -> Result<(), S2Error> {
+    let stream = basin.stream(unique_stream_name());
+
+    let session = stream.append_session(AppendSessionConfig::new());
+
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
+        "lorem",
+    )?])?);
+
+    let result = session.submit(input).await?.await;
+
+    assert_matches!(result, Err(S2Error::Server(err)) => {
+        assert_eq!(err.code, "stream_not_found");
+    });
+
+    Ok(())
+}
+
+#[test_context(SharedS2Basin)]
+#[tokio_shared_rt::test(shared)]
+async fn producer_for_non_existent_stream_errors(basin: &SharedS2Basin) -> Result<(), S2Error> {
+    let stream = basin.stream(unique_stream_name());
+
+    let producer = stream.producer(ProducerConfig::default());
+    let num_records = 2000;
+
+    let mut tickets = Vec::with_capacity(num_records);
+    for i in 0..num_records {
+        let ticket = producer
+            .submit(AppendRecord::new(format!("record-{i}"))?)
+            .await?;
+        tickets.push(ticket);
+    }
+
+    for ticket in tickets {
+        let result = ticket.await;
+        assert_matches!(result, Err(S2Error::Server(err)) => {
+            assert_eq!(err.code, "stream_not_found");
+        });
+    }
 
     Ok(())
 }
