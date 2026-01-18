@@ -1410,9 +1410,9 @@ checksum = "28d3b2b1366ec20994f1fd18c3c594f05c5dd4bc44d8bb0c1c632c8d6829481f"
 
 [[package]]
 name = "s2-api"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd6f5a1402a77379535f210774f84416925253ea27afef9b5c72e087f30c3fbc"
+checksum = "62e7a403287ebcb410dbf38ac17af9efb6454a651a864229dfbba33e4f0efbe3"
 dependencies = [
  "base64ct",
  "bytes",
@@ -1436,9 +1436,9 @@ dependencies = [
 
 [[package]]
 name = "s2-common"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e11eae0f171907031b9f062569f42a8b8fe7f32fe6fc0f83f92982c1e85fff1a"
+checksum = "b76e12c74370d1614999b6f9862f02d419a8e6eb67aa86ae6dc6a3cbb57ca3fd"
 dependencies = [
  "blake3",
  "bytes",
