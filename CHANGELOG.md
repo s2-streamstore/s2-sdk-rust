@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.22.3] - 2026-01-18
+
+### Bug Fixes
+
+- Racy error propagation in append session ([#257](https://github.com/s2-streamstore/s2-sdk-rust/issues/257))
+
+### Miscellaneous Tasks
+
+- Run tests against s2-lite ([#249](https://github.com/s2-streamstore/s2-sdk-rust/issues/249))
+- Update s2-lite integration action ([#256](https://github.com/s2-streamstore/s2-sdk-rust/issues/256))
+
 ## [0.22.2] - 2026-01-15
 
 ### Bug Fixes
