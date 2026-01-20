@@ -4,10 +4,9 @@
 
 use std::{num::NonZeroU32, time::Duration};
 
-use http::uri::Scheme;
 use s2_sdk::{
     S2,
-    types::{BasinAuthority, RetryConfig, S2Config, S2Endpoints},
+    types::{AccountEndpoint, BasinEndpoint, RetryConfig, S2Config, S2Endpoints},
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -16,10 +15,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let token = "local-token".to_string();
         // ANCHOR: custom-endpoints
         let endpoints = S2Endpoints::new(
-            "localhost:8080".parse()?,
-            BasinAuthority::Direct("localhost:8080".parse()?),
-        )
-        .with_scheme(Scheme::HTTP);
+            AccountEndpoint::new("http://localhost:8080")?,
+            BasinEndpoint::new("http://localhost:8080")?,
+        )?;
 
         let client = S2::new(S2Config::new(token).with_endpoints(endpoints))?;
         // ANCHOR_END: custom-endpoints
