@@ -90,15 +90,15 @@ impl Future for BatchSubmitTicket {
 #[derive(Debug, Clone)]
 /// Configuration for an [`AppendSession`].
 pub struct AppendSessionConfig {
-    max_inflight_bytes: u32,
-    max_inflight_batches: Option<u32>,
+    max_unacked_bytes: u32,
+    max_unacked_batches: Option<u32>,
 }
 
 impl Default for AppendSessionConfig {
     fn default() -> Self {
         Self {
-            max_inflight_bytes: 10 * ONE_MIB,
-            max_inflight_batches: None,
+            max_unacked_bytes: 10 * ONE_MIB,
+            max_unacked_batches: None,
         }
     }
 }
@@ -114,12 +114,12 @@ impl AppendSessionConfig {
     /// **Note:** It must be at least `1MiB`.
     ///
     /// Defaults to `10MiB`.
-    pub fn with_max_inflight_bytes(self, max_inflight_bytes: u32) -> Result<Self, ValidationError> {
-        if max_inflight_bytes < ONE_MIB {
-            return Err(format!("max_inflight_bytes must be at least {ONE_MIB}").into());
+    pub fn with_max_unacked_bytes(self, max_unacked_bytes: u32) -> Result<Self, ValidationError> {
+        if max_unacked_bytes < ONE_MIB {
+            return Err(format!("max_unacked_bytes must be at least {ONE_MIB}").into());
         }
         Ok(Self {
-            max_inflight_bytes,
+            max_unacked_bytes,
             ..self
         })
     }
@@ -127,12 +127,12 @@ impl AppendSessionConfig {
     /// Set the limit on number of unacknowledged [`AppendInput`]s held in memory.
     ///
     /// Defaults to no limit.
-    pub fn with_max_inflight_batches(
+    pub fn with_max_unacked_batches(
         self,
-        max_inflight_batches: NonZeroU32,
+        max_unacked_batches: NonZeroU32,
     ) -> Result<Self, ValidationError> {
         Ok(Self {
-            max_inflight_batches: Some(max_inflight_batches.get()),
+            max_unacked_batches: Some(max_unacked_batches.get()),
             ..self
         })
     }
@@ -167,11 +167,11 @@ impl AppendSession {
         config: AppendSessionConfig,
     ) -> Self {
         let buffer_size = config
-            .max_inflight_batches
+            .max_unacked_batches
             .map(|mib| mib as usize)
             .unwrap_or(DEFAULT_CHANNEL_BUFFER_SIZE);
         let (cmd_tx, cmd_rx) = mpsc::channel(buffer_size);
-        let permits = AppendPermits::new(config.max_inflight_batches, config.max_inflight_bytes);
+        let permits = AppendPermits::new(config.max_unacked_batches, config.max_unacked_bytes);
         let retry_builder = retry_builder(&client.config.retry);
         let terminal_err = Arc::new(OnceLock::new());
         let handle = AbortOnDropHandle::new(tokio::spawn(run_session_with_retry(
