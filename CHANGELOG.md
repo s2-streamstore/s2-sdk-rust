@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.22.5] - 2026-01-20
+
+### Features
+
+- SDK documentation examples + change to pagination defaults ([#262](https://github.com/s2-streamstore/s2-sdk-rust/issues/262))
+
 ## [0.22.4] - 2026-01-18
 
 ### Bug Fixes
