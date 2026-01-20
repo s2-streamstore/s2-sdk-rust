@@ -2,12 +2,14 @@
 //!
 //! Run with: cargo run --example docs_account_and_basins
 
+use futures::StreamExt;
 use s2_sdk::{
     S2,
     types::{
         AccessTokenScopeInput, BasinMatcher, BasinName, CreateBasinInput, CreateStreamInput,
-        DeleteBasinInput, DeleteStreamInput, IssueAccessTokenInput, ListBasinsInput,
-        ListStreamsInput, OperationGroupPermissions, ReadWritePermissions, S2Config, StreamMatcher,
+        DeleteBasinInput, DeleteStreamInput, IssueAccessTokenInput, ListAllStreamsInput,
+        ListBasinsInput, ListStreamsInput, OperationGroupPermissions, ReadWritePermissions,
+        S2Config, StreamMatcher,
     },
 };
 
@@ -99,6 +101,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ))
         .await?;
     // ANCHOR_END: access-token-restricted
+
+    // Pagination example - not executed by default
+    if false {
+        // ANCHOR: pagination
+        // Iterate through all streams with automatic pagination
+        let mut stream = basin.list_all_streams(ListAllStreamsInput::new());
+        while let Some(info) = stream.next().await {
+            let info = info?;
+            println!("{}", info.name);
+        }
+        // ANCHOR_END: pagination
+    }
 
     Ok(())
 }
