@@ -953,7 +953,7 @@ impl From<ListBasinsInput> for api::basin::ListBasinsRequest {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 /// Input for [`S2::list_all_basins`](crate::S2::list_all_basins).
 pub struct ListAllBasinsInput {
     /// Filter basins whose names begin with this value.
@@ -968,8 +968,18 @@ pub struct ListAllBasinsInput {
     pub start_after: BasinNameStartAfter,
     /// Whether to ignore basins that have been requested for deletion but not yet deleted.
     ///
-    /// Defaults to `false`.
+    /// Defaults to `true`.
     pub ignore_pending_deletions: bool,
+}
+
+impl Default for ListAllBasinsInput {
+    fn default() -> Self {
+        Self {
+            prefix: BasinNamePrefix::default(),
+            start_after: BasinNameStartAfter::default(),
+            ignore_pending_deletions: true,
+        }
+    }
 }
 
 impl ListAllBasinsInput {
@@ -2434,7 +2444,7 @@ impl From<ListStreamsInput> for api::stream::ListStreamsRequest {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 /// Input for [`S2Basin::list_all_streams`](crate::S2Basin::list_all_streams).
 pub struct ListAllStreamsInput {
     /// Filter streams whose names begin with this value.
@@ -2449,8 +2459,18 @@ pub struct ListAllStreamsInput {
     pub start_after: StreamNameStartAfter,
     /// Whether to ignore streams that have been requested for deletion but not yet deleted.
     ///
-    /// Defaults to `false`.
+    /// Defaults to `true`.
     pub ignore_pending_deletions: bool,
+}
+
+impl Default for ListAllStreamsInput {
+    fn default() -> Self {
+        Self {
+            prefix: StreamNamePrefix::default(),
+            start_after: StreamNameStartAfter::default(),
+            ignore_pending_deletions: true,
+        }
+    }
 }
 
 impl ListAllStreamsInput {
