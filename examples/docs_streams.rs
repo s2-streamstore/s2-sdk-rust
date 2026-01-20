@@ -192,7 +192,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ANCHOR_END: read-session-until
 
     // ANCHOR: read-session-wait
-    // Read all available records, and once reaching the current tail, wait an additional 30 seconds for new ones
+    // Read all available records, and once reaching the current tail, wait an additional 30 seconds
+    // for new ones
     let mut session = stream
         .read_session(
             ReadInput::new()
