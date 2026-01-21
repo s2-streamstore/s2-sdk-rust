@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.23.0] - 2026-01-21
+
+### Refactor
+
+- [**breaking**] Make `S2Endpoints::new` accept `AccountEndpoint` and `BasinEndpoint` ([#264](https://github.com/s2-streamstore/s2-sdk-rust/issues/264))
+- [**breaking**] Rename `max_inflight_*` to `max_unacked_*` in `AppendSessionConfig` ([#265](https://github.com/s2-streamstore/s2-sdk-rust/issues/265))
+- [**breaking**] Rename `ignore_pending_deletions` to `include_deleted` in `ListAll*Input`s ([#266](https://github.com/s2-streamstore/s2-sdk-rust/issues/266))
+
 ## [0.22.5] - 2026-01-20
 
 ### Miscellaneous Tasks 
