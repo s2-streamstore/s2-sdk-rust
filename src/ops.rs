@@ -56,7 +56,7 @@ impl S2 {
         let s2 = self.clone();
         let prefix = input.prefix;
         let start_after = input.start_after;
-        let ignore_pending_deletions = input.ignore_pending_deletions;
+        let include_deleted = input.include_deleted;
         let mut input = ListBasinsInput::new()
             .with_prefix(prefix)
             .with_start_after(start_after);
@@ -66,7 +66,7 @@ impl S2 {
 
                 let start_after = page.values.last().map(|info| info.name.clone().into());
                 for info in page.values {
-                    if ignore_pending_deletions && info.state == BasinState::Deleting {
+                    if !include_deleted && info.state == BasinState::Deleting {
                         continue;
                     }
                     yield info;
@@ -245,7 +245,7 @@ impl S2Basin {
         let basin = self.clone();
         let prefix = input.prefix;
         let start_after = input.start_after;
-        let ignore_pending_deletions = input.ignore_pending_deletions;
+        let include_deleted = input.include_deleted;
         let mut input = ListStreamsInput::new()
             .with_prefix(prefix)
             .with_start_after(start_after);
@@ -255,7 +255,7 @@ impl S2Basin {
 
                 let start_after = page.values.last().map(|info| info.name.clone().into());
                 for info in page.values {
-                    if ignore_pending_deletions && info.deleted_at.is_some() {
+                    if !include_deleted && info.deleted_at.is_some() {
                         continue;
                     }
                     yield info;

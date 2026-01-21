@@ -970,7 +970,7 @@ impl From<ListBasinsInput> for api::basin::ListBasinsRequest {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 /// Input for [`S2::list_all_basins`](crate::S2::list_all_basins).
 pub struct ListAllBasinsInput {
     /// Filter basins whose names begin with this value.
@@ -983,20 +983,10 @@ pub struct ListAllBasinsInput {
     ///
     /// Defaults to `""`.
     pub start_after: BasinNameStartAfter,
-    /// Whether to ignore basins that have been requested for deletion but not yet deleted.
+    /// Whether to include basins that are being deleted.
     ///
-    /// Defaults to `true`.
-    pub ignore_pending_deletions: bool,
-}
-
-impl Default for ListAllBasinsInput {
-    fn default() -> Self {
-        Self {
-            prefix: BasinNamePrefix::default(),
-            start_after: BasinNameStartAfter::default(),
-            ignore_pending_deletions: true,
-        }
-    }
+    /// Defaults to `false`.
+    pub include_deleted: bool,
 }
 
 impl ListAllBasinsInput {
@@ -1019,10 +1009,10 @@ impl ListAllBasinsInput {
         }
     }
 
-    /// Set whether to ignore basins that have been requested for deletion but not yet deleted.
-    pub fn with_ignore_pending_deletions(self, ignore_pending_deletions: bool) -> Self {
+    /// Set whether to include basins that are being deleted.
+    pub fn with_include_deleted(self, include_deleted: bool) -> Self {
         Self {
-            ignore_pending_deletions,
+            include_deleted,
             ..self
         }
     }
@@ -2461,7 +2451,7 @@ impl From<ListStreamsInput> for api::stream::ListStreamsRequest {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 /// Input for [`S2Basin::list_all_streams`](crate::S2Basin::list_all_streams).
 pub struct ListAllStreamsInput {
     /// Filter streams whose names begin with this value.
@@ -2474,20 +2464,10 @@ pub struct ListAllStreamsInput {
     ///
     /// Defaults to `""`.
     pub start_after: StreamNameStartAfter,
-    /// Whether to ignore streams that have been requested for deletion but not yet deleted.
+    /// Whether to include streams that are being deleted.
     ///
-    /// Defaults to `true`.
-    pub ignore_pending_deletions: bool,
-}
-
-impl Default for ListAllStreamsInput {
-    fn default() -> Self {
-        Self {
-            prefix: StreamNamePrefix::default(),
-            start_after: StreamNameStartAfter::default(),
-            ignore_pending_deletions: true,
-        }
-    }
+    /// Defaults to `false`.
+    pub include_deleted: bool,
 }
 
 impl ListAllStreamsInput {
@@ -2510,10 +2490,10 @@ impl ListAllStreamsInput {
         }
     }
 
-    /// Set whether to ignore streams that have been requested for deletion but not yet deleted.
-    pub fn with_ignore_pending_deletions(self, ignore_pending_deletions: bool) -> Self {
+    /// Set whether to include streams that are being deleted.
+    pub fn with_include_deleted(self, include_deleted: bool) -> Self {
         Self {
-            ignore_pending_deletions,
+            include_deleted,
             ..self
         }
     }
