@@ -393,6 +393,7 @@ pub struct S2Config {
     pub(crate) retry: RetryConfig,
     pub(crate) compression: Compression,
     pub(crate) user_agent: HeaderValue,
+    pub(crate) insecure_skip_cert_verification: bool,
 }
 
 impl S2Config {
@@ -408,6 +409,7 @@ impl S2Config {
             user_agent: concat!("s2-sdk-rust/", env!("CARGO_PKG_VERSION"))
                 .parse()
                 .expect("valid user agent"),
+            insecure_skip_cert_verification: false,
         }
     }
 
@@ -449,6 +451,24 @@ impl S2Config {
     pub fn with_compression(self, compression: Compression) -> Self {
         Self {
             compression,
+            ..self
+        }
+    }
+
+    /// Skip TLS certificate verification (insecure).
+    ///
+    /// This is useful for connecting to endpoints with self-signed certificates
+    /// or certificates that don't match the hostname (similar to `curl -k`).
+    ///
+    /// # Warning
+    ///
+    /// This disables certificate verification and should only be used for
+    /// testing or development purposes. **Never use this in production.**
+    ///
+    /// Defaults to `false`.
+    pub fn with_insecure_skip_cert_verification(self, skip: bool) -> Self {
+        Self {
+            insecure_skip_cert_verification: skip,
             ..self
         }
     }
