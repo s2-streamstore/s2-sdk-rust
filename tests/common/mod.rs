@@ -167,6 +167,9 @@ pub fn s2_config(compression: Compression) -> Result<S2Config, ValidationError> 
     if std::env::var("S2_ACCOUNT_ENDPOINT").is_ok() && std::env::var("S2_BASIN_ENDPOINT").is_ok() {
         config = config.with_endpoints(S2Endpoints::from_env()?)
     }
+    if std::env::var("S2_INSECURE").is_ok() {
+        config = config.with_insecure_skip_cert_verification(true);
+    }
     config = config.with_compression(compression);
     Ok(config)
 }

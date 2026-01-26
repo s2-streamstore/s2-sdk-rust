@@ -684,7 +684,8 @@ impl BaseClient {
             .timeout(config.request_timeout)
             .connect_timeout(config.connection_timeout)
             .user_agent(config.user_agent.clone())
-            .default_headers(headers);
+            .default_headers(headers)
+            .danger_accept_invalid_certs(config.insecure_skip_cert_verification);
         match config.compression {
             Compression::Gzip => {
                 client_builder = client_builder.gzip(true);
