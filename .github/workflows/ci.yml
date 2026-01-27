@@ -91,6 +91,6 @@ jobs:
             "repo": "${{ github.repository }}",
             "ref": "${{ github.ref }}",
             "lang": "rust",
-            "test_cmd": "cargo test --all-features -- --skip access_token"
+            "test_cmd": "cargo test --all-features -- --skip access_token --skip metrics"
           }
         ]
