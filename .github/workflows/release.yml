@@ -1,4 +1,4 @@
-name: release-tag
+name: release
 
 on:
   pull_request:
