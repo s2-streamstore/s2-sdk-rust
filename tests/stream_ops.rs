@@ -1223,3 +1223,352 @@ async fn producer_for_non_existent_stream_errors(basin: &SharedS2Basin) -> Resul
 
     Ok(())
 }
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn set_fencing_token(stream: &S2Stream) -> Result<(), S2Error> {
+    let fencing_token = FencingToken::generate(30).expect("valid fencing token");
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([CommandRecord::fence(
+        fencing_token.clone(),
+    )
+    .into()])?);
+
+    let ack = stream.append(input).await?;
+
+    assert_eq!(ack.start.seq_num, 0);
+    assert_eq!(ack.end.seq_num, 1);
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn append_with_correct_fencing_token(stream: &S2Stream) -> Result<(), S2Error> {
+    let fencing_token = FencingToken::generate(30).expect("valid fencing token");
+    let fence_input = AppendInput::new(AppendRecordBatch::try_from_iter([CommandRecord::fence(
+        fencing_token.clone(),
+    )
+    .into()])?);
+
+    stream.append(fence_input).await?;
+
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
+        "lorem",
+    )?])?)
+    .with_fencing_token(fencing_token);
+
+    let ack = stream.append(input).await?;
+
+    assert_eq!(ack.start.seq_num, 1);
+    assert_eq!(ack.end.seq_num, 2);
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn trim_stream(stream: &S2Stream) -> Result<(), S2Error> {
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([
+        AppendRecord::new("lorem")?,
+        AppendRecord::new("ipsum")?,
+        AppendRecord::new("dolor")?,
+    ])?);
+
+    let ack = stream.append(input).await?;
+
+    assert_eq!(ack.start.seq_num, 0);
+    assert_eq!(ack.end.seq_num, 3);
+
+    let trim_input = AppendInput::new(AppendRecordBatch::try_from_iter([
+        CommandRecord::trim(2).into()
+    ])?);
+
+    let trim_ack = stream.append(trim_input).await?;
+
+    assert_eq!(trim_ack.start.seq_num, 3);
+    assert_eq!(trim_ack.end.seq_num, 4);
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn trim_to_future_seq_num(stream: &S2Stream) -> Result<(), S2Error> {
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
+        "lorem",
+    )?])?);
+
+    let ack = stream.append(input).await?;
+
+    assert_eq!(ack.start.seq_num, 0);
+    assert_eq!(ack.end.seq_num, 1);
+
+    let trim_input = AppendInput::new(AppendRecordBatch::try_from_iter([CommandRecord::trim(
+        100,
+    )
+    .into()])?);
+
+    let trim_ack = stream.append(trim_input).await?;
+
+    assert_eq!(trim_ack.start.seq_num, 1);
+    assert_eq!(trim_ack.end.seq_num, 2);
+
+    Ok(())
+}
+
+#[test_context(SharedS2Basin)]
+#[tokio_shared_rt::test(shared)]
+async fn check_tail_on_non_existent_stream_errors(basin: &SharedS2Basin) -> Result<(), S2Error> {
+    let stream = basin.stream(unique_stream_name());
+
+    let result = stream.check_tail().await;
+
+    assert_matches!(result, Err(S2Error::Server(err)) => {
+        assert_eq!(err.code, "stream_not_found");
+    });
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn read_from_beginning_non_empty_stream(stream: &S2Stream) -> Result<(), S2Error> {
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([
+        AppendRecord::new("lorem")?,
+        AppendRecord::new("ipsum")?,
+        AppendRecord::new("dolor")?,
+    ])?);
+
+    stream.append(input).await?;
+
+    let batch = stream
+        .read(ReadInput::new().with_start(ReadStart::new().with_from(ReadFrom::SeqNum(0))))
+        .await?;
+
+    assert_eq!(batch.records.len(), 3);
+    assert_eq!(batch.records[0].seq_num, 0);
+    assert_eq!(batch.records[0].body, "lorem");
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn read_last_n_records(stream: &S2Stream) -> Result<(), S2Error> {
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([
+        AppendRecord::new("record-0")?,
+        AppendRecord::new("record-1")?,
+        AppendRecord::new("record-2")?,
+        AppendRecord::new("record-3")?,
+        AppendRecord::new("record-4")?,
+        AppendRecord::new("record-5")?,
+        AppendRecord::new("record-6")?,
+        AppendRecord::new("record-7")?,
+        AppendRecord::new("record-8")?,
+        AppendRecord::new("record-9")?,
+    ])?);
+
+    stream.append(input).await?;
+
+    let batch = stream
+        .read(ReadInput::new().with_start(ReadStart::new().with_from(ReadFrom::TailOffset(3))))
+        .await?;
+
+    assert_eq!(batch.records.len(), 3);
+    assert_eq!(batch.records[0].seq_num, 7);
+    assert_eq!(batch.records[0].body, "record-7");
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn read_until_timestamp(stream: &S2Stream) -> Result<(), S2Error> {
+    let base_timestamp = time::OffsetDateTime::now_utc().unix_timestamp() as u64;
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([
+        AppendRecord::new("lorem")?.with_timestamp(base_timestamp),
+        AppendRecord::new("ipsum")?.with_timestamp(base_timestamp + 100),
+        AppendRecord::new("dolor")?.with_timestamp(base_timestamp + 200),
+        AppendRecord::new("sit")?.with_timestamp(base_timestamp + 300),
+    ])?);
+
+    stream.append(input).await?;
+
+    let batch = stream
+        .read(
+            ReadInput::new()
+                .with_start(ReadStart::new().with_from(ReadFrom::SeqNum(0)))
+                .with_stop(ReadStop::new().with_until(..(base_timestamp + 200))),
+        )
+        .await?;
+
+    assert!(!batch.records.is_empty() && batch.records.len() <= 2);
+    assert_eq!(batch.records[0].body, "lorem");
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn read_with_wait_no_records(stream: &S2Stream) -> Result<(), S2Error> {
+    let batch = stream
+        .read(
+            ReadInput::new()
+                .with_start(ReadStart::new().with_from(ReadFrom::SeqNum(0)))
+                .with_stop(ReadStop::new().with_wait(1)),
+        )
+        .await?;
+
+    assert!(batch.records.is_empty());
+
+    Ok(())
+}
+
+#[test_context(SharedS2Basin)]
+#[tokio_shared_rt::test(shared)]
+async fn append_to_non_existent_stream_errors(basin: &SharedS2Basin) -> Result<(), S2Error> {
+    let stream = basin.stream(unique_stream_name());
+
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
+        "lorem",
+    )?])?);
+
+    let result = stream.append(input).await;
+
+    assert_matches!(result, Err(S2Error::Server(err)) => {
+        assert_eq!(err.code, "stream_not_found");
+    });
+
+    Ok(())
+}
+
+#[test_context(SharedS2Basin)]
+#[tokio_shared_rt::test(shared)]
+async fn read_from_non_existent_stream_errors(basin: &SharedS2Basin) -> Result<(), S2Error> {
+    let stream = basin.stream(unique_stream_name());
+
+    let result = stream.read(ReadInput::new()).await;
+
+    assert_matches!(result, Err(S2Error::Server(err)) => {
+        assert_eq!(err.code, "stream_not_found");
+    });
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn append_max_batch_size(stream: &S2Stream) -> Result<(), S2Error> {
+    let records: Vec<AppendRecord> = (0..1000)
+        .map(|i| AppendRecord::new(format!("r{}", i)).expect("valid record"))
+        .collect();
+
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter(records)?);
+
+    let ack = stream.append(input).await?;
+
+    assert_eq!(ack.start.seq_num, 0);
+    assert_eq!(ack.end.seq_num, 1000);
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn read_session_from_beginning(stream: &S2Stream) -> Result<(), S2Error> {
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([
+        AppendRecord::new("lorem")?,
+        AppendRecord::new("ipsum")?,
+        AppendRecord::new("dolor")?,
+    ])?);
+
+    stream.append(input).await?;
+
+    let mut batches = stream
+        .read_session(ReadInput::new().with_start(ReadStart::new().with_from(ReadFrom::SeqNum(0))))
+        .await?;
+
+    let batch = batches.next().await.expect("should have batch")?;
+
+    assert_eq!(batch.records.len(), 3);
+    assert_eq!(batch.records[0].body, "lorem");
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn multiple_concurrent_append_sessions(stream: &S2Stream) -> Result<(), S2Error> {
+    let session1 = stream.append_session(AppendSessionConfig::new());
+    let session2 = stream.append_session(AppendSessionConfig::new());
+
+    let ticket1 = session1
+        .submit(AppendInput::new(AppendRecordBatch::try_from_iter([
+            AppendRecord::new("from-session-1")?,
+        ])?))
+        .await?;
+
+    let ticket2 = session2
+        .submit(AppendInput::new(AppendRecordBatch::try_from_iter([
+            AppendRecord::new("from-session-2")?,
+        ])?))
+        .await?;
+
+    session1.close().await?;
+    session2.close().await?;
+
+    let ack1 = ticket1.await?;
+    let ack2 = ticket2.await?;
+
+    assert!(ack1.start.seq_num == 0 || ack2.start.seq_num == 0);
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn append_with_large_body(stream: &S2Stream) -> Result<(), S2Error> {
+    let large_body = "x".repeat(100_000);
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
+        large_body,
+    )?])?);
+
+    let ack = stream.append(input).await?;
+
+    assert_eq!(ack.start.seq_num, 0);
+    assert_eq!(ack.end.seq_num, 1);
+
+    let batch = stream.read(ReadInput::new()).await?;
+
+    assert_eq!(batch.records[0].body.len(), 100_000);
+
+    Ok(())
+}
+
+#[test_context(S2Stream)]
+#[tokio_shared_rt::test(shared)]
+async fn read_session_with_count_limit(stream: &S2Stream) -> Result<(), S2Error> {
+    let input = AppendInput::new(AppendRecordBatch::try_from_iter([
+        AppendRecord::new("lorem")?,
+        AppendRecord::new("ipsum")?,
+        AppendRecord::new("dolor")?,
+        AppendRecord::new("sit")?,
+        AppendRecord::new("amet")?,
+    ])?);
+
+    stream.append(input).await?;
+
+    let mut batches = stream
+        .read_session(
+            ReadInput::new()
+                .with_start(ReadStart::new().with_from(ReadFrom::SeqNum(0)))
+                .with_stop(ReadStop::new().with_limits(ReadLimits::new().with_count(3))),
+        )
+        .await?;
+
+    let batch = batches.next().await.expect("should have batch")?;
+
+    assert_eq!(batch.records.len(), 3);
+
+    Ok(())
+}
