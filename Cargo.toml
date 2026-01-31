@@ -34,15 +34,15 @@ reqwest = { version = "0.13.1", default-features = false, features = [
     "zstd",
     "rustls",
 ] }
-s2-api = "0.4.0"
-s2-common = "0.4.0"
+s2-api = "0.26.8"
+s2-common = "0.26.8"
 secrecy = "0.10.3"
 serde = { version = "1.0.228" }
 serde_json = "1.0.149"
 thiserror = "2.0.18"
 time = "0.3.46"
 tokio = { version = "1.49.0", features = ["time", "macros", "io-util"] }
-tokio-muxt = "0.6.0"
+tokio-muxt = "0.7.0"
 tokio-stream = "0.1.18"
 tokio-util = { version = "0.7.18", features = ["rt", "codec"] }
 tracing = "0.1.44"
