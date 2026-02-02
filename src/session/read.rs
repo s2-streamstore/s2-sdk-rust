@@ -108,7 +108,12 @@ pub async fn read_session(
                     }
 
                     if let Some(record) = batch.records.last() {
-                        start.seq_num = Some(record.seq_num + 1);
+                        start = ReadStart {
+                            seq_num: Some(record.seq_num + 1),
+                            timestamp: None,
+                            tail_offset: None,
+                            clamp: start.clamp,
+                        };
                     }
                     if let Some(count) = end.count.as_mut() {
                         *count = count.saturating_sub(batch.records.len())
