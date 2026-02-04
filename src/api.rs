@@ -518,17 +518,16 @@ pub enum ApiError {
 impl ApiError {
     pub fn is_retryable(&self) -> bool {
         match self {
-            Self::Server(status, _) => {
+            Self::Server(status, err_resp) => {
                 matches!(
                     *status,
                     StatusCode::REQUEST_TIMEOUT
-                        | StatusCode::CONFLICT
                         | StatusCode::TOO_MANY_REQUESTS
                         | StatusCode::INTERNAL_SERVER_ERROR
                         | StatusCode::BAD_GATEWAY
                         | StatusCode::SERVICE_UNAVAILABLE
                         | StatusCode::GATEWAY_TIMEOUT
-                )
+                ) || (*status == StatusCode::CONFLICT && err_resp.code == "transaction_conflict")
             }
             Self::Client(err) => err.is_retryable(),
             _ => false,
