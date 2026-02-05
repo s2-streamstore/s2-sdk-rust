@@ -1996,7 +1996,7 @@ impl From<IssueAccessTokenInput> for api::access::AccessTokenInfo {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Interval to accumulate over for timeseries metric sets.
 pub enum TimeseriesInterval {
     /// Minute.
@@ -2301,7 +2301,7 @@ impl From<GetStreamMetricsInput> for (BasinName, StreamName, api::metrics::Strea
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Unit in which metric values are measured.
 pub enum MetricUnit {
     /// Size in bytes.

@@ -65,7 +65,7 @@ impl AsyncTestContext for SharedS2Basin {
 pub struct S2Basin {
     s2: s2_sdk::S2,
     basin: s2_sdk::S2Basin,
-    basin_name: BasinName,
+    pub basin_name: BasinName,
 }
 
 impl Deref for S2Basin {
@@ -104,6 +104,16 @@ pub struct S2Stream {
     basin: SharedS2Basin,
     stream: s2_sdk::S2Stream,
     stream_name: StreamName,
+}
+
+impl S2Stream {
+    pub fn basin_name(&self) -> BasinName {
+        self.basin.basin_name.clone()
+    }
+
+    pub fn stream_name(&self) -> StreamName {
+        self.stream_name.clone()
+    }
 }
 
 impl Deref for S2Stream {
