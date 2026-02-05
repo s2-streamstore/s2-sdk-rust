@@ -34,8 +34,8 @@ reqwest = { version = "0.13.1", default-features = false, features = [
     "zstd",
     "rustls",
 ] }
-s2-api = "0.27.0"
-s2-common = "0.27.0"
+s2-api = "0.27"
+s2-common = "0.27"
 secrecy = "0.10.3"
 serde = { version = "1.0.228" }
 serde_json = "1.0.149"
