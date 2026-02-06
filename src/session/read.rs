@@ -50,10 +50,10 @@ pub async fn read_session(
     let retry_builder = retry_builder(&client.config.retry);
     let mut retry_backoffs = retry_builder.build();
     let baseline_wait = end.wait;
-    let start_time = Instant::now();
+    let mut tail_observed_at: Option<Instant> = None;
 
     let batches = loop {
-        end.wait = remaining_wait(baseline_wait, start_time);
+        end.wait = remaining_wait(baseline_wait, tail_observed_at);
         match session_inner(
             client.clone(),
             name.clone(),
@@ -81,7 +81,7 @@ pub async fn read_session(
 
         loop {
             if batches.is_none() {
-                end.wait = remaining_wait(baseline_wait, start_time);
+                end.wait = remaining_wait(baseline_wait, tail_observed_at);
                 match session_inner(
                     client.clone(),
                     name.clone(),
@@ -109,6 +109,10 @@ pub async fn read_session(
                 Some(Ok(batch)) => {
                     if retry_backoffs.attempts_used() > 0 {
                         retry_backoffs.reset();
+                    }
+
+                    if batch.tail.is_some() && tail_observed_at.is_none() {
+                        tail_observed_at = Some(Instant::now());
                     }
 
                     if let Some(record) = batch.records.last() {
@@ -168,8 +172,16 @@ async fn session_inner(
     }))
 }
 
-fn remaining_wait(baseline_wait: Option<u32>, start_time: Instant) -> Option<u32> {
-    baseline_wait.map(|w| w.saturating_sub(start_time.elapsed().as_secs() as u32))
+/// Compute the remaining wait budget for a retry.
+///
+/// During backfill (tail not yet observed), the full wait is sent.
+/// Once tailing, the wait budget is depleted based on time since
+/// the tail was first observed.
+fn remaining_wait(baseline_wait: Option<u32>, tail_observed_at: Option<Instant>) -> Option<u32> {
+    baseline_wait.map(|w| match tail_observed_at {
+        Some(since) => w.saturating_sub(since.elapsed().as_secs() as u32),
+        None => w,
+    })
 }
 
 async fn can_retry(err: &ReadSessionError, backoffs: &mut RetryBackoff) -> bool {
