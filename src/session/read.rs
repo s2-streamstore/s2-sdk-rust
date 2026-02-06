@@ -3,7 +3,7 @@ use std::{pin::Pin, time::Duration};
 use async_stream::{stream, try_stream};
 use futures::StreamExt;
 use s2_api::v1::stream::{ReadEnd, ReadStart};
-use tokio::time::{timeout, Instant};
+use tokio::time::{Instant, timeout};
 use tracing::debug;
 
 use crate::{
