@@ -177,7 +177,7 @@ async fn session_inner(
 /// During catchup (tail not yet observed), the full wait is sent.
 /// Once tailing, the wait budget is depleted based on time since
 /// the last batch with tail info, which approximates how long the
-/// server has been in its idle-wait state.
+/// server has been in its long polling state.
 fn remaining_wait(baseline_wait: Option<u32>, last_tail_at: Option<Instant>) -> Option<u32> {
     baseline_wait.map(|w| match last_tail_at {
         Some(since) => w.saturating_sub(since.elapsed().as_secs() as u32),
