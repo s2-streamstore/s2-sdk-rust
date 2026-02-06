@@ -3,7 +3,7 @@ use std::{pin::Pin, time::Duration};
 use async_stream::{stream, try_stream};
 use futures::StreamExt;
 use s2_api::v1::stream::{ReadEnd, ReadStart};
-use tokio::time::timeout;
+use tokio::time::{Instant, timeout};
 use tracing::debug;
 
 use crate::{
@@ -49,8 +49,11 @@ pub async fn read_session(
 ) -> Result<Streaming<ReadBatch>, ReadSessionError> {
     let retry_builder = retry_builder(&client.config.retry);
     let mut retry_backoffs = retry_builder.build();
+    let baseline_wait = end.wait;
+    let mut last_tail_at: Option<Instant> = None;
 
     let batches = loop {
+        end.wait = remaining_wait(baseline_wait, last_tail_at);
         match session_inner(
             client.clone(),
             name.clone(),
@@ -78,6 +81,7 @@ pub async fn read_session(
 
         loop {
             if batches.is_none() {
+                end.wait = remaining_wait(baseline_wait, last_tail_at);
                 match session_inner(
                     client.clone(),
                     name.clone(),
@@ -105,6 +109,10 @@ pub async fn read_session(
                 Some(Ok(batch)) => {
                     if retry_backoffs.attempts_used() > 0 {
                         retry_backoffs.reset();
+                    }
+
+                    if batch.tail.is_some() {
+                        last_tail_at = Some(Instant::now());
                     }
 
                     if let Some(record) = batch.records.last() {
@@ -162,6 +170,19 @@ async fn session_inner(
             }
         }
     }))
+}
+
+/// Compute the remaining wait budget for a retry.
+///
+/// During catchup (tail not yet observed), the full wait is sent.
+/// Once tailing, the wait budget is depleted based on time since
+/// the last batch with tail info, which approximates how long the
+/// server has been in its long polling state.
+fn remaining_wait(baseline_wait: Option<u32>, last_tail_at: Option<Instant>) -> Option<u32> {
+    baseline_wait.map(|w| match last_tail_at {
+        Some(since) => w.saturating_sub(since.elapsed().as_secs() as u32),
+        None => w,
+    })
 }
 
 async fn can_retry(err: &ReadSessionError, backoffs: &mut RetryBackoff) -> bool {
