@@ -50,10 +50,10 @@ pub async fn read_session(
     let retry_builder = retry_builder(&client.config.retry);
     let mut retry_backoffs = retry_builder.build();
     let baseline_wait = end.wait;
-    let mut tail_observed_at: Option<Instant> = None;
+    let mut last_tail_at: Option<Instant> = None;
 
     let batches = loop {
-        end.wait = remaining_wait(baseline_wait, tail_observed_at);
+        end.wait = remaining_wait(baseline_wait, last_tail_at);
         match session_inner(
             client.clone(),
             name.clone(),
@@ -81,7 +81,7 @@ pub async fn read_session(
 
         loop {
             if batches.is_none() {
-                end.wait = remaining_wait(baseline_wait, tail_observed_at);
+                end.wait = remaining_wait(baseline_wait, last_tail_at);
                 match session_inner(
                     client.clone(),
                     name.clone(),
@@ -111,8 +111,8 @@ pub async fn read_session(
                         retry_backoffs.reset();
                     }
 
-                    if batch.tail.is_some() && tail_observed_at.is_none() {
-                        tail_observed_at = Some(Instant::now());
+                    if batch.tail.is_some() {
+                        last_tail_at = Some(Instant::now());
                     }
 
                     if let Some(record) = batch.records.last() {
@@ -176,9 +176,10 @@ async fn session_inner(
 ///
 /// During backfill (tail not yet observed), the full wait is sent.
 /// Once tailing, the wait budget is depleted based on time since
-/// the tail was first observed.
-fn remaining_wait(baseline_wait: Option<u32>, tail_observed_at: Option<Instant>) -> Option<u32> {
-    baseline_wait.map(|w| match tail_observed_at {
+/// the last batch with tail info, which approximates how long the
+/// server has been in its idle-wait state.
+fn remaining_wait(baseline_wait: Option<u32>, last_tail_at: Option<Instant>) -> Option<u32> {
+    baseline_wait.map(|w| match last_tail_at {
         Some(since) => w.saturating_sub(since.elapsed().as_secs() as u32),
         None => w,
     })
