@@ -3,7 +3,7 @@ use std::{pin::Pin, time::Duration};
 use async_stream::{stream, try_stream};
 use futures::StreamExt;
 use s2_api::v1::stream::{ReadEnd, ReadStart};
-use tokio::time::timeout;
+use tokio::time::{timeout, Instant};
 use tracing::debug;
 
 use crate::{
@@ -49,8 +49,11 @@ pub async fn read_session(
 ) -> Result<Streaming<ReadBatch>, ReadSessionError> {
     let retry_builder = retry_builder(&client.config.retry);
     let mut retry_backoffs = retry_builder.build();
+    let baseline_wait = end.wait;
+    let start_time = Instant::now();
 
     let batches = loop {
+        end.wait = remaining_wait(baseline_wait, start_time);
         match session_inner(
             client.clone(),
             name.clone(),
@@ -78,6 +81,7 @@ pub async fn read_session(
 
         loop {
             if batches.is_none() {
+                end.wait = remaining_wait(baseline_wait, start_time);
                 match session_inner(
                     client.clone(),
                     name.clone(),
@@ -162,6 +166,10 @@ async fn session_inner(
             }
         }
     }))
+}
+
+fn remaining_wait(baseline_wait: Option<u32>, start_time: Instant) -> Option<u32> {
+    baseline_wait.map(|w| w.saturating_sub(start_time.elapsed().as_secs() as u32))
 }
 
 async fn can_retry(err: &ReadSessionError, backoffs: &mut RetryBackoff) -> bool {
