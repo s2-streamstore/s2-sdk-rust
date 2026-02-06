@@ -174,7 +174,7 @@ async fn session_inner(
 
 /// Compute the remaining wait budget for a retry.
 ///
-/// During backfill (tail not yet observed), the full wait is sent.
+/// During catchup (tail not yet observed), the full wait is sent.
 /// Once tailing, the wait budget is depleted based on time since
 /// the last batch with tail info, which approximates how long the
 /// server has been in its idle-wait state.
