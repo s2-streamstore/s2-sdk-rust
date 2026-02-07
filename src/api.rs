@@ -576,19 +576,6 @@ impl From<reqwest::Error> for ClientError {
             Self::Connect(err_msg)
         } else if err.is_timeout() {
             Self::Timeout(err_msg)
-        } else if err.is_request() {
-            if let Some(hyper_err) = source_err::<hyper::Error>(&err) {
-                let hyper_err_msg = format!("{hyper_err} -> {err_msg}");
-                if hyper_err.is_incomplete_message() {
-                    Self::ConnectionClosedEarly(hyper_err_msg)
-                } else if hyper_err.is_canceled() {
-                    Self::RequestCanceled(hyper_err_msg)
-                } else {
-                    Self::Others(hyper_err_msg)
-                }
-            } else {
-                Self::Others(err_msg)
-            }
         } else if let Some(io_err) = source_err::<std::io::Error>(&err) {
             let io_err_msg = format!("{io_err} -> {err_msg}");
             if io_err.kind() == std::io::ErrorKind::UnexpectedEof {
@@ -601,6 +588,19 @@ impl From<reqwest::Error> for ClientError {
                 Self::ConnectionRefused(io_err_msg)
             } else {
                 Self::Others(io_err_msg)
+            }
+        } else if err.is_request() {
+            if let Some(hyper_err) = source_err::<hyper::Error>(&err) {
+                let hyper_err_msg = format!("{hyper_err} -> {err_msg}");
+                if hyper_err.is_incomplete_message() {
+                    Self::ConnectionClosedEarly(hyper_err_msg)
+                } else if hyper_err.is_canceled() {
+                    Self::RequestCanceled(hyper_err_msg)
+                } else {
+                    Self::Others(hyper_err_msg)
+                }
+            } else {
+                Self::Others(err_msg)
             }
         } else {
             Self::Others(err_msg)
