@@ -76,6 +76,12 @@ impl Deref for S2Basin {
     }
 }
 
+impl S2Basin {
+    pub fn basin_name(&self) -> &BasinName {
+        &self.basin_name
+    }
+}
+
 impl AsyncTestContext for S2Basin {
     async fn setup() -> Self {
         let config = default_s2_config().expect("valid S2 config");
@@ -111,6 +117,16 @@ impl Deref for S2Stream {
 
     fn deref(&self) -> &Self::Target {
         &self.stream
+    }
+}
+
+impl S2Stream {
+    pub fn basin_name(&self) -> &BasinName {
+        self.basin.basin_name()
+    }
+
+    pub fn stream_name(&self) -> &StreamName {
+        &self.stream_name
     }
 }
 
