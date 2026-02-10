@@ -3,7 +3,7 @@ mod common;
 use std::time::Duration;
 
 use assert_matches::assert_matches;
-use common::{s2, S2Stream};
+use common::{S2Stream, s2};
 use s2_sdk::types::*;
 use test_context::test_context;
 use time::OffsetDateTime;
@@ -33,7 +33,6 @@ fn time_range_and_interval(
     }
 }
 
-
 fn invalid_time_ranges(now: u32) -> [(u32, u32); 3] {
     [
         (now, now.saturating_sub(3600)),
@@ -53,7 +52,8 @@ async fn append_sample(stream: &S2Stream) -> Result<(), S2Error> {
 async fn read_sample(stream: &S2Stream) -> Result<(), S2Error> {
     let _ = stream
         .read(
-            ReadInput::new().with_stop(ReadStop::new().with_limits(ReadLimits::new().with_count(1))),
+            ReadInput::new()
+                .with_stop(ReadStop::new().with_limits(ReadLimits::new().with_count(1))),
         )
         .await?;
     Ok(())
@@ -67,9 +67,9 @@ async fn account_metrics_active_basins(stream: &S2Stream) -> Result<(), S2Error>
     let client = s2();
     let metrics = tokio::time::timeout(
         METRICS_TIMEOUT,
-        client.get_account_metrics(GetAccountMetricsInput::new(
-            AccountMetricSet::ActiveBasins(time_range(1)),
-        )),
+        client.get_account_metrics(GetAccountMetricsInput::new(AccountMetricSet::ActiveBasins(
+            time_range(1),
+        ))),
     )
     .await
     .expect("account metrics request timed out")?;
@@ -81,17 +81,15 @@ async fn account_metrics_active_basins(stream: &S2Stream) -> Result<(), S2Error>
 
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
-async fn account_metrics_account_ops_default_interval(
-    stream: &S2Stream,
-) -> Result<(), S2Error> {
+async fn account_metrics_account_ops_default_interval(stream: &S2Stream) -> Result<(), S2Error> {
     append_sample(stream).await?;
 
     let client = s2();
     let metrics = tokio::time::timeout(
         METRICS_TIMEOUT,
-        client.get_account_metrics(GetAccountMetricsInput::new(
-            AccountMetricSet::AccountOps(time_range_and_interval(1, None)),
-        )),
+        client.get_account_metrics(GetAccountMetricsInput::new(AccountMetricSet::AccountOps(
+            time_range_and_interval(1, None),
+        ))),
     )
     .await
     .expect("account metrics request timed out")?;
@@ -110,20 +108,15 @@ async fn account_metrics_account_ops_default_interval(
 
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
-async fn account_metrics_account_ops_minute_interval(
-    stream: &S2Stream,
-) -> Result<(), S2Error> {
+async fn account_metrics_account_ops_minute_interval(stream: &S2Stream) -> Result<(), S2Error> {
     append_sample(stream).await?;
 
     let client = s2();
     let metrics = tokio::time::timeout(
         METRICS_TIMEOUT,
-        client.get_account_metrics(GetAccountMetricsInput::new(
-            AccountMetricSet::AccountOps(time_range_and_interval(
-                1,
-                Some(TimeseriesInterval::Minute),
-            )),
-        )),
+        client.get_account_metrics(GetAccountMetricsInput::new(AccountMetricSet::AccountOps(
+            time_range_and_interval(1, Some(TimeseriesInterval::Minute)),
+        ))),
     )
     .await
     .expect("account metrics request timed out")?;
@@ -147,12 +140,9 @@ async fn account_metrics_account_ops_hour_interval(stream: &S2Stream) -> Result<
     let client = s2();
     let metrics = tokio::time::timeout(
         METRICS_TIMEOUT,
-        client.get_account_metrics(GetAccountMetricsInput::new(
-            AccountMetricSet::AccountOps(time_range_and_interval(
-                24,
-                Some(TimeseriesInterval::Hour),
-            )),
-        )),
+        client.get_account_metrics(GetAccountMetricsInput::new(AccountMetricSet::AccountOps(
+            time_range_and_interval(24, Some(TimeseriesInterval::Hour)),
+        ))),
     )
     .await
     .expect("account metrics request timed out")?;
@@ -176,12 +166,9 @@ async fn account_metrics_account_ops_day_interval(stream: &S2Stream) -> Result<(
     let client = s2();
     let metrics = tokio::time::timeout(
         METRICS_TIMEOUT,
-        client.get_account_metrics(GetAccountMetricsInput::new(
-            AccountMetricSet::AccountOps(time_range_and_interval(
-                24 * 7,
-                Some(TimeseriesInterval::Day),
-            )),
-        )),
+        client.get_account_metrics(GetAccountMetricsInput::new(AccountMetricSet::AccountOps(
+            time_range_and_interval(24 * 7, Some(TimeseriesInterval::Day)),
+        ))),
     )
     .await
     .expect("account metrics request timed out")?;
@@ -205,9 +192,9 @@ async fn account_metrics_empty_time_range(stream: &S2Stream) -> Result<(), S2Err
     let client = s2();
     let metrics = tokio::time::timeout(
         METRICS_TIMEOUT,
-        client.get_account_metrics(GetAccountMetricsInput::new(
-            AccountMetricSet::ActiveBasins(TimeRange::new(0, 3600)),
-        )),
+        client.get_account_metrics(GetAccountMetricsInput::new(AccountMetricSet::ActiveBasins(
+            TimeRange::new(0, 3600),
+        ))),
     )
     .await
     .expect("account metrics request timed out")?;
@@ -233,9 +220,11 @@ async fn basin_metrics_storage(stream: &S2Stream) -> Result<(), S2Error> {
     .await
     .expect("basin metrics request timed out")?;
 
-    assert!(metrics.iter().all(|m| {
-        matches!(m, Metric::Gauge(g) if g.unit == MetricUnit::Bytes)
-    }));
+    assert!(
+        metrics
+            .iter()
+            .all(|m| { matches!(m, Metric::Gauge(g) if g.unit == MetricUnit::Bytes) })
+    );
 
     Ok(())
 }
@@ -256,9 +245,11 @@ async fn basin_metrics_append_ops(stream: &S2Stream) -> Result<(), S2Error> {
     .await
     .expect("basin metrics request timed out")?;
 
-    assert!(metrics.iter().all(|m| {
-        matches!(m, Metric::Accumulation(acc) if acc.unit == MetricUnit::Operations)
-    }));
+    assert!(
+        metrics.iter().all(|m| {
+            matches!(m, Metric::Accumulation(acc) if acc.unit == MetricUnit::Operations)
+        })
+    );
 
     Ok(())
 }
@@ -280,9 +271,11 @@ async fn basin_metrics_read_ops(stream: &S2Stream) -> Result<(), S2Error> {
     .await
     .expect("basin metrics request timed out")?;
 
-    assert!(metrics.iter().all(|m| {
-        matches!(m, Metric::Accumulation(acc) if acc.unit == MetricUnit::Operations)
-    }));
+    assert!(
+        metrics.iter().all(|m| {
+            matches!(m, Metric::Accumulation(acc) if acc.unit == MetricUnit::Operations)
+        })
+    );
 
     Ok(())
 }
@@ -304,9 +297,11 @@ async fn basin_metrics_read_throughput(stream: &S2Stream) -> Result<(), S2Error>
     .await
     .expect("basin metrics request timed out")?;
 
-    assert!(metrics.iter().all(|m| {
-        matches!(m, Metric::Accumulation(acc) if acc.unit == MetricUnit::Bytes)
-    }));
+    assert!(
+        metrics
+            .iter()
+            .all(|m| { matches!(m, Metric::Accumulation(acc) if acc.unit == MetricUnit::Bytes) })
+    );
 
     Ok(())
 }
@@ -327,9 +322,11 @@ async fn basin_metrics_append_throughput(stream: &S2Stream) -> Result<(), S2Erro
     .await
     .expect("basin metrics request timed out")?;
 
-    assert!(metrics.iter().all(|m| {
-        matches!(m, Metric::Accumulation(acc) if acc.unit == MetricUnit::Bytes)
-    }));
+    assert!(
+        metrics
+            .iter()
+            .all(|m| { matches!(m, Metric::Accumulation(acc) if acc.unit == MetricUnit::Bytes) })
+    );
 
     Ok(())
 }
@@ -350,9 +347,11 @@ async fn basin_metrics_basin_ops(stream: &S2Stream) -> Result<(), S2Error> {
     .await
     .expect("basin metrics request timed out")?;
 
-    assert!(metrics.iter().all(|m| {
-        matches!(m, Metric::Accumulation(acc) if acc.unit == MetricUnit::Operations)
-    }));
+    assert!(
+        metrics.iter().all(|m| {
+            matches!(m, Metric::Accumulation(acc) if acc.unit == MetricUnit::Operations)
+        })
+    );
 
     Ok(())
 }
@@ -374,13 +373,14 @@ async fn stream_metrics_storage(stream: &S2Stream) -> Result<(), S2Error> {
     .await
     .expect("stream metrics request timed out")?;
 
-    assert!(metrics.iter().all(|m| {
-        matches!(m, Metric::Gauge(g) if g.unit == MetricUnit::Bytes)
-    }));
+    assert!(
+        metrics
+            .iter()
+            .all(|m| { matches!(m, Metric::Gauge(g) if g.unit == MetricUnit::Bytes) })
+    );
 
     Ok(())
 }
-
 
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
@@ -508,10 +508,7 @@ async fn basin_metrics_all_sets(stream: &S2Stream) -> Result<(), S2Error> {
     for set in sets {
         let _ = tokio::time::timeout(
             METRICS_TIMEOUT,
-            client.get_basin_metrics(GetBasinMetricsInput::new(
-                stream.basin_name().clone(),
-                set,
-            )),
+            client.get_basin_metrics(GetBasinMetricsInput::new(stream.basin_name().clone(), set)),
         )
         .await
         .expect("basin metrics request timed out")?;
