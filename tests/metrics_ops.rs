@@ -124,28 +124,45 @@ async fn account_metrics_active_basins(stream: &S2Stream) -> Result<(), S2Error>
     append_sample(stream).await?;
 
     let client = s2();
-    let metrics = poll_metrics(
-        FAST_METRICS_POLL_MAX,
-        FAST_METRICS_POLL_INTERVAL,
-        || async {
-            tokio::time::timeout(
-                METRICS_TIMEOUT,
-                client.get_account_metrics(GetAccountMetricsInput::new(
-                    AccountMetricSet::ActiveBasins(time_range(1)),
-                )),
-            )
-            .await
-            .expect("account metrics request timed out")
-        },
-        |metrics| {
-            metrics
-                .iter()
-                .any(|m| matches!(m, Metric::Label(l) if !l.values.is_empty()))
-        },
-    )
-    .await?;
+    let long_metrics = long_metrics_enabled();
+    let metrics = if long_metrics {
+        poll_metrics(
+            STORAGE_METRICS_POLL_MAX,
+            STORAGE_METRICS_POLL_INTERVAL,
+            || async {
+                tokio::time::timeout(
+                    METRICS_TIMEOUT,
+                    client.get_account_metrics(GetAccountMetricsInput::new(
+                        AccountMetricSet::ActiveBasins(time_range(1)),
+                    )),
+                )
+                .await
+                .expect("account metrics request timed out")
+            },
+            |metrics| {
+                metrics
+                    .iter()
+                    .any(|m| matches!(m, Metric::Label(l) if !l.values.is_empty()))
+            },
+        )
+        .await?
+    } else {
+        tokio::time::timeout(
+            METRICS_TIMEOUT,
+            client.get_account_metrics(GetAccountMetricsInput::new(
+                AccountMetricSet::ActiveBasins(time_range(1)),
+            )),
+        )
+        .await
+        .expect("account metrics request timed out")?
+    };
 
     assert!(metrics.iter().all(|m| matches!(m, Metric::Label(_))));
+    if long_metrics {
+        assert!(metrics
+            .iter()
+            .any(|m| matches!(m, Metric::Label(l) if !l.values.is_empty())));
+    }
 
     Ok(())
 }
