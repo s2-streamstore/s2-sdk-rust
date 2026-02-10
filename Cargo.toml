@@ -18,7 +18,7 @@ name = "create_basin"
 doc-scrape-examples = true
 
 [dependencies]
-async-compression = "0.4.37"
+async-compression = "0.4.39"
 async-stream = "0.3.6"
 bytes = "1.11.0"
 futures = "0.3.31"
@@ -26,7 +26,7 @@ http = "1.4.0"
 hyper = "1.8.1"
 prost = "0.14.3"
 rand = "0.9.2"
-reqwest = { version = "0.13.1", default-features = false, features = [
+reqwest = { version = "0.13.2", default-features = false, features = [
     "json",
     "stream",
     "query",
@@ -40,7 +40,7 @@ secrecy = "0.10.3"
 serde = { version = "1.0.228" }
 serde_json = "1.0.149"
 thiserror = "2.0.18"
-time = "0.3.46"
+time = "0.3.47"
 tokio = { version = "1.49.0", features = ["time", "macros", "io-util"] }
 tokio-muxt = "0.7.0"
 tokio-stream = "0.1.18"
