@@ -159,9 +159,11 @@ async fn account_metrics_active_basins(stream: &S2Stream) -> Result<(), S2Error>
 
     assert!(metrics.iter().all(|m| matches!(m, Metric::Label(_))));
     if long_metrics {
-        assert!(metrics
-            .iter()
-            .any(|m| matches!(m, Metric::Label(l) if !l.values.is_empty())));
+        assert!(
+            metrics
+                .iter()
+                .any(|m| matches!(m, Metric::Label(l) if !l.values.is_empty()))
+        );
     }
 
     Ok(())
