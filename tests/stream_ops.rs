@@ -338,12 +338,12 @@ async fn read_with_bytes_over_max_clamps(stream: &S2Stream) -> Result<(), S2Erro
     )?])?);
     stream.append(input).await?;
 
-    let batch = stream
-        .read(
-            ReadInput::new()
-                .with_stop(ReadStop::new().with_limits(ReadLimits::new().with_bytes(2 * 1024 * 1024))),
-        )
-        .await?;
+    let batch =
+        stream
+            .read(ReadInput::new().with_stop(
+                ReadStop::new().with_limits(ReadLimits::new().with_bytes(2 * 1024 * 1024)),
+            ))
+            .await?;
 
     let read_bytes: usize = batch.records.iter().map(|r| r.metered_bytes()).sum();
     assert!(read_bytes <= 1024 * 1024);
@@ -506,9 +506,7 @@ async fn append_session_with_mismatched_seq_num_errors(stream: &S2Stream) -> Res
 
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
-async fn append_with_matching_fencing_token_succeeds(
-    stream: &S2Stream,
-) -> Result<(), S2Error> {
+async fn append_with_matching_fencing_token_succeeds(stream: &S2Stream) -> Result<(), S2Error> {
     let fencing_token = FencingToken::generate(30).expect("valid fencing token");
     let input = AppendInput::new(AppendRecordBatch::try_from_iter([CommandRecord::fence(
         fencing_token.clone(),
@@ -1041,10 +1039,8 @@ async fn append_without_timestamp_client_require_errors(
     basin: &SharedS2Basin,
 ) -> Result<(), S2Error> {
     let stream_name = unique_stream_name();
-    let config =
-        StreamConfig::new().with_timestamping(TimestampingConfig::new().with_mode(
-            TimestampingMode::ClientRequire,
-        ));
+    let config = StreamConfig::new()
+        .with_timestamping(TimestampingConfig::new().with_mode(TimestampingMode::ClientRequire));
 
     basin
         .create_stream(CreateStreamInput::new(stream_name.clone()).with_config(config))
@@ -1124,9 +1120,7 @@ async fn append_with_future_timestamp_uncapped_true_preserves(
 
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
-async fn append_with_past_timestamp_adjusts_monotonic(
-    stream: &S2Stream,
-) -> Result<(), S2Error> {
+async fn append_with_past_timestamp_adjusts_monotonic(stream: &S2Stream) -> Result<(), S2Error> {
     let base = OffsetDateTime::now_utc().unix_timestamp() as u64;
     let first_timestamp = base + 10;
     let past_timestamp = base;
@@ -1150,9 +1144,7 @@ async fn append_with_past_timestamp_adjusts_monotonic(
 
 #[test_context(SharedS2Basin)]
 #[tokio_shared_rt::test(shared)]
-async fn append_to_nonexistent_stream_errors(
-    basin: &SharedS2Basin,
-) -> Result<(), S2Error> {
+async fn append_to_nonexistent_stream_errors(basin: &SharedS2Basin) -> Result<(), S2Error> {
     let stream = basin.stream(unique_stream_name());
     let input = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
         "lorem",
@@ -1172,11 +1164,8 @@ async fn append_to_nonexistent_stream_errors(
 
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
-async fn append_invalid_command_header_errors(
-    stream: &S2Stream,
-) -> Result<(), S2Error> {
-    let record = AppendRecord::new("lorem")?
-        .with_headers([Header::new("", "not-a-command")])?;
+async fn append_invalid_command_header_errors(stream: &S2Stream) -> Result<(), S2Error> {
+    let record = AppendRecord::new("lorem")?.with_headers([Header::new("", "not-a-command")])?;
     let input = AppendInput::new(AppendRecordBatch::try_from_iter([record])?);
 
     let result = stream.append(input).await;
@@ -1196,10 +1185,8 @@ async fn append_invalid_command_header_errors(
 async fn append_invalid_command_header_with_extra_headers_errors(
     stream: &S2Stream,
 ) -> Result<(), S2Error> {
-    let record = AppendRecord::new("lorem")?.with_headers([
-        Header::new("", "fence"),
-        Header::new("extra", "value"),
-    ])?;
+    let record = AppendRecord::new("lorem")?
+        .with_headers([Header::new("", "fence"), Header::new("extra", "value")])?;
     let input = AppendInput::new(AppendRecordBatch::try_from_iter([record])?);
 
     let result = stream.append(input).await;
@@ -1226,8 +1213,9 @@ async fn fence_set_and_clear_token(stream: &S2Stream) -> Result<(), S2Error> {
 
     assert_eq!(ack_1.start.seq_num, 0);
 
+    let clear_token: FencingToken = "".parse().expect("valid fencing token");
     let clear_input = AppendInput::new(AppendRecordBatch::try_from_iter([CommandRecord::fence(
-        FencingToken::default(),
+        clear_token,
     )
     .into()])?);
     let ack_2 = stream.append(clear_input).await?;
@@ -1254,8 +1242,9 @@ async fn trim_command_is_accepted(stream: &S2Stream) -> Result<(), S2Error> {
     ])?);
     let _ = stream.append(input).await?;
 
-    let trim_input =
-        AppendInput::new(AppendRecordBatch::try_from_iter([CommandRecord::trim(2).into()])?);
+    let trim_input = AppendInput::new(AppendRecordBatch::try_from_iter([
+        CommandRecord::trim(2).into()
+    ])?);
     let ack = stream.append(trim_input).await?;
 
     assert!(ack.end.seq_num > 0);
@@ -1271,9 +1260,10 @@ async fn trim_to_future_seq_num_noop(stream: &S2Stream) -> Result<(), S2Error> {
     )?])?);
     let _ = stream.append(input).await?;
 
-    let trim_input = AppendInput::new(AppendRecordBatch::try_from_iter([
-        CommandRecord::trim(999_999).into(),
-    ])?);
+    let trim_input = AppendInput::new(AppendRecordBatch::try_from_iter([CommandRecord::trim(
+        999_999,
+    )
+    .into()])?);
     let ack = stream.append(trim_input).await?;
 
     assert!(ack.end.seq_num > 0);
@@ -1283,9 +1273,7 @@ async fn trim_to_future_seq_num_noop(stream: &S2Stream) -> Result<(), S2Error> {
 
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
-async fn read_empty_stream_with_wait_returns_empty(
-    stream: &S2Stream,
-) -> Result<(), S2Error> {
+async fn read_empty_stream_with_wait_returns_empty(stream: &S2Stream) -> Result<(), S2Error> {
     let batch = stream
         .read(ReadInput::new().with_stop(ReadStop::new().with_wait(1)))
         .await?;
@@ -1350,30 +1338,18 @@ async fn read_from_tail_offset_variants(stream: &S2Stream) -> Result<(), S2Error
     let _ = stream.append(input).await?;
 
     let result = stream
-        .read(
-            ReadInput::new()
-                .with_start(ReadStart::new().with_from(ReadFrom::TailOffset(0))),
-        )
+        .read(ReadInput::new().with_start(ReadStart::new().with_from(ReadFrom::TailOffset(0))))
         .await;
-    assert_matches!(
-        result,
-        Err(S2Error::ReadUnwritten(StreamPosition { .. }))
-    );
+    assert_matches!(result, Err(S2Error::ReadUnwritten(StreamPosition { .. })));
 
     let batch = stream
-        .read(
-            ReadInput::new()
-                .with_start(ReadStart::new().with_from(ReadFrom::TailOffset(3))),
-        )
+        .read(ReadInput::new().with_start(ReadStart::new().with_from(ReadFrom::TailOffset(3))))
         .await?;
     assert_eq!(batch.records.len(), 3);
     assert_eq!(batch.records[0].seq_num, 2);
 
     let batch = stream
-        .read(
-            ReadInput::new()
-                .with_start(ReadStart::new().with_from(ReadFrom::TailOffset(999))),
-        )
+        .read(ReadInput::new().with_start(ReadStart::new().with_from(ReadFrom::TailOffset(999))))
         .await?;
     assert_eq!(batch.records[0].seq_num, 0);
 
@@ -1392,9 +1368,7 @@ async fn read_until_timestamp(stream: &S2Stream) -> Result<(), S2Error> {
     let _ = stream.append(input).await?;
 
     let batch = stream
-        .read(
-            ReadInput::new().with_stop(ReadStop::new().with_until(..(base_timestamp + 2))),
-        )
+        .read(ReadInput::new().with_stop(ReadStop::new().with_until(..(base_timestamp + 2))))
         .await?;
 
     assert_eq!(batch.records.len(), 2);
