@@ -80,16 +80,16 @@ fn long_metrics_enabled() -> bool {
     std::env::var("S2_METRICS_LONG").is_ok()
 }
 
-async fn poll_metrics<T, Fetch, Fut, Ready>(
+async fn poll_metrics<Fetch, Fut, Ready>(
     timeout: Duration,
     interval: Duration,
     mut fetch: Fetch,
     mut ready: Ready,
-) -> Result<T, S2Error>
+) -> Result<Vec<Metric>, S2Error>
 where
     Fetch: FnMut() -> Fut,
-    Fut: Future<Output = Result<T, S2Error>>,
-    Ready: FnMut(&T) -> bool,
+    Fut: Future<Output = Result<Vec<Metric>, S2Error>>,
+    Ready: FnMut(&[Metric]) -> bool,
 {
     let deadline = tokio::time::Instant::now() + timeout;
     let mut last_err: Option<S2Error> = None;
