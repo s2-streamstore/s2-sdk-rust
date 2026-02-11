@@ -1,18 +1,17 @@
+use crate::client::{self, StreamingResponse, UnaryResponse};
 use crate::retry::{RetryBackoff, RetryBackoffBuilder};
 use crate::types::{
     AccessTokenId, BasinAuthority, BasinName, Compression, RetryConfig, S2Config, S2Endpoints,
     StreamName,
 };
-use async_compression::Level;
-use async_compression::tokio::write::{GzipEncoder, ZstdEncoder};
 use async_stream::try_stream;
+use async_trait::async_trait;
 use bytes::BytesMut;
 use futures::{Stream, StreamExt};
 use http::header::InvalidHeaderValue;
-use http::header::{ACCEPT, AUTHORIZATION, CONTENT_ENCODING, CONTENT_TYPE};
+use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use http::{HeaderMap, HeaderValue, StatusCode};
 use prost::{self, Message};
-use reqwest::{Request, Response};
 use s2_api::v1::access::{
     AccessTokenInfo, IssueAccessTokenResponse, ListAccessTokensRequest, ListAccessTokensResponse,
 };
@@ -32,7 +31,6 @@ use std::ops::Deref;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::AsyncWriteExt;
 use tokio_util::codec::Decoder;
 use tracing::{debug, warn};
 use url::Url;
@@ -43,7 +41,6 @@ const ACCEPT_PROTO: &str = "application/protobuf";
 const S2_REQUEST_TOKEN: &str = "s2-request-token";
 const S2_BASIN: &str = "s2-basin";
 const RETRY_AFTER_MS_HEADER: &str = "retry-after-ms";
-const SESSION_REQUEST_TIMEOUT: Duration = Duration::from_secs(u64::MAX);
 
 #[derive(Debug, Clone)]
 pub struct AccountClient {
@@ -53,14 +50,13 @@ pub struct AccountClient {
 }
 
 impl AccountClient {
-    pub fn init(config: S2Config) -> Result<Self, ApiError> {
+    pub fn init(config: S2Config, client: BaseClient) -> Self {
         let base_url = base_url(&config.endpoints, ClientKind::Account);
-        let client = BaseClient::init(&config)?;
-        Ok(Self {
+        Self {
             client,
             config: Arc::new(config),
             base_url,
-        })
+        }
     }
 
     pub fn basin_client(&self, name: BasinName) -> BasinClient {
@@ -74,7 +70,7 @@ impl AccountClient {
         let url = self.base_url.join("v1/access-tokens")?;
         let request = self.get(url).query(&request).build()?;
         let response = self.request(request).send().await?;
-        Ok(response.json::<ListAccessTokensResponse>().await?)
+        Ok(response.json::<ListAccessTokensResponse>()?)
     }
 
     pub async fn issue_access_token(
@@ -84,7 +80,7 @@ impl AccountClient {
         let url = self.base_url.join("v1/access-tokens")?;
         let request = self.post(url).json(&info).build()?;
         let response = self.request(request).send().await?;
-        Ok(response.json::<IssueAccessTokenResponse>().await?)
+        Ok(response.json::<IssueAccessTokenResponse>()?)
     }
 
     pub async fn revoke_access_token(&self, id: AccessTokenId) -> Result<(), ApiError> {
@@ -103,7 +99,7 @@ impl AccountClient {
         let url = self.base_url.join("v1/basins")?;
         let request = self.get(url).query(&request).build()?;
         let response = self.request(request).send().await?;
-        Ok(response.json::<ListBasinsResponse>().await?)
+        Ok(response.json::<ListBasinsResponse>()?)
     }
 
     pub async fn create_basin(
@@ -118,14 +114,14 @@ impl AccountClient {
             .json(&request)
             .build()?;
         let response = self.request(request).send().await?;
-        Ok(response.json::<BasinInfo>().await?)
+        Ok(response.json::<BasinInfo>()?)
     }
 
     pub async fn get_basin_config(&self, name: BasinName) -> Result<BasinConfig, ApiError> {
         let url = self.base_url.join(&format!("v1/basins/{name}"))?;
         let request = self.get(url).build()?;
         let response = self.request(request).send().await?;
-        Ok(response.json::<BasinConfig>().await?)
+        Ok(response.json::<BasinConfig>()?)
     }
 
     pub async fn reconfigure_basin(
@@ -136,7 +132,7 @@ impl AccountClient {
         let url = self.base_url.join(&format!("v1/basins/{name}"))?;
         let request = self.patch(url).json(&config).build()?;
         let response = self.request(request).send().await?;
-        Ok(response.json::<BasinConfig>().await?)
+        Ok(response.json::<BasinConfig>()?)
     }
 
     pub async fn delete_basin(
@@ -160,7 +156,7 @@ impl AccountClient {
         let url = self.base_url.join("v1/metrics")?;
         let request = self.get(url).query(&request).build()?;
         let response = self.request(request).send().await?;
-        Ok(response.json::<MetricSetResponse>().await?)
+        Ok(response.json::<MetricSetResponse>()?)
     }
 
     pub async fn get_basin_metrics(
@@ -171,7 +167,7 @@ impl AccountClient {
         let url = self.base_url.join(&format!("v1/metrics/{name}"))?;
         let request = self.get(url).query(&request).build()?;
         let response = self.request(request).send().await?;
-        Ok(response.json::<MetricSetResponse>().await?)
+        Ok(response.json::<MetricSetResponse>()?)
     }
 
     pub async fn get_stream_metrics(
@@ -186,7 +182,7 @@ impl AccountClient {
         ))?;
         let request = self.get(url).query(&request).build()?;
         let response = self.request(request).send().await?;
-        Ok(response.json::<MetricSetResponse>().await?)
+        Ok(response.json::<MetricSetResponse>()?)
     }
 }
 
@@ -217,7 +213,7 @@ impl BasinClient {
         }
     }
 
-    fn request(&self, mut request: Request) -> RequestBuilder<'_> {
+    fn request(&self, mut request: client::Request) -> RequestBuilder<'_> {
         if matches!(
             self.config.endpoints.basin_authority,
             BasinAuthority::Direct(_)
@@ -237,7 +233,7 @@ impl BasinClient {
         let url = self.base_url.join("v1/streams")?;
         let request = self.get(url).query(&request).build()?;
         let response = self.request(request).send().await?;
-        Ok(response.json::<ListStreamsResponse>().await?)
+        Ok(response.json::<ListStreamsResponse>()?)
     }
 
     pub async fn create_stream(
@@ -252,7 +248,7 @@ impl BasinClient {
             .json(&request)
             .build()?;
         let response = self.request(request).send().await?;
-        Ok(response.json::<StreamInfo>().await?)
+        Ok(response.json::<StreamInfo>()?)
     }
 
     pub async fn get_stream_config(&self, name: StreamName) -> Result<StreamConfig, ApiError> {
@@ -261,7 +257,7 @@ impl BasinClient {
             .join(&format!("v1/streams/{}", urlencoding::encode(&name)))?;
         let request = self.get(url).build()?;
         let response = self.request(request).send().await?;
-        Ok(response.json::<StreamConfig>().await?)
+        Ok(response.json::<StreamConfig>()?)
     }
 
     pub async fn reconfigure_stream(
@@ -274,7 +270,7 @@ impl BasinClient {
             .join(&format!("v1/streams/{}", urlencoding::encode(&name)))?;
         let request = self.patch(url).json(&config).build()?;
         let response = self.request(request).send().await?;
-        Ok(response.json::<StreamConfig>().await?)
+        Ok(response.json::<StreamConfig>()?)
     }
 
     pub async fn delete_stream(
@@ -300,7 +296,7 @@ impl BasinClient {
         ))?;
         let request = self.get(url).build()?;
         let response = self.request(request).send().await?;
-        Ok(response.json::<TailResponse>().await?)
+        Ok(response.json::<TailResponse>()?)
     }
 
     pub async fn append(
@@ -321,21 +317,21 @@ impl BasinClient {
         let response = self
             .request(request)
             .with_retry_enabled(retry_enabled)
-            .error_handler(|status, response| async move {
+            .error_handler(|status, response| {
                 if status == StatusCode::PRECONDITION_FAILED {
                     Err(ApiError::AppendConditionFailed(
-                        response.json::<AppendConditionFailed>().await?,
+                        response.json::<AppendConditionFailed>()?,
                     ))
                 } else {
                     Err(ApiError::Server(
                         status,
-                        response.json::<ApiErrorResponse>().await?,
+                        response.json::<ApiErrorResponse>()?,
                     ))
                 }
             })
             .send()
             .await?;
-        Ok(AppendAck::decode(response.bytes().await?)?)
+        Ok(AppendAck::decode(response.into_bytes())?)
     }
 
     pub async fn read(
@@ -358,7 +354,7 @@ impl BasinClient {
             .error_handler(read_response_error_handler)
             .send()
             .await?;
-        Ok(ReadBatch::decode(response.bytes().await?)?)
+        Ok(ReadBatch::decode(response.into_bytes())?)
     }
 
     pub async fn append_session<I>(
@@ -379,14 +375,21 @@ impl BasinClient {
             s2s::SessionMessage::regular(compression, &input).map(|msg| msg.encode())
         });
 
-        let mut request = self
+        let mut request_builder = self
+            .client
             .post(url)
             .header(CONTENT_TYPE, CONTENT_TYPE_S2S)
-            .body(reqwest::Body::wrap_stream(encoded_stream))
-            .timeout(SESSION_REQUEST_TIMEOUT);
-        request = add_basin_header_if_required(request, &self.config.endpoints, &self.name);
-        let response = request.send().await?.into_result().await?;
-        let mut bytes_stream = response.bytes_stream();
+            .body(client::Body::wrap_stream(encoded_stream))
+            .timeout(self.client.request_timeout);
+        request_builder =
+            add_basin_header_if_required(request_builder, &self.config.endpoints, &self.name);
+        let response = self
+            .client
+            .init_streaming(request_builder.build()?)
+            .await?
+            .into_result()
+            .await?;
+        let mut bytes_stream = response.stream();
 
         let mut buffer = BytesMut::new();
         let mut decoder = FrameDecoder;
@@ -422,20 +425,22 @@ impl BasinClient {
             .base_url
             .join(&format!("v1/streams/{}/records", urlencoding::encode(name)))?;
 
-        let mut request = self
+        let mut request_builder = self
             .client
             .get(url)
             .header(CONTENT_TYPE, CONTENT_TYPE_S2S)
             .query(&start)
             .query(&end)
-            .timeout(SESSION_REQUEST_TIMEOUT);
-        request = add_basin_header_if_required(request, &self.config.endpoints, &self.name);
-        let response = request
-            .send()
+            .timeout(self.client.request_timeout);
+        request_builder =
+            add_basin_header_if_required(request_builder, &self.config.endpoints, &self.name);
+        let response = self
+            .client
+            .init_streaming(request_builder.build()?)
             .await?
-            .into_result_with_handler(read_response_error_handler)
+            .into_result()
             .await?;
-        let mut bytes_stream = response.bytes_stream();
+        let mut bytes_stream = response.stream();
 
         let mut buffer = BytesMut::new();
         let mut decoder = FrameDecoder;
@@ -462,18 +467,16 @@ impl BasinClient {
     }
 }
 
-async fn read_response_error_handler(
+fn read_response_error_handler(
     status: StatusCode,
-    response: Response,
-) -> Result<Response, ApiError> {
+    response: UnaryResponse,
+) -> Result<UnaryResponse, ApiError> {
     if status == StatusCode::RANGE_NOT_SATISFIABLE {
-        Err(ApiError::ReadUnwritten(
-            response.json::<TailResponse>().await?,
-        ))
+        Err(ApiError::ReadUnwritten(response.json::<TailResponse>()?))
     } else {
         Err(ApiError::Server(
             status,
-            response.json::<ApiErrorResponse>().await?,
+            response.json::<ApiErrorResponse>()?,
         ))
     }
 }
@@ -535,8 +538,8 @@ impl ApiError {
     }
 }
 
-impl From<reqwest::Error> for ApiError {
-    fn from(err: reqwest::Error) -> Self {
+impl From<client::Error> for ApiError {
+    fn from(err: client::Error) -> Self {
         ClientError::from(err).into()
     }
 }
@@ -545,8 +548,8 @@ impl From<reqwest::Error> for ApiError {
 pub enum ClientError {
     #[error("connect: {0}")]
     Connect(String),
-    #[error("timeout: {0}")]
-    Timeout(String),
+    #[error("timeout")]
+    Timeout,
     #[error("connection closed early: {0}")]
     ConnectionClosedEarly(String),
     #[error("request canceled: {0}")]
@@ -569,43 +572,46 @@ impl ClientError {
     }
 }
 
-impl From<reqwest::Error> for ClientError {
-    fn from(err: reqwest::Error) -> Self {
+impl From<client::Error> for ClientError {
+    fn from(err: client::Error) -> Self {
         let err_msg = err.to_string();
-        if err.is_connect() {
-            Self::Connect(err_msg)
-        } else if err.is_timeout() {
-            Self::Timeout(err_msg)
-        } else if let Some(io_err) = source_err::<std::io::Error>(&err) {
-            let io_err_msg = format!("{io_err} -> {err_msg}");
-            if io_err.kind() == std::io::ErrorKind::UnexpectedEof {
-                Self::UnexpectedEof(io_err_msg)
-            } else if io_err.kind() == std::io::ErrorKind::ConnectionReset {
-                Self::ConnectionReset(io_err_msg)
-            } else if io_err.kind() == std::io::ErrorKind::ConnectionAborted {
-                Self::ConnectionAborted(io_err_msg)
-            } else if io_err.kind() == std::io::ErrorKind::ConnectionRefused {
-                Self::ConnectionRefused(io_err_msg)
-            } else {
-                Self::Others(io_err_msg)
+        match err {
+            client::Error::Send(ref send_err) if send_err.is_connect() => {
+                classify_io_source(&err, &err_msg).unwrap_or(Self::Connect(err_msg))
             }
-        } else if err.is_request() {
-            if let Some(hyper_err) = source_err::<hyper::Error>(&err) {
-                let hyper_err_msg = format!("{hyper_err} -> {err_msg}");
-                if hyper_err.is_incomplete_message() {
-                    Self::ConnectionClosedEarly(hyper_err_msg)
-                } else if hyper_err.is_canceled() {
-                    Self::RequestCanceled(hyper_err_msg)
-                } else {
-                    Self::Others(hyper_err_msg)
-                }
-            } else {
-                Self::Others(err_msg)
+            client::Error::Send(_) | client::Error::Receive(_) => {
+                classify_hyper_source(&err, &err_msg)
+                    .or_else(|| classify_io_source(&err, &err_msg))
+                    .unwrap_or(Self::Others(err_msg))
             }
-        } else {
-            Self::Others(err_msg)
+            client::Error::Timeout => Self::Timeout,
+            _ => Self::Others(err_msg),
         }
     }
+}
+
+fn classify_hyper_source(err: &client::Error, err_msg: &str) -> Option<ClientError> {
+    let hyper_err = source_err::<hyper::Error>(err)?;
+    let err_msg = format!("{hyper_err} -> {err_msg}");
+    if hyper_err.is_incomplete_message() {
+        Some(ClientError::ConnectionClosedEarly(err_msg))
+    } else if hyper_err.is_canceled() {
+        Some(ClientError::RequestCanceled(err_msg))
+    } else {
+        None
+    }
+}
+
+fn classify_io_source(err: &client::Error, err_msg: &str) -> Option<ClientError> {
+    let io_err = source_err::<std::io::Error>(err)?;
+    let err_msg = format!("{io_err} -> {err_msg}");
+    Some(match io_err.kind() {
+        std::io::ErrorKind::UnexpectedEof => ClientError::UnexpectedEof(err_msg),
+        std::io::ErrorKind::ConnectionReset => ClientError::ConnectionReset(err_msg),
+        std::io::ErrorKind::ConnectionAborted => ClientError::ConnectionAborted(err_msg),
+        std::io::ErrorKind::ConnectionRefused => ClientError::ConnectionRefused(err_msg),
+        _ => return None,
+    })
 }
 
 fn source_err<T: std::error::Error + 'static>(err: &dyn std::error::Error) -> Option<&T> {
@@ -632,8 +638,8 @@ pub enum S2STerminalDecodeError {
 impl From<TerminalMessage> for ApiError {
     fn from(msg: TerminalMessage) -> Self {
         let status = match StatusCode::from_u16(msg.status) {
-            Ok(s) => s,
-            Err(e) => return ApiError::S2STerminalDecode(e.into()),
+            Ok(status) => status,
+            Err(err) => return ApiError::S2STerminalDecode(err.into()),
         };
         if status == StatusCode::PRECONDITION_FAILED {
             let condition_failed = match serde_json::from_str::<AppendConditionFailed>(&msg.body) {
@@ -665,85 +671,117 @@ impl From<TerminalMessage> for ApiError {
 
 pub type Streaming<R> = Pin<Box<dyn Send + Stream<Item = Result<R, ApiError>>>>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BaseClient {
-    client: reqwest::Client,
+    client: Arc<dyn client::RequestExecutor>,
+    default_headers: HeaderMap,
+    request_timeout: Duration,
     retry_builder: RetryBackoffBuilder,
     compression: Compression,
 }
 
+impl std::fmt::Debug for BaseClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BaseClient").finish_non_exhaustive()
+    }
+}
+
 impl BaseClient {
     pub fn init(config: &S2Config) -> Result<Self, ApiError> {
-        let mut headers = HeaderMap::new();
-        headers.insert(
+        let connector = client::default_connector(
+            Some(config.connection_timeout),
+            config.insecure_skip_cert_verification,
+        )
+        .map_err(|e| ClientError::Others(format!("failed to load TLS certificates: {e}")))?;
+        Self::init_with_connector(config, connector)
+    }
+
+    pub fn init_with_connector<C>(config: &S2Config, connector: C) -> Result<Self, ApiError>
+    where
+        C: client::Connect + Clone + Send + Sync + 'static,
+    {
+        let mut default_headers = HeaderMap::new();
+        default_headers.insert(
             AUTHORIZATION,
             format!("Bearer {}", config.access_token.expose_secret()).try_into()?,
         );
-        let mut client_builder = reqwest::ClientBuilder::new()
-            .timeout(config.request_timeout)
-            .connect_timeout(config.connection_timeout)
-            .user_agent(config.user_agent.clone())
-            .default_headers(headers)
-            .danger_accept_invalid_certs(config.insecure_skip_cert_verification);
+        default_headers.insert(http::header::USER_AGENT, config.user_agent.clone());
         match config.compression {
             Compression::Gzip => {
-                client_builder = client_builder.gzip(true);
+                default_headers.insert(
+                    http::header::ACCEPT_ENCODING,
+                    HeaderValue::from_static("gzip"),
+                );
             }
             Compression::Zstd => {
-                client_builder = client_builder.zstd(true);
+                default_headers.insert(
+                    http::header::ACCEPT_ENCODING,
+                    HeaderValue::from_static("zstd"),
+                );
             }
             Compression::None => {}
         }
+
+        let client = client::Pool::new(connector);
+
         Ok(Self {
-            client: client_builder.build()?,
+            client: Arc::new(client),
+            default_headers,
+            request_timeout: config.request_timeout,
             retry_builder: retry_builder(&config.retry),
             compression: config.compression,
         })
     }
 
-    async fn compress_request(&self, request: &mut Request) -> Result<(), ApiError> {
-        if let Some(body) = request.body_mut() {
-            let bytes = body.as_bytes().expect("should not be a stream");
-            match self.compression {
-                Compression::None => {}
-                Compression::Gzip => {
-                    let mut encoder = GzipEncoder::with_quality(Vec::new(), Level::Fastest);
-                    encoder.write_all(bytes).await?;
-                    encoder.shutdown().await?;
-                    *body = encoder.into_inner().into();
-                    request
-                        .headers_mut()
-                        .insert(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
-                }
-                Compression::Zstd => {
-                    let mut encoder = ZstdEncoder::with_quality(Vec::new(), Level::Fastest);
-                    encoder.write_all(bytes).await?;
-                    encoder.shutdown().await?;
-                    *body = encoder.into_inner().into();
-                    request
-                        .headers_mut()
-                        .insert(CONTENT_ENCODING, HeaderValue::from_static("zstd"));
-                }
-            }
-        }
-        Ok(())
+    pub fn get(&self, url: Url) -> client::RequestBuilder {
+        client::RequestBuilder::get(url)
+            .timeout(self.request_timeout)
+            .headers(&self.default_headers)
+            .compression(self.compression)
     }
 
-    fn request(&self, request: Request) -> RequestBuilder<'_> {
+    pub fn post(&self, url: Url) -> client::RequestBuilder {
+        client::RequestBuilder::post(url)
+            .timeout(self.request_timeout)
+            .headers(&self.default_headers)
+            .compression(self.compression)
+    }
+
+    pub fn patch(&self, url: Url) -> client::RequestBuilder {
+        client::RequestBuilder::patch(url)
+            .timeout(self.request_timeout)
+            .headers(&self.default_headers)
+            .compression(self.compression)
+    }
+
+    pub fn delete(&self, url: Url) -> client::RequestBuilder {
+        client::RequestBuilder::delete(url)
+            .timeout(self.request_timeout)
+            .headers(&self.default_headers)
+            .compression(self.compression)
+    }
+
+    pub async fn init_streaming(
+        &self,
+        request: client::Request,
+    ) -> Result<StreamingResponse, client::Error> {
+        self.client.init_streaming(request).await
+    }
+
+    async fn execute_unary(
+        &self,
+        request: client::Request,
+    ) -> Result<UnaryResponse, client::Error> {
+        self.client.execute_unary(request).await
+    }
+
+    fn request(&self, request: client::Request) -> RequestBuilder<'_> {
         RequestBuilder {
             client: self,
             request,
             retry_enabled: true,
             error_handler: None,
         }
-    }
-}
-
-impl Deref for BaseClient {
-    type Target = reqwest::Client;
-
-    fn deref(&self) -> &Self::Target {
-        &self.client
     }
 }
 
@@ -754,15 +792,12 @@ pub fn retry_builder(config: &RetryConfig) -> RetryBackoffBuilder {
         .with_max_retries(config.max_retries())
 }
 
-type ErrorHandlerFn = Box<
-    dyn Fn(StatusCode, Response) -> Pin<Box<dyn Future<Output = Result<Response, ApiError>> + Send>>
-        + Send
-        + Sync,
->;
+type ErrorHandlerFn =
+    Box<dyn Fn(StatusCode, UnaryResponse) -> Result<UnaryResponse, ApiError> + Send + Sync>;
 
 struct RequestBuilder<'a> {
     client: &'a BaseClient,
-    request: Request,
+    request: client::Request,
     retry_enabled: bool,
     error_handler: Option<ErrorHandlerFn>,
 }
@@ -775,22 +810,18 @@ impl<'a> RequestBuilder<'a> {
         }
     }
 
-    fn error_handler<F, Fut>(self, handler: F) -> Self
+    fn error_handler<F>(self, handler: F) -> Self
     where
-        F: Fn(StatusCode, Response) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = Result<Response, ApiError>> + Send + 'static,
+        F: Fn(StatusCode, UnaryResponse) -> Result<UnaryResponse, ApiError> + Send + Sync + 'static,
     {
         Self {
-            error_handler: Some(Box::new(move |status, response| {
-                Box::pin(handler(status, response))
-            })),
+            error_handler: Some(Box::new(handler)),
             ..self
         }
     }
 
-    async fn send(self) -> Result<Response, ApiError> {
-        let mut request = self.request;
-        self.client.compress_request(&mut request).await?;
+    async fn send(self) -> Result<UnaryResponse, ApiError> {
+        let request = self.request;
 
         let mut retry_backoffs: Option<RetryBackoff> = self
             .retry_enabled
@@ -799,7 +830,7 @@ impl<'a> RequestBuilder<'a> {
         loop {
             let response = self
                 .client
-                .execute(request.try_clone().expect("body should not be a stream"))
+                .execute_unary(request.try_clone().expect("body should not be a stream"))
                 .await;
 
             let (err, retry_after) = match response {
@@ -827,9 +858,9 @@ impl<'a> RequestBuilder<'a> {
                         .map(Duration::from_millis);
 
                     let result = if let Some(ref handler) = self.error_handler {
-                        resp.into_result_with_handler(handler).await
+                        resp.into_result_with_handler(handler)
                     } else {
-                        resp.into_result().await
+                        resp.into_result()
                     };
 
                     match result {
@@ -846,7 +877,7 @@ impl<'a> RequestBuilder<'a> {
             if err.is_retryable()
                 && let Some(backoff) = retry_backoffs.as_mut().and_then(|b| b.next())
             {
-                let backoff = retry_after.unwrap_or(backoff);
+                let backoff = retry_after.map_or(backoff, |ra| ra.max(backoff));
                 debug!(
                     %err,
                     ?backoff,
@@ -869,10 +900,10 @@ impl<'a> RequestBuilder<'a> {
 }
 
 fn add_basin_header_if_required(
-    request: reqwest::RequestBuilder,
+    request: client::RequestBuilder,
     endpoints: &S2Endpoints,
     name: &BasinName,
-) -> reqwest::RequestBuilder {
+) -> client::RequestBuilder {
     if matches!(endpoints.basin_authority, BasinAuthority::Direct(_)) {
         return request.header(
             S2_BASIN,
@@ -902,37 +933,61 @@ fn base_url(endpoints: &S2Endpoints, kind: ClientKind) -> Url {
     Url::parse(&format!("{scheme}://{authority}")).expect("valid url")
 }
 
-trait IntoResult {
-    async fn into_result(self) -> Result<Response, ApiError>;
-    async fn into_result_with_handler<F, Fut>(self, handler: F) -> Result<Response, ApiError>
+trait UnaryResult {
+    fn into_result(self) -> Result<UnaryResponse, ApiError>;
+    fn into_result_with_handler<F>(self, handler: F) -> Result<UnaryResponse, ApiError>
     where
-        F: Fn(StatusCode, Response) -> Fut,
-        Fut: Future<Output = Result<Response, ApiError>>;
+        F: FnOnce(StatusCode, UnaryResponse) -> Result<UnaryResponse, ApiError>;
 }
 
-impl IntoResult for Response {
-    async fn into_result(self) -> Result<Response, ApiError> {
+impl UnaryResult for UnaryResponse {
+    fn into_result(self) -> Result<UnaryResponse, ApiError> {
         let status = self.status();
         if status.is_success() {
             Ok(self)
         } else {
-            Err(ApiError::Server(
-                status,
-                self.json::<ApiErrorResponse>().await?,
-            ))
+            Err(ApiError::Server(status, self.json::<ApiErrorResponse>()?))
         }
     }
 
-    async fn into_result_with_handler<F, Fut>(self, handler: F) -> Result<Response, ApiError>
+    fn into_result_with_handler<F>(self, handler: F) -> Result<UnaryResponse, ApiError>
     where
-        F: Fn(StatusCode, Response) -> Fut,
-        Fut: Future<Output = Result<Response, ApiError>>,
+        F: FnOnce(StatusCode, UnaryResponse) -> Result<UnaryResponse, ApiError>,
     {
         let status = self.status();
         if status.is_success() {
             Ok(self)
         } else {
-            handler(status, self).await
+            handler(status, self)
+        }
+    }
+}
+
+#[async_trait]
+trait StreamingResult {
+    async fn into_result(self) -> Result<StreamingResponse, ApiError>;
+}
+
+#[async_trait]
+impl StreamingResult for StreamingResponse {
+    async fn into_result(self) -> Result<StreamingResponse, ApiError> {
+        if self.status().is_success() {
+            return Ok(self);
+        }
+
+        let status = self.status();
+        let bytes = self.into_bytes().await?;
+        if status == StatusCode::RANGE_NOT_SATISFIABLE
+            && let Ok(tail) = serde_json::from_slice::<TailResponse>(&bytes)
+        {
+            return Err(ApiError::ReadUnwritten(tail));
+        }
+        match serde_json::from_slice::<ApiErrorResponse>(&bytes) {
+            Ok(response) => Err(ApiError::Server(status, response)),
+            Err(_) => Err(ApiError::Client(ClientError::Others(format!(
+                "server error {status}: {}",
+                String::from_utf8_lossy(&bytes)
+            )))),
         }
     }
 }
@@ -941,7 +996,7 @@ trait IgnoreNotFound {
     fn ignore_not_found(self, enabled: bool) -> Result<(), ApiError>;
 }
 
-impl IgnoreNotFound for Result<Response, ApiError> {
+impl IgnoreNotFound for Result<UnaryResponse, ApiError> {
     fn ignore_not_found(self, enabled: bool) -> Result<(), ApiError> {
         match self {
             Ok(_) => Ok(()),
