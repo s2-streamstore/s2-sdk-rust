@@ -1,7 +1,9 @@
 use futures::StreamExt;
 
+#[cfg(feature = "_hidden")]
+use crate::client::Connect;
 use crate::{
-    api::{AccountClient, BasinClient},
+    api::{AccountClient, BaseClient, BasinClient},
     producer::{Producer, ProducerConfig},
     session::{self, AppendSession, AppendSessionConfig},
     types::{
@@ -24,8 +26,21 @@ pub struct S2 {
 impl S2 {
     /// Create a new [`S2`].
     pub fn new(config: S2Config) -> Result<Self, S2Error> {
+        let base_client = BaseClient::init(&config)?;
         Ok(Self {
-            client: AccountClient::init(config)?,
+            client: AccountClient::init(config, base_client),
+        })
+    }
+
+    #[doc(hidden)]
+    #[cfg(feature = "_hidden")]
+    pub fn new_with_connector<C>(config: S2Config, connector: C) -> Result<Self, S2Error>
+    where
+        C: Connect + Clone + Send + Sync + 'static,
+    {
+        let base_client = BaseClient::init_with_connector(&config, connector)?;
+        Ok(Self {
+            client: AccountClient::init(config, base_client),
         })
     }
 

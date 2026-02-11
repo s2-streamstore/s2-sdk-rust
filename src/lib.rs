@@ -81,6 +81,7 @@ issue.
 
 #[rustfmt::skip]
 mod api;
+mod client;
 mod session;
 
 pub mod batching;
