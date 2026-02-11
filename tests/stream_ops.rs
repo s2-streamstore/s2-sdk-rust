@@ -13,6 +13,14 @@ use s2_sdk::{
 use test_context::test_context;
 use time::OffsetDateTime;
 
+fn now_millis() -> u64 {
+    (OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as u64
+}
+
+fn past_millis(offset_ms: u64) -> u64 {
+    now_millis().saturating_sub(offset_ms)
+}
+
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
 async fn tail_of_new_stream(stream: &S2Stream) -> Result<(), S2Error> {
@@ -834,7 +842,7 @@ async fn check_tail_after_multiple_appends(stream: &S2Stream) -> Result<(), S2Er
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
 async fn read_from_timestamp(stream: &S2Stream) -> Result<(), S2Error> {
-    let base_timestamp = OffsetDateTime::now_utc().unix_timestamp() as u64;
+    let base_timestamp = past_millis(10_000);
     let input = AppendInput::new(AppendRecordBatch::try_from_iter([
         AppendRecord::new("lorem")?.with_timestamp(base_timestamp),
         AppendRecord::new("ipsum")?.with_timestamp(base_timestamp + 1),
@@ -870,7 +878,7 @@ async fn read_from_timestamp(stream: &S2Stream) -> Result<(), S2Error> {
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
 async fn read_from_timestamp_with_count_limit(stream: &S2Stream) -> Result<(), S2Error> {
-    let base_timestamp = OffsetDateTime::now_utc().unix_timestamp() as u64;
+    let base_timestamp = past_millis(10_000);
     let input = AppendInput::new(AppendRecordBatch::try_from_iter([
         AppendRecord::new("lorem")?.with_timestamp(base_timestamp),
         AppendRecord::new("ipsum")?.with_timestamp(base_timestamp + 1),
@@ -903,7 +911,7 @@ async fn read_from_timestamp_with_count_limit(stream: &S2Stream) -> Result<(), S
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
 async fn read_from_timestamp_with_bytes_limit(stream: &S2Stream) -> Result<(), S2Error> {
-    let base_timestamp = OffsetDateTime::now_utc().unix_timestamp() as u64;
+    let base_timestamp = past_millis(10_000);
     let input = AppendInput::new(AppendRecordBatch::try_from_iter([
         AppendRecord::new("lorem")?.with_timestamp(base_timestamp),
         AppendRecord::new("ipsum")?.with_timestamp(base_timestamp + 1),
@@ -937,7 +945,7 @@ async fn read_from_timestamp_with_bytes_limit(stream: &S2Stream) -> Result<(), S
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
 async fn read_from_timestamp_in_future_errors(stream: &S2Stream) -> Result<(), S2Error> {
-    let base_timestamp = OffsetDateTime::now_utc().unix_timestamp() as u64;
+    let base_timestamp = past_millis(10_000);
     let input = AppendInput::new(AppendRecordBatch::try_from_iter([
         AppendRecord::new("lorem")?.with_timestamp(base_timestamp),
         AppendRecord::new("ipsum")?.with_timestamp(base_timestamp + 1),
@@ -1020,7 +1028,7 @@ async fn append_max_batch_size(stream: &S2Stream) -> Result<(), S2Error> {
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
 async fn append_with_client_timestamp(stream: &S2Stream) -> Result<(), S2Error> {
-    let timestamp = OffsetDateTime::now_utc().unix_timestamp() as u64;
+    let timestamp = past_millis(1_000);
     let input = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
         "lorem",
     )?
@@ -1081,8 +1089,8 @@ async fn append_with_future_timestamp_uncapped_false_caps(
         .await?;
 
     let stream = basin.stream(stream_name.clone());
-    let now = OffsetDateTime::now_utc().unix_timestamp() as u64;
-    let future = now + 3600;
+    let now = now_millis();
+    let future = now + 3_600_000;
     let input = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
         "lorem",
     )?
@@ -1113,8 +1121,8 @@ async fn append_with_future_timestamp_uncapped_true_preserves(
         .await?;
 
     let stream = basin.stream(stream_name.clone());
-    let now = OffsetDateTime::now_utc().unix_timestamp() as u64;
-    let future = now + 3600;
+    let now = now_millis();
+    let future = now + 3_600_000;
     let input = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
         "lorem",
     )?
@@ -1134,7 +1142,7 @@ async fn append_with_future_timestamp_uncapped_true_preserves(
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
 async fn append_with_past_timestamp_adjusts_monotonic(stream: &S2Stream) -> Result<(), S2Error> {
-    let base = OffsetDateTime::now_utc().unix_timestamp() as u64;
+    let base = past_millis(10_000);
     let first_timestamp = base + 10;
     let past_timestamp = base;
 
@@ -1372,7 +1380,7 @@ async fn read_from_tail_offset_variants(stream: &S2Stream) -> Result<(), S2Error
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
 async fn read_until_timestamp(stream: &S2Stream) -> Result<(), S2Error> {
-    let base_timestamp = OffsetDateTime::now_utc().unix_timestamp() as u64;
+    let base_timestamp = past_millis(10_000);
     let input = AppendInput::new(AppendRecordBatch::try_from_iter([
         AppendRecord::new("lorem")?.with_timestamp(base_timestamp),
         AppendRecord::new("ipsum")?.with_timestamp(base_timestamp + 1),
@@ -1394,7 +1402,7 @@ async fn read_until_timestamp(stream: &S2Stream) -> Result<(), S2Error> {
 #[test_context(S2Stream)]
 #[tokio_shared_rt::test(shared)]
 async fn read_start_timestamp_ge_until_errors(stream: &S2Stream) -> Result<(), S2Error> {
-    let base_timestamp = OffsetDateTime::now_utc().unix_timestamp() as u64;
+    let base_timestamp = past_millis(10_000);
     let input = AppendInput::new(AppendRecordBatch::try_from_iter([
         AppendRecord::new("lorem")?.with_timestamp(base_timestamp),
         AppendRecord::new("ipsum")?.with_timestamp(base_timestamp + 1),
