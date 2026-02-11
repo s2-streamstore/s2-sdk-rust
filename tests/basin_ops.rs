@@ -405,10 +405,12 @@ async fn list_streams_with_pagination(basin: &SharedS2Basin) -> Result<(), S2Err
         )
         .await?;
 
-    assert!(page_2
-        .values
-        .iter()
-        .all(|info| info.name.as_ref() > last_name.as_ref()));
+    assert!(
+        page_2
+            .values
+            .iter()
+            .all(|info| info.name.as_ref() > last_name.as_ref())
+    );
 
     let mut listed: Vec<String> = page_1
         .values
