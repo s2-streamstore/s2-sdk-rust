@@ -1067,11 +1067,20 @@ async fn append_without_timestamp_client_require_errors(
     Ok(())
 }
 
-#[test_context(S2Stream)]
+#[test_context(SharedS2Basin)]
 #[tokio_shared_rt::test(shared)]
 async fn append_with_future_timestamp_uncapped_false_caps(
-    stream: &S2Stream,
+    basin: &SharedS2Basin,
 ) -> Result<(), S2Error> {
+    let stream_name = unique_stream_name();
+    let config =
+        StreamConfig::new().with_timestamping(TimestampingConfig::new().with_uncapped(false));
+
+    basin
+        .create_stream(CreateStreamInput::new(stream_name.clone()).with_config(config))
+        .await?;
+
+    let stream = basin.stream(stream_name.clone());
     let now = OffsetDateTime::now_utc().unix_timestamp() as u64;
     let future = now + 3600;
     let input = AppendInput::new(AppendRecordBatch::try_from_iter([AppendRecord::new(
@@ -1082,6 +1091,10 @@ async fn append_with_future_timestamp_uncapped_false_caps(
     let ack = stream.append(input).await?;
 
     assert!(ack.start.timestamp < future);
+
+    basin
+        .delete_stream(DeleteStreamInput::new(stream_name))
+        .await?;
 
     Ok(())
 }
