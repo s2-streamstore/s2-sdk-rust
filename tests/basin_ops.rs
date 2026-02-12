@@ -1310,19 +1310,32 @@ async fn deleted_stream_has_deleted_at_when_listed(basin: &SharedS2Basin) -> Res
         .delete_stream(DeleteStreamInput::new(stream_name.clone()))
         .await?;
 
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        let page = basin
+            .list_streams(ListStreamsInput::new().with_prefix(stream_name.clone().into()))
+            .await?;
 
-    let page = basin
-        .list_streams(ListStreamsInput::new().with_prefix(stream_name.clone().into()))
-        .await?;
-
-    for info in page.values {
-        if info.name == stream_name {
-            assert!(info.deleted_at.is_some());
+        let mut found = false;
+        for info in page.values {
+            if info.name == stream_name {
+                found = true;
+                if info.deleted_at.is_some() {
+                    return Ok(());
+                }
+            }
         }
+
+        if !found {
+            return Ok(());
+        }
+        if std::time::Instant::now() >= deadline {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
     }
 
-    Ok(())
+    panic!("deleted stream still listed without deleted_at after timeout");
 }
 
 fn is_free_tier_limitation(err: &S2Error) -> bool {

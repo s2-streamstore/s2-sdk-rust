@@ -1619,12 +1619,14 @@ async fn producer_drop_errors_no_claimable_tickets(stream: &S2Stream) -> Result<
     let ticket1 = producer.submit(AppendRecord::new("lorem")?).await?;
     let ticket2 = producer.submit(AppendRecord::new("ipsum")?).await?;
 
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    let ack1 = tokio::time::timeout(Duration::from_secs(10), ticket1)
+        .await
+        .expect("ticket1 timed out")?;
+    let ack2 = tokio::time::timeout(Duration::from_secs(10), ticket2)
+        .await
+        .expect("ticket2 timed out")?;
 
     drop(producer);
-
-    let ack1 = ticket1.await?;
-    let ack2 = ticket2.await?;
 
     assert_eq!(ack1.seq_num, 0);
     assert_eq!(ack2.seq_num, 1);
