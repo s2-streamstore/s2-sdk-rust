@@ -127,14 +127,11 @@ impl AppendSessionConfig {
     /// Set the limit on number of unacknowledged [`AppendInput`]s held in memory.
     ///
     /// Defaults to no limit.
-    pub fn with_max_unacked_batches(
-        self,
-        max_unacked_batches: NonZeroU32,
-    ) -> Result<Self, ValidationError> {
-        Ok(Self {
+    pub fn with_max_unacked_batches(self, max_unacked_batches: NonZeroU32) -> Self {
+        Self {
             max_unacked_batches: Some(max_unacked_batches.get()),
             ..self
-        })
+        }
     }
 }
 
