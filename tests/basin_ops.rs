@@ -737,60 +737,6 @@ async fn create_stream_delete_on_empty_min_age(basin: &SharedS2Basin) -> Result<
 
 #[test_context(SharedS2Basin)]
 #[tokio_shared_rt::test(shared)]
-async fn create_stream_idempotent_same_token(basin: &SharedS2Basin) -> Result<(), S2Error> {
-    let stream_name = unique_stream_name();
-    let token = uuid();
-
-    let info_1 = basin
-        .create_stream(
-            CreateStreamInput::new(stream_name.clone()).with_idempotency_token(token.clone()),
-        )
-        .await?;
-    let info_2 = basin
-        .create_stream(CreateStreamInput::new(stream_name.clone()).with_idempotency_token(token))
-        .await?;
-
-    assert_eq!(info_1.name, stream_name);
-    assert_eq!(info_2.name, stream_name);
-
-    basin
-        .delete_stream(DeleteStreamInput::new(stream_name))
-        .await?;
-
-    Ok(())
-}
-
-#[test_context(SharedS2Basin)]
-#[tokio_shared_rt::test(shared)]
-async fn create_stream_idempotent_different_token_errors(
-    basin: &SharedS2Basin,
-) -> Result<(), S2Error> {
-    let stream_name = unique_stream_name();
-
-    basin
-        .create_stream(CreateStreamInput::new(stream_name.clone()).with_idempotency_token(uuid()))
-        .await?;
-
-    let result = basin
-        .create_stream(CreateStreamInput::new(stream_name.clone()).with_idempotency_token(uuid()))
-        .await;
-
-    assert_matches!(
-        result,
-        Err(S2Error::Server(ErrorResponse { code, .. })) => {
-            assert_eq!(code, "resource_already_exists");
-        }
-    );
-
-    basin
-        .delete_stream(DeleteStreamInput::new(stream_name))
-        .await?;
-
-    Ok(())
-}
-
-#[test_context(SharedS2Basin)]
-#[tokio_shared_rt::test(shared)]
 async fn create_stream_invalid_retention_age_zero(basin: &SharedS2Basin) -> Result<(), S2Error> {
     let stream_name = unique_stream_name();
     let config = StreamConfig::new().with_retention_policy(RetentionPolicy::Age(0));

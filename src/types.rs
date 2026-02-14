@@ -872,14 +872,7 @@ pub struct CreateBasinInput {
     ///
     /// Defaults to [`AwsUsEast1`](BasinScope::AwsUsEast1).
     pub scope: Option<BasinScope>,
-    /// Idempotency token for the operation.
-    ///
-    /// When a request is retried, the same token is reused,
-    /// causing the server to return the original response instead of
-    /// performing the operation again.
-    ///
-    /// Defaults to a random UUID.
-    pub idempotency_token: String,
+    idempotency_token: String,
 }
 
 impl CreateBasinInput {
@@ -905,14 +898,6 @@ impl CreateBasinInput {
     pub fn with_scope(self, scope: BasinScope) -> Self {
         Self {
             scope: Some(scope),
-            ..self
-        }
-    }
-
-    /// Set the idempotency token for the operation.
-    pub fn with_idempotency_token(self, idempotency_token: impl Into<String>) -> Self {
-        Self {
-            idempotency_token: idempotency_token.into(),
             ..self
         }
     }
@@ -2551,14 +2536,7 @@ pub struct CreateStreamInput {
     ///
     /// See [`StreamConfig`] for defaults.
     pub config: Option<StreamConfig>,
-    /// Idempotency token for the operation.
-    ///
-    /// When a request is retried, the same token is reused,
-    /// causing the server to return the original response instead of
-    /// performing the operation again.
-    ///
-    /// Defaults to a random UUID.
-    pub idempotency_token: String,
+    idempotency_token: String,
 }
 
 impl CreateStreamInput {
@@ -2575,14 +2553,6 @@ impl CreateStreamInput {
     pub fn with_config(self, config: StreamConfig) -> Self {
         Self {
             config: Some(config),
-            ..self
-        }
-    }
-
-    /// Set the idempotency token for the operation.
-    pub fn with_idempotency_token(self, idempotency_token: impl Into<String>) -> Self {
-        Self {
-            idempotency_token: idempotency_token.into(),
             ..self
         }
     }
