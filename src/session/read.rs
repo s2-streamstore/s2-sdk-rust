@@ -47,8 +47,7 @@ pub async fn read_session(
     mut end: ReadEnd,
     ignore_command_records: bool,
 ) -> Result<Streaming<ReadBatch>, ReadSessionError> {
-    let retry_builder = retry_builder(&client.config.retry);
-    let mut retry_backoffs = retry_builder.build();
+    let mut retry_backoff = retry_builder(&client.config.retry).build();
     let baseline_wait = end.wait;
     let mut last_tail_at: Option<Instant> = None;
 
@@ -64,11 +63,11 @@ pub async fn read_session(
         .await
         {
             Ok(batches) => {
-                retry_backoffs.reset();
+                retry_backoff.reset();
                 break batches;
             }
             Err(err) => {
-                if can_retry(&err, &mut retry_backoffs).await {
+                if can_retry(&err, &mut retry_backoff).await {
                     continue;
                 }
                 return Err(err);
@@ -91,7 +90,7 @@ pub async fn read_session(
                 ).await {
                     Ok(b) => batches = Some(b),
                     Err(err) => {
-                        if can_retry(&err, &mut retry_backoffs).await {
+                        if can_retry(&err, &mut retry_backoff).await {
                             continue;
                         }
                         yield Err(err);
@@ -107,8 +106,8 @@ pub async fn read_session(
                 .await
             {
                 Some(Ok(batch)) => {
-                    if retry_backoffs.attempts_used() > 0 {
-                        retry_backoffs.reset();
+                    if retry_backoff.used() > 0 {
+                        retry_backoff.reset();
                     }
 
                     if batch.tail.is_some() {
@@ -136,7 +135,7 @@ pub async fn read_session(
                 }
                 Some(Err(err)) => {
                     batches = None;
-                    if can_retry(&err, &mut retry_backoffs).await {
+                    if can_retry(&err, &mut retry_backoff).await {
                         continue;
                     }
                     yield Err(err);
