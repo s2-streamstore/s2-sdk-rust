@@ -409,7 +409,7 @@ async fn run_session_with_retry(
         stashed_submission: None,
     };
     let mut prev_total_acked_records = 0;
-    let mut retry_backoffs = retry_builder.build();
+    let mut retry_backoff = retry_builder.build();
 
     loop {
         let result = run_session(&client, &stream, &mut state, buffer_size).await;
@@ -421,7 +421,7 @@ async fn run_session_with_retry(
             Err(err) => {
                 if prev_total_acked_records < state.total_acked_records {
                     prev_total_acked_records = state.total_acked_records;
-                    retry_backoffs.reset();
+                    retry_backoff.reset();
                 }
 
                 let retry_policy_compliant = retry_policy_compliant(
@@ -431,12 +431,12 @@ async fn run_session_with_retry(
 
                 if retry_policy_compliant
                     && err.is_retryable()
-                    && let Some(backoff) = retry_backoffs.next()
+                    && let Some(backoff) = retry_backoff.next()
                 {
                     debug!(
                         %err,
                         ?backoff,
-                        num_retries_remaining = retry_backoffs.remaining(),
+                        num_retries_remaining = retry_backoff.remaining(),
                         "retrying append session"
                     );
                     tokio::time::sleep(backoff).await;
@@ -444,7 +444,7 @@ async fn run_session_with_retry(
                     debug!(
                         %err,
                         retry_policy_compliant,
-                        retries_exhausted = retry_backoffs.is_exhausted(),
+                        retries_exhausted = retry_backoff.is_exhausted(),
                         "not retrying append session"
                     );
 

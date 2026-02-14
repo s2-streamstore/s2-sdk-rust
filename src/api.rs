@@ -821,7 +821,7 @@ impl<'a> RequestBuilder<'a> {
     async fn send(self) -> Result<UnaryResponse, ApiError> {
         let request = self.request;
 
-        let mut retry_backoffs: Option<RetryBackoff> = self
+        let mut retry_backoff: Option<RetryBackoff> = self
             .retry_enabled
             .then(|| self.client.retry_builder.build());
 
@@ -873,13 +873,13 @@ impl<'a> RequestBuilder<'a> {
             };
 
             if err.is_retryable()
-                && let Some(backoff) = retry_backoffs.as_mut().and_then(|b| b.next())
+                && let Some(backoff) = retry_backoff.as_mut().and_then(|b| b.next())
             {
                 let backoff = retry_after.map_or(backoff, |ra| ra.max(backoff));
                 debug!(
                     %err,
                     ?backoff,
-                    num_retries_remaining = retry_backoffs.as_ref().map(|b| b.remaining()).unwrap_or(0),
+                    num_retries_remaining = retry_backoff.as_ref().map(|b| b.remaining()).unwrap_or(0),
                     "retrying request"
                 );
                 tokio::time::sleep(backoff).await;
@@ -888,7 +888,7 @@ impl<'a> RequestBuilder<'a> {
                     %err,
                     is_retryable = err.is_retryable(),
                     retry_enabled = self.retry_enabled,
-                    retries_exhausted = retry_backoffs.as_ref().is_none_or(|b| b.is_exhausted()),
+                    retries_exhausted = retry_backoff.as_ref().is_none_or(|b| b.is_exhausted()),
                     "not retrying request"
                 );
                 return Err(err);

@@ -45,8 +45,8 @@ impl RetryBackoffBuilder {
         RetryBackoff {
             min_base_delay: self.min_base_delay,
             max_base_delay: self.max_base_delay,
-            max_attempts: self.max_retries,
-            cur_attempt: 0,
+            max_retries: self.max_retries,
+            cur_retry: 0,
         }
     }
 }
@@ -54,25 +54,25 @@ impl RetryBackoffBuilder {
 pub struct RetryBackoff {
     min_base_delay: Duration,
     max_base_delay: Duration,
-    max_attempts: u32,
-    cur_attempt: u32,
+    max_retries: u32,
+    cur_retry: u32,
 }
 
 impl RetryBackoff {
     pub fn remaining(&self) -> u32 {
-        self.max_attempts.saturating_sub(self.cur_attempt)
+        self.max_retries.saturating_sub(self.cur_retry)
     }
 
     pub fn is_exhausted(&self) -> bool {
-        self.cur_attempt >= self.max_attempts
+        self.cur_retry >= self.max_retries
     }
 
     pub fn reset(&mut self) {
-        self.cur_attempt = 0;
+        self.cur_retry = 0;
     }
 
-    pub fn attempts_used(&self) -> u32 {
-        self.cur_attempt
+    pub fn used(&self) -> u32 {
+        self.cur_retry
     }
 }
 
@@ -80,18 +80,18 @@ impl Iterator for RetryBackoff {
     type Item = Duration;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.cur_attempt == self.max_attempts {
+        if self.cur_retry == self.max_retries {
             return None;
         }
         let base_delay = (self
             .min_base_delay
-            .saturating_mul(2u32.saturating_pow(self.cur_attempt)))
+            .saturating_mul(2u32.saturating_pow(self.cur_retry)))
         .min(self.max_base_delay);
         let jitter =
             Duration::try_from_secs_f64(base_delay.as_secs_f64() * rng().random_range(0.0..=1.0))
                 .unwrap_or(Duration::MAX);
         let delay = base_delay + jitter;
-        self.cur_attempt += 1;
+        self.cur_retry += 1;
         Some(delay)
     }
 }
@@ -131,31 +131,31 @@ mod tests {
     fn backoff_with_reset() {
         let mut backoff = RetryBackoffBuilder::default().with_max_retries(3).build();
 
-        assert_eq!(backoff.attempts_used(), 0);
+        assert_eq!(backoff.used(), 0);
         assert_eq!(backoff.remaining(), 3);
         assert!(!backoff.is_exhausted());
 
         assert!(backoff.next().is_some());
-        assert_eq!(backoff.attempts_used(), 1);
+        assert_eq!(backoff.used(), 1);
         assert_eq!(backoff.remaining(), 2);
         assert!(!backoff.is_exhausted());
 
         backoff.reset();
 
-        assert_eq!(backoff.attempts_used(), 0);
+        assert_eq!(backoff.used(), 0);
         assert_eq!(backoff.remaining(), 3);
         assert!(!backoff.is_exhausted());
 
         assert!(backoff.next().is_some());
-        assert_eq!(backoff.attempts_used(), 1);
+        assert_eq!(backoff.used(), 1);
         assert_eq!(backoff.remaining(), 2);
 
         assert!(backoff.next().is_some());
-        assert_eq!(backoff.attempts_used(), 2);
+        assert_eq!(backoff.used(), 2);
         assert_eq!(backoff.remaining(), 1);
 
         assert!(backoff.next().is_some());
-        assert_eq!(backoff.attempts_used(), 3);
+        assert_eq!(backoff.used(), 3);
         assert_eq!(backoff.remaining(), 0);
         assert!(backoff.is_exhausted());
 
