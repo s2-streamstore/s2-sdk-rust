@@ -7,12 +7,14 @@ use std::{
 };
 
 use futures::{Stream, StreamExt};
-use s2_common::caps::RECORD_BATCH_MAX;
+use s2_common::{caps::RECORD_BATCH_MAX, read_extent::CountOrBytes};
 use tokio::time::Instant;
 
 use crate::types::{
     AppendInput, AppendRecord, AppendRecordBatch, FencingToken, MeteredBytes, ValidationError,
 };
+
+const RECORD_BATCH_MIN: CountOrBytes = CountOrBytes { count: 1, bytes: 8 };
 
 #[derive(Debug, Clone)]
 /// Configuration for batching [`AppendRecord`]s.
@@ -47,13 +49,19 @@ impl BatchingConfig {
 
     /// Set the maximum metered bytes per batch.
     ///
-    /// **Note:** It must not exceed `1MiB`.
+    /// **Note:** It must be at least `8B` and must not exceed `1MiB`.
     ///
     /// Defaults to `1MiB`.
     pub fn with_max_batch_bytes(self, max_batch_bytes: usize) -> Result<Self, ValidationError> {
+        if max_batch_bytes < RECORD_BATCH_MIN.bytes {
+            return Err(ValidationError(format!(
+                "max_batch_bytes ({max_batch_bytes}) must be at least {}",
+                RECORD_BATCH_MIN.bytes
+            )));
+        }
         if max_batch_bytes > RECORD_BATCH_MAX.bytes {
             return Err(ValidationError(format!(
-                "max_batch_bytes ({max_batch_bytes}) exceeds {}",
+                "max_batch_bytes ({max_batch_bytes}) must not exceed {}",
                 RECORD_BATCH_MAX.bytes
             )));
         }
@@ -65,13 +73,19 @@ impl BatchingConfig {
 
     /// Set the maximum number of records per batch.
     ///
-    /// **Note:** It must not exceed `1000`.
+    /// **Note:** It must be at least `1` and must not exceed `1000`.
     ///
     /// Defaults to `1000`.
     pub fn with_max_batch_records(self, max_batch_records: usize) -> Result<Self, ValidationError> {
+        if max_batch_records < RECORD_BATCH_MIN.count {
+            return Err(ValidationError(format!(
+                "max_batch_records ({max_batch_records}) must be at least {}",
+                RECORD_BATCH_MIN.count
+            )));
+        }
         if max_batch_records > RECORD_BATCH_MAX.count {
             return Err(ValidationError(format!(
-                "max_batch_records ({max_batch_records}) exceeds {}",
+                "max_batch_records ({max_batch_records}) must not exceed {}",
                 RECORD_BATCH_MAX.count
             )));
         }
@@ -311,9 +325,9 @@ mod tests {
 
     #[tokio::test]
     async fn batching_should_error_when_it_sees_oversized_record() -> Result<(), ValidationError> {
-        let record = AppendRecord::new("hello")?;
+        let record = AppendRecord::new("hello-world")?;
         let record_bytes = record.metered_bytes();
-        let max_batch_bytes = 1;
+        let max_batch_bytes = 10;
 
         let config = BatchingConfig::default().with_max_batch_bytes(max_batch_bytes)?;
         let results: Vec<_> = AppendRecordBatches::new(futures::stream::iter(vec![record]), config)
