@@ -2817,6 +2817,21 @@ impl AppendRecord {
             ..self
         }
     }
+
+    /// Get the body of this record.
+    pub fn body(&self) -> &[u8] {
+        &self.body
+    }
+
+    /// Get the headers of this record.
+    pub fn headers(&self) -> &[Header] {
+        &self.headers
+    }
+
+    /// Get the timestamp of this record.
+    pub fn timestamp(&self) -> Option<u64> {
+        self.timestamp
+    }
 }
 
 impl From<AppendRecord> for api::stream::proto::AppendRecord {
