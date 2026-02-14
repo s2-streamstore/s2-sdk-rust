@@ -737,7 +737,6 @@ impl BaseClient {
         client::RequestBuilder::get(url)
             .timeout(self.request_timeout)
             .headers(&self.default_headers)
-            .compression(self.compression)
     }
 
     pub fn post(&self, url: Url) -> client::RequestBuilder {
@@ -758,7 +757,6 @@ impl BaseClient {
         client::RequestBuilder::delete(url)
             .timeout(self.request_timeout)
             .headers(&self.default_headers)
-            .compression(self.compression)
     }
 
     pub async fn init_streaming(
