@@ -97,7 +97,7 @@ pub struct AppendSessionConfig {
 impl Default for AppendSessionConfig {
     fn default() -> Self {
         Self {
-            max_unacked_bytes: 10 * ONE_MIB,
+            max_unacked_bytes: 5 * ONE_MIB,
             max_unacked_batches: None,
         }
     }
@@ -113,7 +113,7 @@ impl AppendSessionConfig {
     ///
     /// **Note:** It must be at least `1MiB`.
     ///
-    /// Defaults to `10MiB`.
+    /// Defaults to `5MiB`.
     pub fn with_max_unacked_bytes(self, max_unacked_bytes: u32) -> Result<Self, ValidationError> {
         if max_unacked_bytes < ONE_MIB {
             return Err(format!("max_unacked_bytes must be at least {ONE_MIB}").into());
