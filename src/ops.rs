@@ -249,8 +249,8 @@ impl S2Basin {
             response
                 .streams
                 .into_iter()
-                .map(Into::into)
-                .collect::<Vec<_>>(),
+                .map(TryInto::try_into)
+                .collect::<Result<Vec<_>, _>>()?,
             response.has_more,
         ))
     }
@@ -292,7 +292,7 @@ impl S2Basin {
             .client
             .create_stream(request, idempotency_token)
             .await?;
-        Ok(info.into())
+        Ok(info.try_into()?)
     }
 
     /// Get stream configuration.
