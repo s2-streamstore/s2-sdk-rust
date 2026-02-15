@@ -288,7 +288,7 @@ async fn issue_access_token_with_expiration_and_auto_prefix_streams() -> Result<
     let token_id: AccessTokenId = uuid().parse().expect("valid token id");
 
     let expires_at: S2DateTime =
-        (time::OffsetDateTime::now_utc() + time::Duration::hours(1)).into();
+        (time::OffsetDateTime::now_utc() + time::Duration::hours(1)).try_into()?;
 
     let token = s2
         .issue_access_token(

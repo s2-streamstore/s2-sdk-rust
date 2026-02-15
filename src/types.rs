@@ -58,13 +58,17 @@ use crate::api::{ApiError, ApiErrorResponse};
 ///
 /// It can be created in either of the following ways:
 /// - Parse an RFC 3339 datetime string using [`FromStr`] or [`str::parse`].
-/// - Convert from [`time::OffsetDateTime`] using [`From`]/[`Into`].
+/// - Convert from [`time::OffsetDateTime`] using [`TryFrom`]/[`TryInto`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct S2DateTime(time::OffsetDateTime);
 
-impl From<time::OffsetDateTime> for S2DateTime {
-    fn from(dt: time::OffsetDateTime) -> Self {
-        Self(dt)
+impl TryFrom<time::OffsetDateTime> for S2DateTime {
+    type Error = ValidationError;
+
+    fn try_from(dt: time::OffsetDateTime) -> Result<Self, Self::Error> {
+        dt.format(&time::format_description::well_known::Rfc3339)
+            .map_err(|e| ValidationError(format!("not a valid RFC 3339 datetime: {e}")))?;
+        Ok(Self(dt))
     }
 }
 
@@ -80,7 +84,7 @@ impl FromStr for S2DateTime {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         time::OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339)
             .map(Self)
-            .map_err(|e| ValidationError(format!("invalid datetime: {e}")))
+            .map_err(|e| ValidationError(format!("not a valid RFC 3339 datetime: {e}")))
     }
 }
 
@@ -1420,7 +1424,8 @@ impl TryFrom<api::access::AccessTokenInfo> for AccessTokenInfo {
     fn try_from(value: api::access::AccessTokenInfo) -> Result<Self, Self::Error> {
         let expires_at = value
             .expires_at
-            .map(Into::into)
+            .map(S2DateTime::try_from)
+            .transpose()?
             .ok_or_else(|| ValidationError::from("missing expires_at"))?;
         Ok(Self {
             id: value.id,
@@ -2516,13 +2521,15 @@ pub struct StreamInfo {
     pub deleted_at: Option<S2DateTime>,
 }
 
-impl From<api::stream::StreamInfo> for StreamInfo {
-    fn from(value: api::stream::StreamInfo) -> Self {
-        Self {
+impl TryFrom<api::stream::StreamInfo> for StreamInfo {
+    type Error = ValidationError;
+
+    fn try_from(value: api::stream::StreamInfo) -> Result<Self, Self::Error> {
+        Ok(Self {
             name: value.name,
-            created_at: value.created_at.into(),
-            deleted_at: value.deleted_at.map(Into::into),
-        }
+            created_at: value.created_at.try_into()?,
+            deleted_at: value.deleted_at.map(S2DateTime::try_from).transpose()?,
+        })
     }
 }
 
